@@ -58,7 +58,7 @@ _Yes.  NAVFIT-Edge opens and runs in your browser and saves summary groups where
 _Nope, sorry about that.
 _
 ### I found a bug!
-_Thanks! Send me an email at _____________.  Try to include information that will help me fix the problem such as a screenshot, what operating system you're running, what browser your using, what function gave you problems, etc.  If you're savvy enough, you can also contribute on GitHub._
+_Thanks! Send me an email at bryce.r.jameson.mil@us.navy.mil.  Try to include information that will help me fix the problem such as a screenshot, what operating system you're running, what browser your using, what function gave you problems, etc.  If you're savvy enough, you can also contribute on GitHub._
 
 ### This is helpful.  Why don't you build a true electronic EVAL?
 _Maybe.  I could use a job after I retire…_
