@@ -55,8 +55,8 @@ _Yes.  A copy of NAVFIT-Edge requires no internet connection.  Just a browser li
 _Yes.  NAVFIT-Edge opens and runs in your browser and saves summary groups wherever you tell Windows to save them, such as My Documents, your OneDrive, your shared drive, or whatever you want.  The saved files (not the PDFs) are SHA-256 encrypted (DOW standard) and only readable using NAVFIT-Edge.  You can also add protection using an optional encrypted passphrase, similar to the way SAFE works for file dropoffs._
 
 ### I can't remember my passphrase!  Is there a backdoor to get my file open?
-_Nope, sorry about that.
-_
+_Nope, sorry about that._
+
 ### I found a bug!
 _Thanks! Send me an email at bryce.r.jameson.mil@us.navy.mil.  Try to include information that will help me fix the problem such as a screenshot, what operating system you're running, what browser your using, what function gave you problems, etc.  If you're savvy enough, you can also contribute on GitHub._
 
