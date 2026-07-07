@@ -675,6 +675,18 @@ input, textarea, select { font-family: inherit; }
   background: var(--amber-400);
 }
 
+.sidebar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--navy-600);
+  color: var(--navy-300);
+}
+
+.sidebar-btn:disabled:hover {
+  background: var(--navy-600);
+  color: var(--navy-300);
+}
+
 /* ── Editor Main ── */
 .editor-main {
   flex: 1;
@@ -1140,8 +1152,8 @@ input, textarea, select { font-family: inherit; }
   overflow-y: auto;
   background: var(--gray-200);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   padding: var(--sp-8);
 }
 
@@ -1745,11 +1757,11 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
 
         <!-- Actions -->
         <div class="sidebar-actions">
-          <button class="sidebar-btn primary" id="btn-save-file">Save File</button>
+          <button class="sidebar-btn" id="btn-save-as">Save As…</button>
+          <button class="sidebar-btn primary" id="btn-quicksave" disabled>Quicksave</button>
           <button class="sidebar-btn" id="btn-grade-review">Grade/Ranking Review</button>
           <button class="sidebar-btn" id="btn-print-preview">Print Preview</button>
           <button class="sidebar-btn" id="btn-import-reports">Import Reports</button>
-          <button class="sidebar-btn" id="btn-export-accdb">Export NAVFIT98A</button>
         </div>
       </aside>
 
@@ -1806,6 +1818,9 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
           <strong>Download PDF</strong> produces an exact, pixel-precise PDF using measured form coordinates — recommended for submission.
           <strong>Print Preview</strong> uses the browser's HTML renderer.
         </p>
+        <label class="checkbox-item" style="margin-bottom:4px">
+          <input type="checkbox" id="chk-omit-rs-ssn"> Omit Reporting Senior's SSN from PDF
+        </label>
         <div style="border-top:1px solid var(--border-color);padding-top:10px">
           <div class="section-label" style="margin-bottom:8px">Download PDF</div>
           <button class="btn-primary" id="btn-download-pdf-current" style="width:100%;padding:9px;margin-bottom:6px">
@@ -1814,10 +1829,10 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
           <button class="btn-secondary" id="btn-download-pdf-all" style="width:100%;padding:9px;margin-bottom:6px">
             ⬇ Download PDF — All Reports in Group
           </button>
-          <button class="btn-secondary" id="btn-download-pdf-all-summary" style="width:100%;padding:9px;margin-bottom:6px;opacity:0.6" disabled title="Coming soon">
+          <button class="btn-secondary" id="btn-download-pdf-all-summary" style="width:100%;padding:9px;margin-bottom:6px">
             ⬇ Download PDF — All Reports + Summary Letter
           </button>
-          <button class="btn-secondary" id="btn-download-pdf-summary-only" style="width:100%;padding:9px;opacity:0.6" disabled title="Coming soon">
+          <button class="btn-secondary" id="btn-download-pdf-summary-only" style="width:100%;padding:9px">
             ⬇ Download PDF — Summary Letter Only
           </button>
         </div>
@@ -2061,6 +2076,62 @@ const NavEvalCrypto = (() => {
   return { encrypt, decrypt, saveFile, readFile, exportForNavfit, FILE_HEADER };
 })();
 
+// Persists FileSystemFileHandle objects across page reloads (IndexedDB —
+// handles are structured-cloneable but not JSON-serializable, so localStorage
+// can't hold them). Backs true Quicksave and durable Recent-Files reopening.
+// Chromium-only; isAvailable() gates every other feature that depends on it.
+const HandleStore = (() => {
+  const DB_NAME = 'navfitedge_handles_v1';
+  const STORE   = 'handles';
+  let _dbPromise = null;
+
+  const _apiAvailable = typeof window !== 'undefined' &&
+                        'indexedDB' in window &&
+                        typeof window.showSaveFilePicker === 'function';
+
+  function _openDB() {
+    if (_dbPromise) return _dbPromise;
+    _dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => reject(req.error);
+    });
+    return _dbPromise;
+  }
+
+  async function set(id, handle) {
+    const db = await _openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(handle, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    });
+  }
+
+  async function get(id) {
+    const db = await _openDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror   = () => reject(req.error);
+    });
+  }
+
+  async function del(id) {
+    const db = await _openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    });
+  }
+
+  return { set, get, delete: del, isAvailable: () => _apiAvailable };
+})();
+
 
 
 
@@ -2153,7 +2224,7 @@ const DataModel = (() => {
     b52:  { chars: 33,  lines: 1,               forms: ['EVAL'] },
     // CHIEFEVAL-specific
     b20_cpo: { chars: 18, lines: 1,             forms: ['CHIEFEVAL'] },
-    b40_cpo: { chars: 87, lines: 4, total: 346, forms: ['CHIEFEVAL'] },
+    b40_cpo: { chars: 87, lines: 6, total: 522, forms: ['CHIEFEVAL'] },
     b46_cpo: { chars: 20, lines: 1,             forms: ['CHIEFEVAL'] },
     b47_cpo: { chars: 20, lines: 1,             forms: ['CHIEFEVAL'] },
     b51_cpo: { chars: 30, lines: 5, total: 150, forms: ['CHIEFEVAL'] },
@@ -2254,10 +2325,10 @@ const DataModel = (() => {
       _naveval:true, _version:'0.1.0',
       _created:new Date().toISOString(), _modified:new Date().toISOString(),
       reportType,
-      rsInfo:{b22:'',b23:'',b24:'',b25:'',b26:'',b27:''},
+      rsInfo:{b22:'',b23:'',b24:'',b25:'',b26:'',b27:'',rsAddress:''},
       reports:[createDefaultReport(reportType)],
       activeIndex:0,
-      isicAddress:'', onTimeSubmission:null
+      isicUIC:'', isicAddress:'', email:'', phone:'', onTimeSubmission:null
     };
   }
 
@@ -2443,7 +2514,7 @@ const Validator = (() => {
 
   function validate(report, group) {
     const errors=[], warnings=[];
-    const sectionErrors={admin:[],duties:[],counseling:[],traits:[],promotion:[],comments:[],summary:[]};
+    const sectionErrors={admin:[],duties:[],counseling:[],traits:[],promotion:[],comments:[],summary:[],sumletter:[]};
     const addE=(s,f,m,b)=>{ const e={section:s,field:f,message:m,blockRef:b}; errors.push(e); (sectionErrors[s]||[]).push(e); };
     const addW=(s,f,m,b)=>warnings.push({section:s,field:f,message:m,blockRef:b});
 
@@ -2656,6 +2727,11 @@ const Validator = (() => {
       }
     }
 
+    // ── Summary Letter ─────────────────────────────────────────
+    if (group?.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(group.email.trim())) {
+      addE('sumletter','email','E-Mail must be a valid email address.','EMAIL');
+    }
+
     return {errors,warnings,sectionErrors};
   }
 
@@ -2830,6 +2906,7 @@ const FormRenderer = (() => {
     {id:'careers',  label:'Career Recs'},
     {id:'comments', label:'Comments'},
     {id:'promosg',  label:'Promo Rec & Summary'},
+    {id:'sumletter',label:'Summary Letter Info'},
   ];
 
   function renderHorizNav() {
@@ -2857,7 +2934,8 @@ const FormRenderer = (() => {
     const main=document.getElementById('editor-main');
     if (!main) return;
     const fns={admin:renderAdmin,duties:renderDuties,counseling:renderCounseling,
-      traits:renderTraits,careers:renderCareers,comments:renderComments,promosg:renderPromoSG};
+      traits:renderTraits,careers:renderCareers,comments:renderComments,promosg:renderPromoSG,
+      sumletter:renderSumLetterInfo};
     main.innerHTML=`<div class="form-section active" id="section-${id}">${(fns[id]||renderAdmin)(_report,_group)}</div>`;
     bindFields();
     validateAndHighlight();
@@ -2873,7 +2951,7 @@ const FormRenderer = (() => {
     if (!main) return;
 
     // Fields that permit lowercase (free-text narrative)
-    const LOWERCASE_OK_FIELDS = ['b28','b29','comments','qualifications'];
+    const LOWERCASE_OK_FIELDS = ['b28','b29','comments','qualifications','email'];
 
     main.querySelectorAll('[data-field]').forEach(el=>{
       // Radio inputs fire 'change'; SELECT fires 'change'; all others fire 'input'
@@ -3013,9 +3091,10 @@ const FormRenderer = (() => {
     const commentsTa = document.getElementById('comments-textarea');
     if (commentsTa) {
       commentsTa.addEventListener('input', () => {
+        const rt       = _report.reportType;
         const font     = (_report.commentsFont || '10');
-        const maxLine  = font === '11' ? 84 : 92;
-        const maxLines = 18;
+        const maxLine  = rt === 'CHIEFEVAL' ? 87 : (font === '11' ? 84 : 92);
+        const maxLines = rt === 'CHIEFEVAL' ? 6  : 18;
         const sel      = commentsTa.selectionStart;
         const raw      = commentsTa.value;
 
@@ -3113,6 +3192,14 @@ const FormRenderer = (() => {
     }
     else if (field==='concurrentRS') _report.concurrentRS[subkey]=value;
     else if (field==='summaryGroup') _report.summaryGroup[subkey]=value;
+    else if (field==='rsAddressGroup') {
+      // RS Address propagates to ALL reports in group, like B22-27 (#3)
+      _report.rsAddress=value;
+      _group.reports.forEach(r => { r.rsAddress=value; });
+      if (!_group.rsInfo) _group.rsInfo={};
+      _group.rsInfo.rsAddress=value;
+    }
+    else if (field==='group') _group[subkey]=value;
     else _report[field]=value;
     notifyChange();
   }
@@ -3703,7 +3790,7 @@ function renderPromotion(report,group) {
   function renderComments(report,group) {
     const rt=report.reportType;
     const blockRef=rt==='FITREP'?'B41':rt==='CHIEFEVAL'?'B40':'B43';
-    const maxChars=rt==='CHIEFEVAL'?346:1656;
+    const maxChars=rt==='CHIEFEVAL'?522:((report.commentsFont||'10')==='11'?1512:1656);
     const len=(report.comments||'').length;
 
     let qualBlock='';
@@ -3754,9 +3841,9 @@ ${rt!=='CHIEFEVAL'?`
         </span>
       </label>
       <textarea class="field-input field-textarea" id="comments-textarea" data-field="comments" data-subkey="comments"
-        rows="18" style="font-size:${ rt==='CHIEFEVAL' ? '14' : (report.commentsFont||'10')==='11' ? '15' : '14' }px;line-height:1.4;font-family:'Courier New',Courier,monospace;overflow-x:auto;overflow-y:hidden;resize:none;white-space:pre" data-maxchars="${maxChars}"
+        rows="${rt==='CHIEFEVAL'?6:18}" style="font-size:${ rt==='CHIEFEVAL' ? '14' : (report.commentsFont||'10')==='11' ? '15' : '14' }px;line-height:1.4;font-family:'Courier New',Courier,monospace;overflow-x:auto;overflow-y:hidden;resize:none;white-space:pre" data-maxchars="${maxChars}"
         data-validate="b43-lines">${escHtml(report.comments||'')}</textarea>
-      <div class="field-hint">${rt==='CHIEFEVAL'?'4 lines × 87 chars':'18 lines — 10pt: 92 chars/line · 11pt: 84 chars/line'}</div>
+      <div class="field-hint">${rt==='CHIEFEVAL'?'6 lines × 87 chars':'18 lines — 10pt: 92 chars/line · 11pt: 84 chars/line'}</div>
     </div>
     ${qualBlock}`;
   }
@@ -3838,6 +3925,34 @@ ${rt!=='CHIEFEVAL'?`
       </div>
     </div>
     ${chiefRankBlock}`;
+  }
+
+  function renderSumLetterInfo(report,group) {
+    const ot = group.onTimeSubmission;
+    return `
+    <div class="section-title">Summary Letter Info</div>
+    ${infoCard('These fields are group-wide — they apply to the whole Reporting Senior summary group and feed the NAVPERS 1610/1 Summary Letter, not the individual report.')}
+    ${divider('Reporting Senior Address')}
+    ${ta('sumletter-rsaddr','Reporting Senior Address',group.rsInfo?.rsAddress||'',4,'rsAddressGroup','rsAddress',150,'Shared across every report in this group.')}
+    ${divider('ISIC')}
+    <div class="field-row field-row-2">
+      ${fld('sumletter-isicuic','ISIC UIC','text',group.isicUIC||'','','group','isicUIC',6)}
+    </div>
+    ${ta('sumletter-isicaddr','ISIC Address',group.isicAddress||'',4,'group','isicAddress',150,'')}
+    ${divider('Contact')}
+    <div class="field-row field-row-2">
+      ${fld('sumletter-email','E-Mail','email',group.email||'','name@domain.mil','group','email',60)}
+      ${fld('sumletter-phone','Phone','text',group.phone||'','555-555-5555','group','phone',20)}
+    </div>
+    ${divider('Report Submitted On Time')}
+    <div class="field-group">
+      <div class="radio-stack" style="flex-direction:row;gap:20px">
+        <label class="checkbox-item"><input type="radio" name="sumletter-ontime" value="yes"
+          data-radio="group" data-subkey="onTimeSubmission" ${ot==='yes'?'checked':''}> Yes</label>
+        <label class="checkbox-item"><input type="radio" name="sumletter-ontime" value="no"
+          data-radio="group" data-subkey="onTimeSubmission" ${ot==='no'?'checked':''}> No</label>
+      </div>
+    </div>`;
   }
 
   function renderPromoSG(report,group) {
@@ -4113,1078 +4228,84 @@ ${rt!=='CHIEFEVAL'?`
   };
 })();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === print-renderer.js === */
 /**
- * NavEval Print Renderer v3 — Pixel-precise reproduction
+ * NavEval Print Renderer
  *
- * Coordinates extracted via pdfplumber from official blank forms:
- *   NAVPERS 1616/26 REV 05-2025  (EVAL E1-E6)
- *   NAVPERS 1610/2  REV 05-2025  (FITREP W2-O6)
- *
- * All measurements verified against PDF source at 72dpi.
- * Page: 8.5" × 11.0" = 612pt × 792pt
- * Form bounds: left=0.240" right=7.850" (width=7.610")
- * Print at 100% scale, no scaling, no browser headers/footers.
- *
- * EXACT COLUMN POSITIONS (in inches from page left):
- * ┌──────────────────────────────────────────────────────────────────┐
- * Row 1 (Name/Rate/Desig/SSN):                                       │
- *   B1 Name:    0.240–4.020  B2 Rate: 4.020–4.950                   │
- *   B3 Desig:   4.950–6.330  B4 SSN:  6.330–7.850                   │
- * Row 2 (Duty/UIC/Ship/PromStatus/Date):                             │
- *   B5 Duty:    0.240–2.130  B6 UIC:  2.130–3.040                   │
- *   B7 Ship:    3.040–5.440  B8 Prom: 5.440–6.330  B9: 6.330–7.850 │
- *   (Checkboxes at x=1.02–1.22, 2.81–3.01, 3.31–3.51, 5.20–5.40,  │
- *    5.71–5.91, 7.62–7.82 — 0.170" tall at y=±0.050" from row top) │
- * Row 3 (Occasion/Period):                                            │
- *   Occasion:   0.240–4.950  Period: 4.950–7.620   Frocking: 7.620  │
- * Row 4 (NOB/TypeOfReport/Physical/Billet):                         │
- *   NOB:        0.240–1.250  Type:   1.250–4.950                     │
- *   Physical:   4.950–6.330  Billet: 6.330–7.850                    │
- * Row 5 (RS Name/Grade/Desig/Title/UIC/SSN):                        │
- *   B22 RSName: 0.240–2.330  B23 Gr: 2.330–3.030  B24: 3.030–3.740 │
- *   B25 Title:  3.740–5.570  B26 UIC:5.570–6.330  B27: 6.330–7.850 │
- * Row 6 (Command Employment): 0.240–7.850  h=1.170"                 │
- * Row 7 (Primary Duties): 0.240–7.850  h=1.170"                     │
- *   Duty abbr box: 0.240–1.250  Duties text: 1.250–7.850            │
- * Counseling Note + B30/31/32: y=3.540"→...                         │
- * Trait table: starts at y=3.860"                                     │
- *   Col: Traits: 0.240–1.250  1.0: 1.250–3.040  2.0: 3.040–3.540   │
- *        3.0: 3.540–5.440     4.0: 5.440–5.940  5.0: 5.940–7.850   │
- * Traits 33-37 on page 1 each: h=1.160" (y=4.160,5.320,6.500,7.160,8.350)│
- * Traits 38-39 on page 2: same column structure                      │
- * ──────────────────────────────────────────────────────────────────
- * FITREP identical structure to EVAL (same coordinates).              │
- * └──────────────────────────────────────────────────────────────────┘
+ * Renders the on-screen Print Preview as a genuine visual twin of the real
+ * PDF: it calls PDFGenerator.build() (the exact same overlay/drawBlankForm
+ * code the PDF download path uses) with an HtmlWriter instead of a
+ * PDFWriter, so the preview is pixel-coordinate-identical to the PDF by
+ * construction, and fonts are the same real Times New Roman/Courier New
+ * (via FontLoader) with the same fallback the PDF path already has.
  */
-
 const PrintRenderer = (() => {
 
-  // ── Constants (all in inches, converted to px at 96dpi for screen) ─
-  // We render at 96px/in on screen; browser prints at actual size
-  // Use percentage-based layout within an 8.5"×11" container for accuracy
-
-  const IN = 96; // px per inch at screen resolution
-
-  // Form geometry (inches)
-  const F = {
-    pageW: 8.5, pageH: 11.0,
-    left: 0.240, right: 7.850,
-    top:  0.110,  // title top
-    formTop: 0.240, // first row top border (estimated; title is above)
-
-    // Row top borders (major horizontal lines, y from page top)
-    rows: {
-      titleTop:   0.110,
-      r1top:      0.240, // Name row top (implied)
-      r1bot:      0.650, // = row 2 top
-      r2bot:      1.810,
-      r3bot:      2.980,
-      r4bot:      3.540, // counseling instruction line
-      r5bot:      3.860, // trait header starts here
-      // Traits: each 1.16" tall on page 1
-      t33bot:     5.320, // trait 33 bottom (= row top + 0.65 + 4*1.16 = ?)
-      // Actually from data: major horizontal at:
-      // 0.650, 1.810, 2.980 = row bottoms for admin rows
-      // 3.540 = counseling row bottom
-      // 3.860 (implied top of trait scale, from text at 3.883)
-      // Trait rows: 4.160, 5.320, 6.500, 7.160(?), 7.180, 7.490, 8.350, 9.010, 9.360
-      // Wait — from data:
-      // 4.160 = top of trait 33 bottom? No — trait 33 STARTS at 3.860 (after header)
-      // ...
-    }
-  };
-
-  // Verified vertical column positions (x, from page left, in inches)
-  const C = {
-    formLeft:  0.240,
-    formRight: 7.850,
-    // Row 1: Name / Rate / Desig / SSN
-    r1_b2:   4.020,
-    r1_b3:   4.950,
-    r1_b4:   6.330,
-    // Row 2: Duty / UIC / Ship / PromStatus / Date
-    r2_b6:   2.130,
-    r2_b7:   3.040,
-    r2_b8:   5.440,
-    r2_b9:   6.330,
-    // ACT/TAR/INACT/AT checkboxes (left edge of each pair)
-    cb_act:   1.020, cb_actR:  1.220,
-    cb_tar:   2.810, cb_tarR:  3.010,
-    cb_inact: 3.310, cb_inactR:3.510,
-    cb_at:    5.200, cb_atR:   5.400,
-    cb_at2:   5.710, cb_at2R:  5.910,
-    cb_at3:   7.620, cb_at3R:  7.820,
-    // Row 3: Occasion / Period / Frocking
-    r3_period: 4.950,
-    r3_frk:    7.620,
-    // Row 4: NOB / TypeReport / Physical / Billet
-    r4_type:   1.250,
-    r4_phys:   4.950,
-    r4_billet: 6.330,
-    // Row 5: RS columns
-    r5_b23:   2.330,
-    r5_b24:   3.030,
-    r5_b25:   3.740,
-    r5_b26:   5.570,
-    r5_b27:   6.330,
-    // Trait table columns
-    tr_10:    1.250,
-    tr_20:    3.040,
-    tr_25:    3.540,
-    tr_30:    3.540,
-    tr_40:    5.440,
-    tr_45:    5.940,
-    tr_50:    5.940,
-    // Page 2 promotion table
-    p2_promo_nob:  1.120,
-    p2_promo_sp:   1.830,
-    p2_promo_prog: 2.530,
-    p2_promo_p:    3.240,
-    p2_promo_mp:   4.650,
-    p2_promo_ep:   5.350,
-    p2_b47ret:     5.440,
-    p2_b48rs:      5.440,
-    // Page 2 sig rows
-    p2_sig_mid:    4.250,
-  };
-
-  // ── CSS ──────────────────────────────────────────────────────────
-  const FORM_CSS = `
-.nf-wrap { background: #ccc; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
-.nf-page {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 7pt;
-  color: #000;
-  background: #fff;
-  width: 8.5in;
-  min-height: 11in;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  const HTML_PAGE_CSS = `
+.nf-html-page {
   position: relative;
-  overflow: hidden;
-  box-sizing: border-box;
-  page-break-after: always;
-}
-/* All text content uses Arial at 7pt to match the official form */
-.nf-page * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
-
-/* Form title (above first border) */
-.nf-title {
-  position: absolute;
-  left: 0.24in;
-  top: 0.10in;
-  font-size: 8pt;
-  font-weight: bold;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-/* Outer form border */
-.nf-border {
-  position: absolute;
-  left: 0.240in;
-  right: 0.650in; /* = 8.5 - 7.85 */
-  top: 0.240in;
-  bottom: 0.320in; /* = 11 - 10.69 */
-  border: 0.01in solid #000;
-  pointer-events: none;
-}
-
-/* Cell: positioned absolutely within the page */
-.nf-cell {
-  position: absolute;
-  border: none;
-  overflow: hidden;
-  padding: 1pt 2pt;
-}
-
-/* Cell borders — we draw them individually for precision */
-.bb { border-bottom: 0.75pt solid #000; }
-.bt { border-top:    0.75pt solid #000; }
-.bl { border-left:   0.75pt solid #000; }
-.br { border-right:  0.75pt solid #000; }
-
-.nf-label {
-  font-size: 5.5pt;
-  font-weight: bold;
-  display: block;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.nf-value {
-  font-size: 7pt;
-  display: block;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: Arial, Helvetica, sans-serif;
-}
-.nf-value.wrap {
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow: visible;
-}
-.nf-value.comments {
-  font-size: 9pt;
-  font-family: Arial, Helvetica, sans-serif;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.nf-value.mono {
-  font-family: 'Courier New', Courier, monospace;
-}
-
-/* Checkbox element */
-.nf-cb {
-  display: inline-block;
-  width: 0.175in;
-  height: 0.175in;
-  border: 0.75pt solid #000;
-  vertical-align: middle;
-  text-align: center;
-  line-height: 0.175in;
-  font-size: 9pt;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-
-/* Trait column header */
-.nf-th {
-  font-size: 5.5pt;
-  font-weight: bold;
-  text-align: center;
-  line-height: 1.2;
-}
-
-/* Section header bar (black background) */
-.nf-header-bar {
-  background: #000;
-  color: #fff;
-  font-size: 6.5pt;
-  font-weight: bold;
-  text-align: center;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 1pt 0;
-}
-
-/* Trait descriptor text */
-.nf-trait-desc {
-  font-size: 5.5pt;
-  line-height: 1.3;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* NOB checkbox area at bottom of each trait */
-.nf-nob-row {
-  position: absolute;
-  bottom: 2pt;
-  left: 4pt;
-  display: flex;
-  align-items: center;
-  gap: 3pt;
-  font-size: 5.5pt;
-}
-
-/* Grade squares — small boxes in 1.0 / 5.0 columns */
-.nf-grade-sq {
-  display: inline-block;
-  width: 0.14in;
-  height: 0.14in;
-  border: 0.75pt solid #000;
-  vertical-align: middle;
   background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  margin: 0 auto 20px;
+  overflow: hidden;
+  flex-shrink: 0;
+  page-break-after: always;
+  break-after: page;
 }
-.nf-grade-sq.filled { background: #000; }
-
-/* Promotion rec table */
-.nf-promo-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 6pt;
-  font-weight: bold;
-}
-.nf-promo-table td, .nf-promo-table th {
-  border: 0.5pt solid #000;
-  padding: 1pt 2pt;
-  text-align: center;
-  vertical-align: middle;
-  font-family: Arial, Helvetica, sans-serif;
-}
-.nf-promo-table .lbl { text-align: left; font-size: 5.5pt; }
-
-/* Footer text */
-.nf-footer {
-  position: absolute;
-  bottom: 0.12in;
-  left: 0.24in;
-  right: 0.65in;
-  font-size: 5pt;
-  display: flex;
-  justify-content: space-between;
-}
-
+.nf-html-page:last-child { page-break-after: auto; break-after: auto; }
 @media print {
-  body { margin: 0; padding: 0; background: white !important; }
-  .print-toolbar, .print-stage { padding: 0 !important; background: white !important; }
-  .nf-wrap { padding: 0 !important; background: white !important; gap: 0 !important; }
-  .nf-page { box-shadow: none !important; }
+  @page { size: letter; margin: 0; }
+  .nf-html-page {
+    box-shadow: none;
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 `;
 
-  // ── Helpers ───────────────────────────────────────────────────────
-  const e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-  // Convert inches to CSS string
-  const i = n => `${n}in`;
-
-  // Positioned cell
-  function cell(x0, y0, x1, y1, content, borders='', cls='') {
-    const w = x1 - x0;
-    const h = y1 - y0;
-    const bCls = borders.split('').map(b => ({t:'bt',b:'bb',l:'bl',r:'br'}[b]||'')).join(' ');
-    return `<div class="nf-cell ${bCls} ${cls}" style="left:${i(x0)};top:${i(y0)};width:${i(w)};height:${i(h)}">
-      ${content}
-    </div>`;
-  }
-
-  function lbl(text) { return `<span class="nf-label">${e(text)}</span>`; }
-  function val(text, mono=false) { return `<span class="nf-value${mono?' mono':''}">${e(text)}</span>`; }
-  function valWrap(text) { return `<span class="nf-value wrap">${e(text)}</span>`; }
-  function valComments(text) { return `<div class="nf-value comments">${e(text)}</div>`; }
-  function cb(checked) { return `<span class="nf-cb">${checked?'✓':''}</span>`; }
-  function gsq(grade, target) { return `<span class="nf-grade-sq${grade===target?' filled':''}"></span>`; }
-
-  // Small checkbox with label inline
-  function cbLabel(checked, label) {
-    return `<span style="display:inline-flex;align-items:center;gap:2pt;margin-right:5pt;font-size:5.5pt">${cb(checked)}<span>${e(label)}</span></span>`;
-  }
-
-  // Grade squares row for 1.0 and 5.0 columns (4 squares across)
-  function gradeSqRow(grade) {
-    const opts = ['1.0','2.0','3.0','4.0','5.0'];
-    return `<div style="display:flex;gap:2pt;position:absolute;bottom:2pt;left:2pt">
-      ${opts.map(g=>gsq(grade,g)).join('')}
-      <span style="font-size:6pt;font-family:'Courier New',monospace;font-weight:bold;margin-left:3pt">${e(grade||'')}</span>
-    </div>`;
-  }
-
-  // Full grade row (circles for OCR — matches printed form appearance)
-  function gradeCircles(grade) {
-    const opts = ['1.0','2.0','3.0','4.0','5.0'];
-    return `<div style="display:flex;gap:3pt;align-items:center;margin-top:2pt">
-      ${opts.map(g=>`<span style="display:inline-block;width:0.13in;height:0.13in;border-radius:50%;border:0.75pt solid #000;background:${grade===g?'#000':'#fff'};flex-shrink:0"></span>`).join('')}
-      <span style="font-size:6.5pt;font-weight:bold;font-family:'Courier New',monospace;margin-left:4pt">${e(grade||'')}</span>
-    </div>`;
-  }
-
-  // NOB checkbox row
-  function nobRow(grade) {
-    return `<div style="display:flex;align-items:center;gap:2pt;font-size:5.5pt">
-      ${cb(grade==='NOB')}<span>NOB</span>
-    </div>`;
-  }
-
-  // ── TRAIT TEXT CONTENT ────────────────────────────────────────────
-  // Exact text from the official forms
-  const EVAL_TRAITS = [
-    { num:33, name:'PROFESSIONAL\nKNOWLEDGE:\nTechnical knowledge\nand practical application',
-      t1:'-Marginal knowledge of rating, specialty or job\n-Unable to apply knowledge to solve routine problems\n-Fails to meet advancement/PQS requirements',
-      t3:'-Strong working knowledge of rating, specialty and job\n-Reliably applies knowledge to accomplish tasks\n-Meets advancement/PQS requirements on time',
-      t5:'-Recognized expert, sought out by all for technical knowledge\n-Uses knowledge to solve complex technical problems\n-Meets advancement/PQS requirements early/with distinction' },
-    { num:34, name:'QUALITY OF WORK:\nStandard of work;\nvalue of end product',
-      t1:'-Needs excessive supervision\n-Product frequently needs rework\n-Wasteful of resources',
-      t3:'-Needs little supervision\n-Produces quality work\n-Few errors and resulting rework\n-Uses resources efficiently',
-      t5:'-Needs no supervision\n-Always produces exceptional work\n-No rework required\n-Maximizes resources' },
-    { num:35, name:'COMMAND OR\nORGANIZATIONAL\nCLIMATE:\nContributions to growth\nand development,\nhuman worth,\ncommunity',
-      t1:'-Actions counter to Navy\'s retention goals\n-Uninvolved with mentoring or professional development of subordinates\n-Demonstrates behavior that stifles command or work center success\n-Actions counter to good order and discipline and negatively affect command/organizational climate',
-      t3:'-Positive leadership supports Navy\'s increased retention goals. Active in decreasing attrition\n-Actions adequately encourage/support subordinates\' personal/professional growth\n-Fosters an atmosphere conducive to personal and team success\n-Appreciates contributions of Navy personnel. Positive influence on command climate\n-Actions contribute to good order and discipline and positively improves command/organizational climate',
-      t5:'-Measurably contributes to Navy\'s increased retention and reduced attrition objectives\n-Proactive leader/exemplary mentor. Involved in subordinates\' personal development leading to professional growth/sustained commitment\n-Initiates support programs for military, civilian, and families to achieve exceptional command and organizational climate' },
-    { num:36, name:'MILITARY BEARING/\nCHARACTER:\nAppearance, conduct,\nphysical fitness,\nadherance to Navy Core\nValues',
-      t1:'-Consistent unsatisfactory appearance\n-Poor self-control; conduct resulting in disciplinary action\n-Unable to meet one or more physical readiness standards\n-Fails to live up to one or more Navy Core Values: HONOR, COURAGE, COMMITMENT',
-      t3:'-Excellent personal appearance\n-Excellent conduct; conscientiously complies with regulations\n-Complies with physical readiness program\n-Always lives up to Navy Core Values: HONOR, COURAGE, COMMITMENT',
-      t5:'-Exemplary personal appearance\n-A model of conduct, on and off duty\n-A leader in physical readiness\n-Exemplifies Navy Core Values: HONOR, COURAGE, COMMITMENT' },
-    { num:37, name:'PERSONAL JOB\nACCOMPLISHMENT/\nINITIATIVE:\nResponsibility, quantity\nof work',
-      t1:'-Needs prodding to attain qualification or finish job\n-Prioritizes poorly\n-Avoids responsibility',
-      t3:'-Productive and motivated. Completes tasks and qualifications fully and on time\n-Plans/prioritizes effectively\n-Reliable, dependable, willingly accepts responsibility',
-      t5:'-Energetic self-starter. Completes tasks or qualifications early, far better than expected\n-Plans/prioritizes wisely and with exceptional foresight\n-Seeks extra responsibility and takes on the hardest jobs' },
-    { num:38, name:'TEAMWORK:\nContributions to team\nbuilding and team\nresults',
-      t1:'-Creates conflict, unwilling to work with others, puts self above team\n-Fails to understand team goals or teamwork techniques\n-Does not take direction well',
-      t3:'-Reinforces others\' efforts, meets commitments to team\n-Understands goals, employs good teamwork techniques\n-Accepts and offers team direction',
-      t5:'-Team builder, inspires cooperation and progress\n-Focuses goals and techniques for teams\n-The best at accepting and offering team direction' },
-    { num:39, name:'LEADERSHIP:\nOrganizing, motivating\nand developing others\nto accomplish goals',
-      t1:'-Neglects growth/development or welfare of subordinates\n-Fails to organize; creates problems for subordinates\n-Does not set or achieve goals relevant to command\'s mission and vision\n-Lacks ability to cope with or tolerate stress\n-Inadequate communicator\n-Tolerates hazards or unsafe practices',
-      t3:'-Effectively stimulates growth/development in subordinates\n-Organizes successfully, implementing process improvements and efficiencies\n-Sets/achieves useful, realistic goals that support command\'s mission\n-Performs well in stressful situations\n-Clear, timely communicator\n-Ensures safety of personnel and equipment',
-      t5:'-Inspiring motivator and trainer; subordinates reach highest level of growth and development\n-Superb organizer, great foresight, develops process improvements and efficiencies\n-Leadership achievements dramatically further command\'s mission and vision\n-Perseveres through the toughest challenges and inspires others\n-Exceptional communicator\n-Makes subordinates safety-conscious, maintains top safety record\n-Constantly improves the personal and professional lives of others' }
-  ];
-
-  const FITREP_TRAITS = [
-    { num:33, name:'PROFESSIONAL\nEXPERTISE:\nProfessional knowledge\nproficiency, and\nqualifications',
-      t1:'-Lacks basic professional knowledge to perform effectively\n-Cannot apply basic skills\n-Fails to develop professionally or achieve timely qualifications',
-      t3:'-Has thorough professional knowledge\n-Competently performs both routine and new tasks\n-Steadily improves skills, achieves timely qualifications',
-      t5:'-Recognized expert, sought after to solve difficult problems\n-Exceptionally skilled, develops and executes innovative ideas\n-Achieves early/highly advanced qualifications' },
-    { num:34, name:'COMMAND OR\nORGANIZATIONAL\nCLIMATE:\nContributions to growth\nand development,\nhuman worth,\ncommunity',
-      t1:'-Actions counter to Navy\'s retention goals\n-Uninvolved with mentoring or professional development of subordinates\n-Demonstrates behavior that stifles command or work center success\n-Actions counter to good order and discipline and negatively affect command/organizational climate',
-      t3:'-Positive leadership supports Navy\'s increased retention goals. Active in decreasing attrition\n-Actions adequately encourage/support subordinates\' personal/professional growth\n-Fosters an atmosphere conducive to personal and team success\n-Appreciates contributions of Navy personnel. Positive influence on command climate\n-Actions contribute to good order and discipline and positively improves command/organizational climate',
-      t5:'-Measurably contributes to Navy\'s increased retention and reduced attrition objectives\n-Proactive leader/exemplary mentor. Involved in subordinates\' personal development leading to professional growth/sustained commitment\n-Initiates support programs for military, civilian, and families to achieve exceptional command and organizational climate' },
-    { num:35, name:'MILITARY BEARING/\nCHARACTER:\nAppearance, conduct,\nphysical fitness,\nadherance to Navy Core\nValues',
-      t1:'-Consistent unsatisfactory appearance\n-Unsatisfactory demeanor, or conduct\n-Unable to meet one or more physical readiness standards\n-Fails to live up to one or more Navy Core Values: HONOR, COURAGE, COMMITMENT',
-      t3:'-Excellent personal appearance\n-Excellent demeanor or conduct\n-Complies with physical readiness program\n-Always lives up to Navy Core Values: HONOR, COURAGE, COMMITMENT',
-      t5:'-Exemplary personal appearance\n-Exemplary Navy representative\n-A leader in physical readiness\n-Exemplifies Navy Core Values: HONOR, COURAGE, COMMITMENT' },
-    { num:36, name:'TEAMWORK:\nContributions toward\nteam building and\nteam results',
-      t1:'-Creates conflict, unwilling to work with others, puts self above team\n-Fails to understand team goals or teamwork techniques\n-Does not take direction well',
-      t3:'-Reinforces others\' efforts, meets personal commitments to team\n-Understands team goals, employs good teamwork techniques\n-Accepts and offers team direction',
-      t5:'-Team builder, inspires cooperation and progress\n-Talented mentor; focuses goals and techniques for team\n-The best at accepting and offering team direction' },
-    { num:37, name:'MISSION\nACCOMPLISHMENT\nAND INITIATIVE:\nTaking initiative,\nplanning/prioritizing,\nachieving mission',
-      t1:'-Lacks initiative\n-Unable to plan or prioritize\n-Does not maintain readiness\n-Fails to get the job done',
-      t3:'-Takes initiative to meet goals\n-Plans/prioritizes effectively\n-Maintains high state of readiness\n-Always gets the job done',
-      t5:'-Develops innovative ways to accomplish mission\n-Plans/prioritizes with exceptional skill and foresight\n-Maintains superior readiness, even with limited resources\n-Gets jobs done earlier and far better than expected' },
-    { num:38, name:'LEADERSHIP:\nOrganizing, motivating\nand developing others\nto accomplish goals',
-      t1:'-Neglects growth/development or welfare of subordinates\n-Fails to organize; creates problems for subordinates\n-Does not set or achieve goals relevant to command\'s mission and vision\n-Lacks ability to cope with or tolerate stress\n-Inadequate communicator\n-Tolerates hazards or unsafe practices',
-      t3:'-Effectively stimulates growth/development in subordinates\n-Organizes successfully, implementing process improvements and efficiencies\n-Sets/achieves useful, realistic goals that support command\'s mission\n-Performs well in stressful situations\n-Clear, timely communicator\n-Ensures safety of personnel and equipment',
-      t5:'-Inspiring motivator and trainer; subordinates reach highest level of growth and development\n-Superb organizer, great foresight, develops process improvements and efficiencies\n-Leadership achievements dramatically further command\'s mission and vision\n-Perseveres through the toughest challenges and inspires others\n-Exceptional communicator\n-Makes subordinates safety-conscious, maintains top safety record\n-Constantly improves the personal and professional lives of others' },
-    { num:39, name:'TACTICAL\nPERFORMANCE:\n(Warfare qualified\nofficers only)\nBasic and tactical\nemployment of weapons\nsystems',
-      t1:'-Has difficulty attaining qualification expected of the rank and experience\n-Has difficulty in ship(s), aircraft or weapons systems employment\n-Below others in knowledge and employment\n-Warfare skills in specialty are below standards compared to others of same rank and experience',
-      t3:'-Attains qualifications as required and expected\n-Capably employs ship(s), aircraft, or weapons systems. Equal to others in warfare knowledge and employment\n-Warfare skills in specialty equal to others of same rank and experience',
-      t5:'-Fully qualified at appropriate level for rank and experience\n-Innovatively employs ship(s), aircraft, or weapons systems. Well above others in warfare knowledge and employment\n-Warfare skills in specialty exceed others of same rank and experience' }
-  ];
-
-  // ── Trait table builder ───────────────────────────────────────────
-  // Exact column positions for trait table (from measured PDF)
-  // Left border=0.240, col breaks at: 1.250, 3.040, 3.540, 5.440, 5.940, 7.850
-  const TR = {
-    left:  0.240,
-    c10:   1.250, // left edge of 1.0 col
-    c20:   3.040, // left edge of 2.0 col
-    c25:   3.540, // left edge of 3.0 col (same as c20 right)
-    c30:   3.540,
-    c40:   5.440, // left edge of 4.0 col
-    c45:   5.940, // left edge of 5.0 col
-    c50:   5.940,
-    right: 7.850,
-  };
-
-  function traitTableHeader(yTop, yBot) {
-    const h = yBot - yTop;
-    return `
-      ${cell(TR.left, yTop, TR.c10,  yBot, `<div class="nf-th" style="margin-top:${h*0.3}in">PERFORMANCE<br>TRAITS</div>`, 'trb')}
-      ${cell(TR.c10,  yTop, TR.c20,  yBot, `<div class="nf-th"><span style="font-size:6pt">1.0*</span><br><span style="font-weight:normal">Below Standards</span></div>`, 'lrb')}
-      ${cell(TR.c20,  yTop, TR.c25,  yBot, `<div class="nf-th">2.0<br>Pro-<br>gressing</div>`, 'lrb')}
-      ${cell(TR.c25,  yTop, TR.c40,  yBot, `<div class="nf-th">3.0<br><span style="font-weight:normal">Meets Standards</span></div>`, 'lrb')}
-      ${cell(TR.c40,  yTop, TR.c45,  yBot, `<div class="nf-th">4.0<br>Above<br>Standards</div>`, 'lrb')}
-      ${cell(TR.c45,  yTop, TR.right, yBot, `<div class="nf-th">5.0<br><span style="font-weight:normal">Greatly Exceeds Standards</span></div>`, 'lb')}`;
-  }
-
-  function traitRow(t, grade, yTop, yBot) {
-    const h = yBot - yTop;
-    const TRAIT_H_MIN = 0.08; // inches of inner padding at bottom for grade marks
-    return `
-      ${cell(TR.left, yTop, TR.c10,  yBot,
-        `<div class="nf-trait-desc" style="padding-top:1pt"><strong>${e(t.num)}.</strong><br>${e(t.name)}</div>
-         <div class="nf-nob-row">${cb(grade==='NOB')}<span style="font-size:5.5pt">NOB</span></div>`,
-        'trb')}
-      ${cell(TR.c10,  yTop, TR.c20,  yBot,
-        `<div class="nf-trait-desc">${e(t.t1)}</div>${gradeSqRow(grade)}`,
-        'lrb')}
-      ${cell(TR.c20,  yTop, TR.c25,  yBot,
-        `<div style="text-align:center;font-size:5pt">-</div>`,
-        'lrb')}
-      ${cell(TR.c25,  yTop, TR.c40,  yBot,
-        `<div class="nf-trait-desc">${e(t.t3)}</div>`,
-        'lrb')}
-      ${cell(TR.c40,  yTop, TR.c45,  yBot,
-        `<div style="text-align:center;font-size:5pt">-</div>`,
-        'lrb')}
-      ${cell(TR.c45,  yTop, TR.right, yBot,
-        `<div class="nf-trait-desc">${e(t.t5)}</div>${gradeSqRow(grade)}`,
-        'lb')}`;
-  }
-
-  // ── Admin section (shared between EVAL and FITREP) ────────────────
-  function adminRows(bl, isEval, formTop) {
-    // Row 1: Name / Rate / Desig / SSN  (y=formTop to 0.650")
-    const R1T = formTop, R1B = 0.650;
-    // Row 2: Duty / UIC / Ship / PromStatus / Date  (0.650–1.810)
-    const R2T = 0.650, R2B = 1.810;
-    // Row 3: Occasion / Period / Frocking  (1.810–2.980)
-    const R3T = 1.810, R3B = 2.980;
-    // Row 4: NOB / Type / Physical / Billet  (2.980–3.540)
-    const R4T = 2.980, R4B = 3.540;
-    // Row 5: RS info  (3.540–*)
-    // But rows 5 depends on form — counseling note starts below RS
-    // RS row: 3.540 (from text B22 at y=1.683 → convert: page coords)
-    // Wait — from text data B22 label is at y=1.683 (page coords) NOT row coords
-    // The major horizontal at y=1.810 separates row2 (duty row) from row3 (occasion)
-    // B22 is at y=1.683 which is inside row 2 area
-    // Let me re-examine...
-    // Actually looking at text:
-    //   y=0.373: B1 Name, B2 Rate, B3 Desig, B4 SSN → ROW 1 (top=~0.110 bot=0.650)
-    //   y=0.662: B5 ACT/TAR/INACT, y=0.693: B6/7/8/9 → ROW 2 top (0.650)
-    //   y=0.993: Occasion, y=1.163: B10-13 → still in ROW 2 (or it's a subrow)
-    //   y=1.363: NOB, Type of Report, B20, B21 
-    //   y=1.683: B22 RS Name through B27
-    //   y=2.033: B28 Command Employment
-    //   y=2.693: B29 Primary Duties
-    //   y=3.533: Counseling note + B30/31/32
-    //   y=3.883: Performance Traits instruction
-    //   y=4.160: Trait header row (from major horizontal)
-    //
-    // So the rows are MUCH deeper than I thought!
-    // Let me reparse: major horizontals at 0.650, 1.810, 2.980, 3.540 are NOT
-    // the admin rows — those might be the OUTER borders of the TRAIT section.
-    //
-    // Actually re-reading: from vline data x=1.250 runs y=0.650→6.830
-    // This means x=1.250 is a column divider that spans from the TOP of the form
-    // all the way through the trait section (traits col left edge = 1.250")
-    //
-    // The form is more vertical than I initially assumed:
-    // - Title at top
-    // - Name/Rate/Desig/SSN in first row
-    // - Duty/UIC etc in a combined row
-    // Then trait table occupies most of page 1
-    //
-    // From text positions (y = distance from page top):
-    // 0.110: title
-    // 0.373: row1 labels (B1-B4) → row bottom ~0.650
-    // 0.662-0.993: multiple sub-rows within a section (duty status + occasion)
-    // 1.363-1.683: another sub-section (NOB/Type + RS)
-    // 2.033: B28
-    // 2.693: B29
-    // 3.533: counseling
-    // 3.883: trait instr
-    // 4.160+: traits
-
-    // The major horizontal lines at 0.650, 1.810, etc. are NOT row dividers
-    // in the traditional sense. Looking more carefully at the vline x=1.250
-    // running y=0.650→6.830, this is the LEFT edge of the trait content columns
-    // within the trait TABLE — it starts where the trait table starts.
-    
-    // The overall admin section occupies y=0.240→3.860 (estimated)
-    // Let me just use the TEXT positions as ground truth for label placement
-    // and draw lines based on the actual line positions extracted.
-
-    // From the actual horizontal line data, the key lines are:
-    // y=0.650" → bottom of row 1 (Name/Rate/Desig/SSN)
-    // y=1.810" → (this isn't right for admin...need to reconsider)
-    
-    // REVISED UNDERSTANDING from looking at screenshot + coordinates together:
-    // The form on page 1 has these horizontal bands:
-    // 0.110": title (EVALUATION REPORT & COUNSELING RECORD)
-    // 0.240"→0.650": Row 1 - Name, Rate, Desig, SSN
-    // 0.650"→?: Row 2 - Duty status (with 6 checkboxes)
-    // ...but the major horizontal at 1.810 → that's something else
-    
-    // Actually — from the screenshot analysis:
-    // EVAL page 1 shows traits starting about halfway down page
-    // Each trait block is ~1.16" tall (from major h-lines at 4.160, 5.320 etc)
-    // That means traits are at y=3.860"→10.370" = 6.5" for 5 traits = 1.30" each
-    // But measured 1.16"...
-    
-    // SIMPLEST APPROACH: Use the text y-positions directly + line positions
-    // and reproduce the form as a TABLE using <table> with exact sizes
-    // This is more reliable than absolute positioning for matching print output
-
-    const dutyStatus = bl.b5 || '';
-    return `
-      <!-- Row 1: Name / Rate / Desig / SSN -->
-      <tr style="height:0.41in">
-        <td colspan="8" style="border-right:0.75pt solid #000">
-          ${lbl('1. Name (Last, First MI Suffix)')}${val(bl.b1)}
-        </td>
-        <td colspan="3" style="border-right:0.75pt solid #000">
-          ${lbl('2. Rate/Rating')}${val(bl.b2)}
-        </td>
-        <td colspan="3" style="border-right:0.75pt solid #000">
-          ${lbl('3. Desig')}${val(bl.b3)}
-        </td>
-        <td colspan="3">
-          ${lbl('4. SSN')}${val(bl.b4?DataModel.formatSSN(bl.b4):'')}
-        </td>
-      </tr>
-      <!-- Row 2: Duty Status / UIC / Ship / PromStatus / Date -->
-      <tr style="height:0.55in">
-        <td colspan="5" style="border-right:0.75pt solid #000;vertical-align:top;padding:1pt 2pt">
-          ${lbl('5.')}
-          <div style="display:flex;flex-wrap:wrap;gap:4pt;margin-top:2pt;font-size:5.5pt">
-            ${cbLabel(dutyStatus==='ACT','ACT')}
-            ${cbLabel(dutyStatus==='TAR','TAR')}
-            ${cbLabel(dutyStatus==='INACT','INACT')}
-            ${cbLabel(dutyStatus==='AT/ADOS','AT/ADSW/265')}
-          </div>
-        </td>
-        <td colspan="3" style="border-right:0.75pt solid #000">
-          ${lbl('6. UIC')}${val(bl.b6)}
-        </td>
-        <td colspan="9" style="border-right:0.75pt solid #000">
-          ${lbl('7. Ship/Station')}${val(bl.b7)}
-        </td>
-        <td colspan="5" style="border-right:0.75pt solid #000">
-          ${lbl('8. Promotion Status')}${val(bl.b8)}
-        </td>
-        <td colspan="4">
-          ${lbl('9. Date Reported')}${val(bl.b9)}
-        </td>
-      </tr>
-      <!-- Row 3: Occasion + Period of Report -->
-      <tr style="height:0.57in">
-        <td colspan="11" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${lbl('Occasion for Report')}
-          <div style="display:flex;flex-wrap:wrap;gap:3pt;margin-top:2pt;font-size:5.5pt">
-            ${cbLabel(bl.b10,'10. Periodic')}
-            <span style="font-size:5pt">Detachment</span>
-            ${cbLabel(bl.b11,'11. of Individual')}
-            ${cbLabel(bl.b12,isEval?'12. Frocking':'12. Reporting Senior')}
-            ${cbLabel(bl.b13,'13. Special')}
-          </div>
-        </td>
-        <td colspan="9" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${lbl('Period of Report')}
-          <div style="font-size:5.5pt;margin-top:2pt">14. From: <strong>${e(bl.b14||'')}</strong></div>
-          <div style="font-size:5.5pt;margin-top:2pt">15. To: <strong>${e(bl.b15||'')}</strong></div>
-        </td>
-        <td colspan="6">
-          ${lbl('Promotion/')}
-          <div style="font-size:5pt">Frocking</div>
-        </td>
-      </tr>
-      <!-- Row 4: NOB / Type / Physical / Billet -->
-      <tr style="height:0.46in">
-        <td colspan="2" style="border-right:0.75pt solid #000;vertical-align:top;font-size:5.5pt">
-          ${cbLabel(bl.b16,'16. Not Observed Report')}
-        </td>
-        <td colspan="9" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${lbl('Type of Report')}
-          <div style="display:flex;gap:6pt;font-size:5.5pt;margin-top:2pt">
-            ${cbLabel(bl.b17,'17. Regular')}
-            ${cbLabel(bl.b18,'18. Concurrent')}
-            ${!isEval?cbLabel(bl.b19,'19. OpsCdr'):''}
-          </div>
-        </td>
-        <td colspan="5" style="border-right:0.75pt solid #000">
-          ${lbl('20. Physical Readiness')}${val(bl.b20)}
-        </td>
-        <td colspan="10">
-          ${lbl('21. Billet Subcategory (if any)')}${val(bl.b21)}
-        </td>
-      </tr>
-      <!-- Row 5: RS Info -->
-      <tr style="height:0.35in">
-        <td colspan="5" style="border-right:0.75pt solid #000">
-          ${lbl('22. Reporting Senior (Last, FI MI)')}${val(bl.b22)}
-        </td>
-        <td colspan="3" style="border-right:0.75pt solid #000">
-          ${lbl('23. Grade')}${val(bl.b23)}
-        </td>
-        <td colspan="3" style="border-right:0.75pt solid #000">
-          ${lbl('24. Desig')}${val(bl.b24)}
-        </td>
-        <td colspan="6" style="border-right:0.75pt solid #000">
-          ${lbl('25. Title')}${val(bl.b25)}
-        </td>
-        <td colspan="3" style="border-right:0.75pt solid #000">
-          ${lbl('26. UIC')}${val(bl.b26)}
-        </td>
-        <td colspan="6">
-          ${lbl('27. SSN')}${val(bl.b27?DataModel.formatSSN(bl.b27):'')}
-        </td>
-      </tr>
-      <!-- Row 6: Command Employment -->
-      <tr style="height:0.77in">
-        <td colspan="26">
-          ${lbl('28. Command Employment and Command Achievements')}
-          <div class="nf-value wrap" style="font-size:7pt;margin-top:1pt">${e(bl.b28||'')}</div>
-        </td>
-      </tr>
-      <!-- Row 7: Primary Duties -->
-      <tr style="height:0.77in">
-        <td colspan="26" style="padding:0">
-          <div style="display:flex;height:100%">
-            <div style="border-right:0.75pt solid #000;min-width:1.01in;max-width:1.01in;padding:1pt 2pt">
-              ${lbl('29. Primary/Collateral/Watchstanding duties (Enter primary duty abbreviation in box)')}
-              <div style="border:0.75pt solid #000;min-height:0.22in;margin-top:2pt;padding:1pt;font-size:8.5pt;font-weight:bold;text-align:center;font-family:'Courier New',monospace">${e(bl.b29_abbr||'')}</div>
-            </div>
-            <div style="flex:1;padding:1pt 2pt">
-              <div class="nf-value wrap" style="font-size:7pt">${e(bl.b29||'')}</div>
-            </div>
-          </div>
-        </td>
-      </tr>
-      <!-- Counseling note + B30/31/32 -->
-      <tr style="height:0.45in">
-        <td colspan="26" style="padding:0">
-          <div style="border-bottom:0.5pt solid #000;padding:1pt 2pt;font-size:5.5pt">
-            For Mid-term Counseling Use. (When completing ${isEval?'EVAL':'FITREP'}, enter 30 and 31 from counseling worksheet and sign 32.)
-          </div>
-          <div style="display:flex;height:calc(100% - 0.2in)">
-            <div style="border-right:0.75pt solid #000;width:2.4in;padding:1pt 2pt">${lbl('30. Date Counseled')}${val(bl.b30)}</div>
-            <div style="border-right:0.75pt solid #000;flex:1;padding:1pt 2pt">${lbl('31. Counselor')}${val(bl.b31)}</div>
-            <div style="flex:1;padding:1pt 2pt">${lbl('32. Signature of Individual Counseled')}</div>
-          </div>
-        </td>
-      </tr>`;
-  }
-
-  // Trait instruction text
-  const TRAIT_INSTR = `PERFORMANCE TRAITS: 1.0 - Below standards/not progressing or UNSAT in any one standard; 2.0 - Does not yet meet all 3.0 standards; 3.0 - Meets all 3.0 standards; 4.0 - Exceeds most 3.0 standards; 5.0 - Meets overall criteria and most of the specific standards for 5.0. Standards are not all inclusive.`;
-
-  function traitInstrRow() {
-    return `<tr style="height:0.25in">
-      <td colspan="26" style="font-size:5.5pt;padding:1pt 2pt;vertical-align:top">${e(TRAIT_INSTR)}</td>
-    </tr>`;
-  }
-
-  function traitHeaderRow() {
-    return `<tr style="height:0.32in;background:#f5f5f5">
-      <td colspan="5" style="border-right:0.75pt solid #000"><div class="nf-th">PERFORMANCE<br>TRAITS</div></td>
-      <td colspan="9" style="border-right:0.75pt solid #000"><div class="nf-th">1.0*<br><span style="font-weight:normal">Below Standards</span></div></td>
-      <td colspan="2" style="border-right:0.75pt solid #000"><div class="nf-th">2.0<br>Pro-<br>gressing</div></td>
-      <td colspan="9" style="border-right:0.75pt solid #000"><div class="nf-th">3.0<br><span style="font-weight:normal">Meets Standards</span></div></td>
-      <td colspan="2" style="border-right:0.75pt solid #000"><div class="nf-th">4.0<br>Above<br>Standards</div></td>
-      <td colspan="9"><div class="nf-th">5.0<br><span style="font-weight:normal">Greatly Exceeds Standards</span></div></td>
-    </tr>`;
-  }
-
-  function traitDataRow(t, grade, height='1.16in') {
-    return `<tr style="height:${height}">
-      <td colspan="5" style="border-right:0.75pt solid #000;vertical-align:top;position:relative">
-        <div class="nf-trait-desc"><strong>${t.num}.</strong><br>${e(t.name)}</div>
-        <div style="position:absolute;bottom:2pt;left:3pt;display:flex;align-items:center;gap:2pt;font-size:5.5pt">
-          ${cb(grade==='NOB')}<span>NOB</span>
-        </div>
-      </td>
-      <td colspan="9" style="border-right:0.75pt solid #000;vertical-align:top;position:relative">
-        <div class="nf-trait-desc">${e(t.t1)}</div>
-        <div style="position:absolute;bottom:2pt;left:3pt;display:flex;gap:2pt;align-items:center">
-          ${['1.0','2.0','3.0','4.0','5.0'].map(g=>gsq(grade,g)).join('')}
-          <span style="font-size:6pt;font-weight:bold;font-family:'Courier New',monospace;margin-left:3pt">${e(grade||'')}</span>
-        </div>
-      </td>
-      <td colspan="2" style="border-right:0.75pt solid #000;vertical-align:middle;text-align:center;font-size:5pt">-</td>
-      <td colspan="9" style="border-right:0.75pt solid #000;vertical-align:top">
-        <div class="nf-trait-desc">${e(t.t3)}</div>
-      </td>
-      <td colspan="2" style="border-right:0.75pt solid #000;vertical-align:middle;text-align:center;font-size:5pt">-</td>
-      <td colspan="9" style="vertical-align:top;position:relative">
-        <div class="nf-trait-desc">${e(t.t5)}</div>
-        <div style="position:absolute;bottom:2pt;right:3pt;display:flex;gap:2pt;align-items:center">
-          ${['1.0','2.0','3.0','4.0','5.0'].map(g=>gsq(grade,g)).join('')}
-          <span style="font-size:6pt;font-weight:bold;font-family:'Courier New',monospace;margin-left:3pt">${e(grade||'')}</span>
-        </div>
-      </td>
-    </tr>`;
-  }
-
-  // Page header used on page 2 (repeat Name/Rate/Desig/SSN)
-  function page2Header(bl, isEval) {
-    return `<tr style="height:0.41in">
-      <td colspan="8" style="border-right:0.75pt solid #000">
-        ${lbl('1. Name (Last, First MI Suffix)')}${val(bl.b1)}
-      </td>
-      <td colspan="3" style="border-right:0.75pt solid #000">
-        ${lbl(isEval?'2. Rate/Rating':'2. Rank')}${val(bl.b2)}
-      </td>
-      <td colspan="3" style="border-right:0.75pt solid #000">
-        ${lbl('3. Desig')}${val(bl.b3)}
-      </td>
-      <td colspan="12">
-        ${lbl('4. SSN')}${val(bl.b4?DataModel.formatSSN(bl.b4):'')}
-      </td>
-    </tr>`;
-  }
-
-  // Promotion recommendation table
-  function promoTable(promoRec, sg) {
-    const recs = ['NOB','Significant Problems','Progressing','Promotable','Must Promote','Early Promote'];
-    const vals  = ['NOB','SP','PROG','P','MP','EP'];
-    const sgVals = [sg.nob||0, sg.sp||0, sg.prog||0, sg.p||0, sg.mp||0, sg.ep||0];
-    return `<table class="nf-promo-table" style="table-layout:fixed">
-      <tr>
-        <td class="lbl" style="width:15%">Promotion<br>Recommendation</td>
-        ${recs.map(r=>`<td><span style="font-size:5pt">${e(r)}</span></td>`).join('')}
-      </tr>
-      <tr>
-        <td class="lbl">45.<br>INDIVIDUAL</td>
-        ${vals.map(v=>`<td>${cb(promoRec===v)}</td>`).join('')}
-      </tr>
-      <tr>
-        <td class="lbl">46.<br>SUMMARY</td>
-        <td><span style="font-size:9pt">✕</span></td>
-        ${sgVals.slice(1).map(v=>`<td>${v||''}</td>`).join('')}
-      </tr>
-    </table>`;
-  }
-
-  function promoTableFITREP(promoRec, sg) {
-    const recs = ['NOB','Significant Problems','Progressing','Promotable','Must Promote','Early Promote'];
-    const vals  = ['NOB','SP','PROG','P','MP','EP'];
-    const sgVals = [sg.nob||0, sg.sp||0, sg.prog||0, sg.p||0, sg.mp||0, sg.ep||0];
-    return `<table class="nf-promo-table" style="table-layout:fixed">
-      <tr>
-        <td class="lbl" style="width:15%">Promotion<br>Recommendation</td>
-        ${recs.map(r=>`<td><span style="font-size:5pt">${e(r)}</span></td>`).join('')}
-      </tr>
-      <tr>
-        <td class="lbl">42.<br>INDIVIDUAL</td>
-        ${vals.map(v=>`<td>${cb(promoRec===v)}</td>`).join('')}
-      </tr>
-      <tr>
-        <td class="lbl">43.<br>SUMMARY</td>
-        <td><span style="font-size:9pt">✕</span></td>
-        ${sgVals.slice(1).map(v=>`<td>${v||''}</td>`).join('')}
-      </tr>
-    </table>`;
-  }
-
-  // Common table wrapper (border-collapse, fixed widths matching PDF columns)
-  function pageWrap(pageNum, title, content, formId, revDate) {
-    return `<div class="nf-page">
-      <div class="nf-title">${e(title)}</div>
-      <table style="border-collapse:collapse;border:0.75pt solid #000;
-        width:7.61in;margin-left:0.240in;margin-top:0.240in;
-        table-layout:fixed;font-family:Arial,Helvetica,sans-serif;font-size:7pt">
-        <colgroup>
-          <!-- 26 equal columns of 7.61/26 = 0.293in each for flexibility -->
-          ${Array(26).fill('<col style="width:0.293in">').join('')}
-        </colgroup>
-        ${content}
-      </table>
-      <div class="nf-footer">
-        <span>${e(formId)}</span>
-        <span>CUI When Filled In - Previous Editions are Obsolete</span>
-      </div>
-    </div>`;
-  }
-
-  // ── EVAL Renderer ─────────────────────────────────────────────────
-  function renderEVAL(data) {
-    const bl = data.blocks||{}, tr = data.traits||{};
-    const traits = EVAL_TRAITS;
-    const traitKeyMap = {
-      33:'professional', 34:'quality', 35:'equal_opp', 36:'military', 37:'eff_results',
-      38:'teamwork', 39:'leadership'
-    };
-    const avg = DataModel.computeTraitAverage(data)||'';
-    const sg  = DataModel.computeSummaryGroup ? DataModel.computeSummaryGroup({reports:[data]}) : (data.summaryGroup||{});
-
-    // Page 1: Admin + Traits 33-37
-    const p1content = `
-      ${adminRows(bl, true, 0.240)}
-      ${traitInstrRow()}
-      ${traitHeaderRow()}
-      ${traits.slice(0,5).map(t => traitDataRow(t, tr[traitKeyMap[t.num]])).join('')}
-    `;
-
-    // Page 2: Header repeat + Traits 38-39 + Blocks 40-52
-    const p2content = `
-      ${page2Header(bl, true)}
-      ${traitHeaderRow()}
-      ${traits.slice(5).map(t => traitDataRow(t, tr[traitKeyMap[t.num]], '1.50in')).join('')}
-      <!-- Block 40/41/42 -->
-      <tr style="height:0.9in">
-        <td colspan="5" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${lbl('40. Individual Trait Avg.')}
-          <div style="font-size:5.5pt;margin-top:1pt">Total of trait scores divided by number of graded traits.</div>
-          <div style="border:0.75pt solid #000;margin-top:4pt;padding:2pt;font-size:14pt;font-weight:bold;font-family:'Courier New',monospace;text-align:center">${e(avg)}</div>
-        </td>
-        <td colspan="13" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${lbl('41. I recommend this individual for (maximum of two): Assignment in Rating, Sea Special Programs, Shore Special Programs, Commissioning Programs, Special Warfare Programs, Rating Instructor Duty, Other. (Be specific)')}
-          <div style="margin-top:2pt;font-size:7pt">${e(bl.b41a||'')}${bl.b41b?' / '+e(bl.b41b):''}</div>
-        </td>
-        <td colspan="8" style="vertical-align:top">
-          ${lbl('42. Signature of Rater (Typed Name & Rating): I have evaluated this member against the above performance standards and have forwarded written explanation of marks 1.0 and 5.0.')}
-          <div style="margin-top:16pt;font-size:5.5pt">Date:</div>
-        </td>
-      </tr>
-      <!-- Block 43: Comments -->
-      <tr style="height:2.6in">
-        <td colspan="26" style="vertical-align:top">
-          ${lbl('43. COMMENTS ON PERFORMANCE: * All 1.0 marks, three 2.0 marks, and 2.0 marks in Block 35 must be specifically substantiated in comments. Comments must be verifiable. Font must be 10 or 12 pitch (10 or 12 point) only. Use upper and lower case.')}
-          ${valComments(data.comments||'')}
-        </td>
-      </tr>
-      <!-- Block 44: Qualifications -->
-      <tr style="height:0.68in">
-        <td colspan="26">
-          ${lbl('44. QUALIFICATIONS/ACHIEVEMENTS - Education, awards, community involvement, etc., during this period')}
-          <div class="nf-value wrap" style="font-size:7pt">${e(data.qualifications||'')}</div>
-        </td>
-      </tr>
-      <!-- Promo + Retention + RS Address -->
-      <tr style="height:0.84in">
-        <td colspan="13" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${promoTable(data.promoRec, sg)}
-        </td>
-        <td colspan="2" style="border-right:0.75pt solid #000;vertical-align:top;font-size:5.5pt">
-          ${lbl('47. Retention:')}
-          <div style="margin-top:3pt">${cbLabel(data.retention!=='Not Recommended','Recommended')}</div>
-          <div style="margin-top:2pt">${cbLabel(data.retention==='Not Recommended','Not Recommended')}</div>
-        </td>
-        <td colspan="11" style="vertical-align:top">
-          ${lbl('48. Reporting Senior Address')}
-          <div class="nf-value wrap" style="font-size:6.5pt">${e(data.rsAddress||'')}</div>
-        </td>
-      </tr>
-      <!-- Blocks 49/50 -->
-      <tr style="height:0.84in">
-        <td colspan="11" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${lbl('49. Signature of Senior Rater (Typed Name & Rate/Rank): I have reviewed the evaluation of this member against these performance standards and have provided written explanation to support the marks of 1.0 and 5.0.')}
-          <div style="font-size:5.5pt;margin-top:3pt">${val(bl.b49)}</div>
-          <div style="font-size:5.5pt;margin-top:12pt">Date:</div>
-        </td>
-        <td colspan="15" style="vertical-align:top">
-          ${lbl('50. Signature of Reporting Senior')}
-          <div style="display:flex;justify-content:space-between;position:absolute;bottom:3pt;left:3pt;right:3pt;font-size:5.5pt">
-            <span>Date:</span>
-            <span>Summary Group Average: <strong>${e(DataModel.computeTraitAverage(data)||'')}</strong></span>
-          </div>
-        </td>
-      </tr>
-      <!-- Blocks 51/52 -->
-      <tr style="height:0.64in">
-        <td colspan="11" style="border-right:0.75pt solid #000;vertical-align:top;font-size:5.5pt">
-          ${lbl('51. Signature of Individual Evaluated. "I have seen this report, been apprised of my performance, and understand my right to submit a statement."')}
-          <div style="margin-top:2pt">${cbLabel(data.statementIntent==='submit','I intend to submit a statement.')}</div>
-          <div style="margin-top:1pt">${cbLabel(data.statementIntent==='not_submit','I do Not intend to submit a statement.')}</div>
-          <div style="margin-top:4pt">Date:</div>
-        </td>
-        <td colspan="15" style="vertical-align:top">
-          ${lbl('52. Type name, Rate/Rank, command, UIC, and signature of Regular Reporting Senior on Concurrent Report')}
-          <div class="nf-value wrap" style="font-size:6.5pt">${e(bl.b52||'')}</div>
-          <div style="font-size:5.5pt;position:absolute;bottom:3pt;left:3pt">Date:</div>
-        </td>
-      </tr>
-    `;
-
-    return pageWrap(1, 'EVALUATION REPORT & COUNSELING RECORD (E1-E6)', p1content, 'NAVPERS 1616/26 (REV 05-2025)', '05-2025') +
-           pageWrap(2, 'EVALUATION REPORT & COUNSELING RECORD (E1-E6) (cont\'d)', p2content, 'NAVPERS 1616/26 (REV 05-2025)', '05-2025');
-  }
-
-  // ── FITREP Renderer ───────────────────────────────────────────────
-  function renderFITREP(data) {
-    const bl = data.blocks||{}, tr = data.traits||{};
-    const traits = FITREP_TRAITS;
-    const traitKeyMap = {
-      33:'professional', 34:'equal_opp', 35:'military', 36:'teamwork', 37:'eff_results',
-      38:'leadership', 39:'character'
-    };
-    const avg = DataModel.computeTraitAverage(data)||'';
-    const sg  = DataModel.computeSummaryGroup ? DataModel.computeSummaryGroup({reports:[data]}) : (data.summaryGroup||{});
-
-    const p1content = `
-      ${adminRows(bl, false, 0.240)}
-      ${traitInstrRow()}
-      ${traitHeaderRow()}
-      ${traits.slice(0,5).map(t => traitDataRow(t, tr[traitKeyMap[t.num]])).join('')}
-    `;
-
-    const p2content = `
-      ${page2Header(bl, false)}
-      ${traitHeaderRow()}
-      ${traits.slice(5).map(t => traitDataRow(t, tr[traitKeyMap[t.num]], '1.50in')).join('')}
-      <!-- Block 40: Career milestone -->
-      <tr style="height:0.70in">
-        <td colspan="26" style="vertical-align:top">
-          ${lbl('40. I recommend screening this individual for next career milestone(s) as follows: (maximum of two) Recommendations may be for competitive schools or duty assignments such as: SCP, Dept Head, XO, OIC, CO, Major Command, War College, PG School')}
-          <div style="font-size:7pt;margin-top:2pt">${e(bl.b40a||'')}${bl.b40b?' / '+e(bl.b40b):''}</div>
-        </td>
-      </tr>
-      <!-- Block 41: Comments -->
-      <tr style="height:2.6in">
-        <td colspan="26" style="vertical-align:top">
-          ${lbl('41. COMMENTS ON PERFORMANCE: * All 1.0 marks, three 2.0 marks, and 2.0 marks in Block 34 must be specifically substantiated in comments. Comments must be verifiable. Font must be 10 or 12 pitch (10 or 12 point) only. Use upper and lower case')}
-          ${valComments(data.comments||'')}
-        </td>
-      </tr>
-      <!-- Promo + RS Address -->
-      <tr style="height:0.84in">
-        <td colspan="13" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${promoTableFITREP(data.promoRec, sg)}
-        </td>
-        <td colspan="13" style="vertical-align:top">
-          ${lbl('44. Reporting Senior Address')}
-          <div class="nf-value wrap" style="font-size:6.5pt">${e(data.rsAddress||'')}</div>
-        </td>
-      </tr>
-      <!-- Blocks 45/46 -->
-      <tr style="height:0.80in">
-        <td colspan="13" style="border-right:0.75pt solid #000;vertical-align:top">
-          ${lbl('45. Signature of Reporting Senior')}
-          <div style="font-size:5.5pt;margin-top:40pt">Date:</div>
-        </td>
-        <td colspan="13" style="vertical-align:top;font-size:5.5pt">
-          ${lbl('46. Signature of Individual evaluated. "I have seen this report, been apprised of my performance, and understand my right to submit a statement."')}
-          <div style="margin-top:3pt">${cbLabel(data.statementIntent==='submit','I intend to submit a statement.')}</div>
-          <div style="margin-top:1pt">${cbLabel(data.statementIntent==='not_submit','I do not intend to submit a statement')}</div>
-          <div style="margin-top:6pt">Date:</div>
-        </td>
-      </tr>
-      <!-- Member/Group avg + Concurrent RS -->
-      <tr style="height:0.35in">
-        <td colspan="13" style="border-right:0.75pt solid #000;vertical-align:top">
-          <span style="font-size:5.5pt">Member Trait Average: <strong>${e(avg)}</strong> &nbsp;&nbsp; Summary Group Average: <strong>${e(data.summaryGroup?.groupTraitAvg||'')}</strong></span>
-        </td>
-        <td colspan="13"></td>
-      </tr>
-      <tr style="height:0.55in">
-        <td colspan="26" style="vertical-align:top">
-          ${lbl('47. Typed name, grade, command, UIC, and signature of Regular Reporting Senior on Concurrent Report')}
-          <div class="nf-value wrap" style="font-size:6.5pt">${e(bl.b52||data.concurrentRS?.name||'')}</div>
-          <div style="font-size:5.5pt;position:absolute;bottom:3pt;right:10pt">Date:</div>
-        </td>
-      </tr>
-    `;
-
-    return pageWrap(1, 'FITNESS REPORT & COUNSELING RECORD (W2-O6)', p1content, 'NAVPERS 1610/2 (REV 05-2025)', '05-2025') +
-           pageWrap(2, 'FITNESS REPORT & COUNSELING RECORD (W2-O6) (cont\'d)', p2content, 'NAVPERS 1610/2 (REV 05-2025)', '05-2025');
-  }
-
-  // ── Public API ────────────────────────────────────────────────────
-  function render(data) {
-    // Inject CSS once
+  async function render(data, opts = {}) {
     if (!document.getElementById('nf-css-v3')) {
       const s = document.createElement('style');
       s.id = 'nf-css-v3';
-      s.textContent = FORM_CSS;
+      s.textContent = HTML_PAGE_CSS;
       document.head.appendChild(s);
     }
-    const rt = data.reportType;
-    if (rt==='EVAL')      return renderEVAL(data);
-    if (rt==='FITREP')    return renderFITREP(data);
-    if (rt==='CHIEFEVAL') return renderEVAL(data); // placeholder
-    return '<p>Unknown report type</p>';
+    const fontFamilies = await PDFGenerator.registerHtmlFonts();
+    const writer = new PDFGenerator.HtmlWriter();
+    const pdf = PDFGenerator.build(data, { ...opts, writer });
+    if (!pdf) return '<p>Unknown report type</p>';
+    return PDFGenerator.serializeHtmlPages(pdf, fontFamilies);
   }
 
   return { render };
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5434,6 +4555,20 @@ const PDFGenerator = (() => {
       pg.ops.push(`BT /${pdfName} ${PDFWriter.n(size)} Tf ${PDFWriter.n(x)} ${PDFWriter.n(y)} Td (${esc}) Tj ET`);
     }
 
+    // Text rotated 90° (matrix [0 -1 1 0 tx ty] — reads bottom→top on page).
+    // Same escaping/font-resolution as text(); only the placement operator differs.
+    textRotated(pg, tx, ty, str, font = 'Times-Roman', size = 7) {
+      if (!str) return;
+      pg.fonts.add(font);
+      const pdfName = PDFWriter.FONT_MAP[font]?.pdfName || font;
+      const esc = String(str)
+        .replace(/\\/g, '\\\\')
+        .replace(/\(/g, '\\(')
+        .replace(/\)/g, '\\)')
+        .replace(/[^\x20-\x7E]/g, '?');
+      pg.ops.push(`BT /${pdfName} ${PDFWriter.n(size)} Tf 0 -1 1 0 ${PDFWriter.n(tx)} ${PDFWriter.n(ty)} Tm (${esc}) Tj ET`);
+    }
+
     // ── Assemble PDF ──────────────────────────────────────────────
     // ── TrueType font embedding helpers ─────────────────────────
     // Decodes a base64 TrueType font and returns its binary bytes
@@ -5612,6 +4747,185 @@ const PDFGenerator = (() => {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // HtmlWriter — drop-in replacement for PDFWriter used by Print Preview.
+  // Implements the exact same addPage/line/rect/fillRect/text/textRotated
+  // signatures as PDFWriter, so every overlay/drawBlankForm/markX/etc. call
+  // in this file works completely unchanged against either writer. Instead
+  // of PDF content-stream ops, each primitive records a small descriptor;
+  // serializeHtmlPages() later converts those into absolutely-positioned
+  // HTML matching the exact same coordinates the real PDF uses.
+  // ══════════════════════════════════════════════════════════════════════
+  class HtmlWriter {
+    constructor() { this.pages = []; }
+
+    addPage(w = 612, h = 792) {
+      const pg = { w, h, elements: [], fonts: new Set() };
+      this.pages.push(pg);
+      return pg;
+    }
+
+    line(pg, x0, y0, x1, y1, lw = 0.72) {
+      pg.elements.push({ t: 'line', x0, y0, x1, y1, lw });
+    }
+
+    rect(pg, x, y, w, h, lw = 0.72) {
+      pg.elements.push({ t: 'rect', x, y, w, h, lw });
+    }
+
+    fillRect(pg, x, y, w, h) {
+      pg.elements.push({ t: 'fillRect', x, y, w, h });
+    }
+
+    text(pg, x, y, str, font = 'Times-Roman', size = 7) {
+      if (!str) return;
+      pg.fonts.add(font);
+      pg.elements.push({ t: 'text', x, y, str: String(str), font, size });
+    }
+
+    textRotated(pg, tx, ty, str, font = 'Times-Roman', size = 7) {
+      if (!str) return;
+      pg.fonts.add(font);
+      pg.elements.push({ t: 'textRotated', x: tx, y: ty, str: String(str), font, size });
+    }
+  }
+
+  // Approximate fraction of the em box above the baseline, for converting a
+  // PDF baseline y-coordinate into a CSS box-top. Not measured/exact — only
+  // needs to look right in an on-screen preview, not match legal-document
+  // precision (the real PDF is unaffected by this constant).
+  const HTML_ASCENT_RATIO = { 'Times-Roman': 0.76, 'Times-Bold': 0.76, 'Courier': 0.75 };
+
+  // CSS fallback used whenever a real system-font FontFace isn't available
+  // (non-Chromium browser, permission denied, etc.) — these are genuine
+  // fonts most Windows/Mac installs already have, so it still looks close.
+  const HTML_FONT_FALLBACK = {
+    'Times-Roman': { css: `'Times New Roman', Times, serif`,   weight: 'normal' },
+    'Times-Bold':  { css: `'Times New Roman', Times, serif`,   weight: 'bold'   },
+    'Courier':     { css: `'Courier New', Courier, monospace`, weight: 'normal' },
+  };
+
+  let _htmlFontsPromise = null;
+
+  // Registers real system-font bytes (when FontLoader can get them) as
+  // uniquely-named FontFaces for on-screen use, mirroring exactly how the
+  // PDF path embeds them. Memoized — safe to call on every Print Preview
+  // open; must be awaited as the first step inside the click handler that
+  // opens it (no other await before it), same user-gesture rule FontLoader
+  // itself documents. Returns { logicalName: cssFontFamilyString }.
+  function registerHtmlFonts(onStatus) {
+    if (_htmlFontsPromise) return _htmlFontsPromise;
+
+    _htmlFontsPromise = (async () => {
+      await FontLoader.preload(onStatus);
+      const families = {};
+
+      for (const [logical, fm] of Object.entries(PDFWriter.FONT_MAP)) {
+        const fallback = HTML_FONT_FALLBACK[logical];
+        let bytes = null;
+        try { bytes = await FontLoader.getForPDF(fm.key); } catch { bytes = null; }
+
+        if (bytes) {
+          const uniqueName = `NavEvalHtml-${fm.key}`;
+          try {
+            const face = new FontFace(uniqueName, bytes, { weight: fallback.weight });
+            await face.load();
+            document.fonts.add(face);
+            families[logical] = `'${uniqueName}', ${fallback.css}`;
+            continue;
+          } catch (err) {
+            console.warn('[NavEval] FontFace registration failed for', logical, err);
+          }
+        }
+        families[logical] = fallback.css;
+      }
+      return families;
+    })();
+
+    return _htmlFontsPromise;
+  }
+
+  // Converts an HtmlWriter's accumulated pages into one HTML string.
+  function serializeHtmlPages(writer, fontFamilies) {
+    const esc = s => String(s ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    const lineToDiv = (pg, x0, y0, x1, y1, lw) => {
+      if (y0 === y1) {
+        const left = Math.min(x0, x1) - lw / 2;
+        const width = Math.abs(x1 - x0) + lw;
+        const top = pg.h - y0 - lw / 2;
+        return `<div style="position:absolute;left:${left}pt;top:${top}pt;width:${width}pt;height:${lw}pt;background:#000"></div>`;
+      }
+      if (x0 === x1) {
+        const top = pg.h - Math.max(y0, y1) - lw / 2;
+        const height = Math.abs(y1 - y0) + lw;
+        const left = x0 - lw / 2;
+        return `<div style="position:absolute;left:${left}pt;top:${top}pt;width:${lw}pt;height:${height}pt;background:#000"></div>`;
+      }
+      return null; // genuinely diagonal — handled via the SVG overlay instead
+    };
+
+    const rectToDiv = (pg, x, y, w, h, lw) => {
+      const top = pg.h - y - h - lw / 2;
+      const left = x - lw / 2;
+      return `<div style="position:absolute;left:${left}pt;top:${top}pt;width:${w + lw}pt;height:${h + lw}pt;border:${lw}pt solid #000;box-sizing:border-box"></div>`;
+    };
+
+    const fillRectToDiv = (pg, x, y, w, h) => {
+      const top = pg.h - y - h;
+      return `<div style="position:absolute;left:${x}pt;top:${top}pt;width:${w}pt;height:${h}pt;background:#000"></div>`;
+    };
+
+    const textToDiv = (pg, x, y, str, font, size) => {
+      const fam = fontFamilies[font] || HTML_FONT_FALLBACK['Times-Roman'].css;
+      const weight = font === 'Times-Bold' ? 'bold' : 'normal';
+      const ascentRatio = HTML_ASCENT_RATIO[font] ?? 0.76;
+      const top = pg.h - y - size * ascentRatio;
+      return `<div style="position:absolute;left:${x}pt;top:${top}pt;font-family:${fam};font-weight:${weight};font-size:${size}pt;line-height:1;white-space:pre;color:#000">${esc(str)}</div>`;
+    };
+
+    const textRotatedToDiv = (pg, x, y, str, font, size) => {
+      const fam = fontFamilies[font] || HTML_FONT_FALLBACK['Times-Roman'].css;
+      const weight = font === 'Times-Bold' ? 'bold' : 'normal';
+      const ascentRatio = HTML_ASCENT_RATIO[font] ?? 0.76;
+      const top = pg.h - y - size * ascentRatio;
+      return `<div style="position:absolute;left:${x}pt;top:${top}pt;font-family:${fam};font-weight:${weight};font-size:${size}pt;line-height:1;white-space:pre;color:#000;transform-origin:left top;transform:rotate(90deg)">${esc(str)}</div>`;
+    };
+
+    const buildSvgOverlay = (pg, diagonals) => {
+      if (!diagonals.length) return '';
+      const lines = diagonals.map(({x0,y0,x1,y1,lw}) =>
+        `<line x1="${x0}" y1="${pg.h - y0}" x2="${x1}" y2="${pg.h - y1}" stroke="#000" stroke-width="${lw}"/>`
+      ).join('');
+      return `<svg style="position:absolute;left:0;top:0;width:${pg.w}pt;height:${pg.h}pt;pointer-events:none" viewBox="0 0 ${pg.w} ${pg.h}">${lines}</svg>`;
+    };
+
+    return writer.pages.map(pg => {
+      const parts = [];
+      const diagonals = [];
+
+      pg.elements.forEach(el => {
+        if (el.t === 'line') {
+          if (el.x0 !== el.x1 && el.y0 !== el.y1) diagonals.push(el);
+          else parts.push(lineToDiv(pg, el.x0, el.y0, el.x1, el.y1, el.lw));
+        } else if (el.t === 'rect') {
+          parts.push(rectToDiv(pg, el.x, el.y, el.w, el.h, el.lw));
+        } else if (el.t === 'fillRect') {
+          parts.push(fillRectToDiv(pg, el.x, el.y, el.w, el.h));
+        } else if (el.t === 'text') {
+          parts.push(textToDiv(pg, el.x, el.y, el.str, el.font, el.size));
+        } else if (el.t === 'textRotated') {
+          parts.push(textRotatedToDiv(pg, el.x, el.y, el.str, el.font, el.size));
+        }
+      });
+
+      parts.push(buildSvgOverlay(pg, diagonals));
+
+      return `<div class="nf-html-page" style="width:${pg.w}pt;height:${pg.h}pt">${parts.join('')}</div>`;
+    }).join('');
   }
 
   // ── Measured Coordinates ─────────────────────────────────────────
@@ -7725,7 +7039,367 @@ const PDFGenerator = (() => {
     [299.52, 36.9, 68.4, 18.0],
   ];
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // NAVPERS 1610/1 — FITREP/EVAL Summary Letter
+  // All coordinates measured via pdfplumber from the official blank form
+  // ("Blank Summary.pdf") and cross-referenced against a filled reference
+  // ("Sample Summary.pdf") for data-overlay positions. Page size 612×792 (Letter).
+  // ══════════════════════════════════════════════════════════════════════════
 
+  // Global calibration offset — applied uniformly to every static-form and
+  // overlay coordinate below. PDF y increases upward, so "down" is negative dy.
+  const SUMLETTER_DX = 11.5;   // shift everything right
+  const SUMLETTER_DY = -11.5;  // shift everything down
+
+  function sumletterShiftLines(arr) {
+    return arr.map(([x0,y0,x1,y1,lw]) => [x0+SUMLETTER_DX, y0+SUMLETTER_DY, x1+SUMLETTER_DX, y1+SUMLETTER_DY, lw]);
+  }
+  function sumletterShiftRects(arr) {
+    return arr.map(([x,y,w,h]) => [x+SUMLETTER_DX, y+SUMLETTER_DY, w, h]);
+  }
+  function sumletterShiftWords(arr) {
+    return arr.map(([x,y,text,sz]) => [x+SUMLETTER_DX, y+SUMLETTER_DY, text, sz]);
+  }
+  function sumletterShiftYs(arr) {
+    return arr.map(y => y + SUMLETTER_DY);
+  }
+
+  const SUMLETTER_P1_LINES_RAW = [
+    [16.56,745.2,570.96,745.2,0.72],[16.56,723.6,570.96,723.6,0.72],[16.56,699.84,570.96,699.84,0.72],
+    [16.56,673.92,570.96,673.92,0.72],[162.0,658.08,570.96,658.08,0.72],
+    [16.56,599.76,289.44,599.76,0.72],[296.64,599.76,570.96,599.76,0.72],
+    [16.56,588.96,289.44,588.96,0.72],[296.64,588.96,570.96,588.96,0.72],
+    [16.56,578.16,289.44,578.16,0.72],[296.64,578.16,570.96,578.16,0.72],
+    [16.56,567.36,289.44,567.36,0.72],[296.64,567.36,570.96,567.36,0.72],
+    [16.56,556.56,289.44,556.56,0.72],[296.64,556.56,570.96,556.56,0.72],
+    [16.56,545.76,289.44,545.76,0.72],[296.64,545.76,570.96,545.76,0.72],
+    [16.56,534.96,289.44,534.96,0.72],[296.64,534.96,570.96,534.96,0.72],
+    [16.56,524.16,289.44,524.16,0.72],[296.64,524.16,570.96,524.16,0.72],
+    [16.56,513.36,289.44,513.36,0.72],[296.64,513.36,570.96,513.36,0.72],
+    [16.56,502.56,289.44,502.56,0.72],[296.64,502.56,570.96,502.56,0.72],
+    [16.56,491.76,289.44,491.76,0.72],[296.64,491.76,570.96,491.76,0.72],
+    [16.56,480.24,289.44,480.24,0.72],[296.64,480.24,570.96,480.24,0.72],
+    [16.56,468.72,289.44,468.72,0.72],[296.64,468.72,570.96,468.72,0.72],
+    [16.56,457.2,289.44,457.2,0.72],[296.64,457.2,570.96,457.2,0.72],
+    [16.56,445.68,289.44,445.68,0.72],[296.64,445.68,570.96,445.68,0.72],
+    [16.56,434.88,289.44,434.88,0.72],[296.64,434.88,570.96,434.88,0.72],
+    [16.56,424.08,289.44,424.08,0.72],[296.64,424.08,570.96,424.08,0.72],
+    [16.56,413.28,289.44,413.28,0.72],[296.64,413.28,570.96,413.28,0.72],
+    [16.56,402.48,289.44,402.48,0.72],[296.64,402.48,570.96,402.48,0.72],
+    [16.56,391.68,289.44,391.68,0.72],[296.64,391.68,570.96,391.68,0.72],
+    [16.56,380.88,289.44,380.88,0.72],[296.64,380.88,570.96,380.88,0.72],
+    [16.56,370.08,289.44,370.08,0.72],[296.64,370.08,570.96,370.08,0.72],
+    [16.56,359.28,289.44,359.28,0.72],[296.64,359.28,570.96,359.28,0.72],
+    [16.56,300.96,252.0,300.96,0.72],[491.04,295.2,570.96,295.2,0.72],
+    [339.84,219.6,570.96,219.6,0.72],[339.84,50.4,570.96,50.4,0.72],
+    [16.56,204.48,28.8,204.48,0.72],[221.76,204.48,234.0,204.48,0.72],
+    [16.56,154.8,28.8,154.8,0.72],[221.76,154.8,234.0,154.8,0.72],
+    [16.56,132.48,28.8,132.48,0.72],[221.76,132.48,234.0,132.48,0.72],
+    [16.56,80.64,28.8,80.64,0.72],[221.76,80.64,234.0,80.64,0.72],
+    [182.16,745.2,182.16,673.92,0.72],[361.44,771.84,361.44,673.92,0.72],[457.2,745.2,457.2,673.92,0.72],
+    [162.0,673.92,162.0,626.4,0.72],[241.92,673.92,241.92,626.4,0.72],[324.0,673.92,324.0,626.4,0.72],
+    [406.8,673.92,406.8,626.4,0.72],[489.6,673.92,489.6,626.4,0.72],
+    [137.52,622.08,137.52,347.76,0.72],[213.84,622.08,213.84,347.76,0.72],[289.44,622.08,289.44,347.76,0.72],
+    [296.64,622.08,296.64,347.76,0.72],[419.76,622.08,419.76,347.76,0.72],[491.04,622.08,491.04,347.76,0.72],
+    [339.84,219.6,339.84,50.4,0.72],[570.96,219.6,570.96,50.4,0.72],
+    [16.56,204.48,16.56,192.24,0.72],[234.0,204.48,234.0,192.24,0.72],
+    [16.56,167.04,16.56,154.8,0.72],[234.0,167.04,234.0,154.8,0.72],
+    [16.56,132.48,16.56,121.68,0.72],[234.0,132.48,234.0,121.68,0.72],
+    [16.56,92.88,16.56,80.64,0.72],[234.0,92.88,234.0,80.64,0.72],
+  ];
+  const SUMLETTER_P1_LINES = sumletterShiftLines(SUMLETTER_P1_LINES_RAW);
+
+  const SUMLETTER_P1_RECTS_RAW = [
+    [16.56,626.4,554.4,145.44],[16.56,347.76,554.4,274.32],[16.56,257.04,236.16,85.68],
+    [180.0,324.72,21.6,14.4],[226.8,324.72,21.6,14.4],
+    [491.04,270.0,79.92,48.96],[547.2,250.56,23.76,14.4],
+    [354.24,134.64,20.16,16.56],[354.24,108.0,20.16,16.56],[354.24,60.48,214.56,36.0],
+  ];
+  const SUMLETTER_P1_RECTS = sumletterShiftRects(SUMLETTER_P1_RECTS_RAW);
+
+  const SUMLETTER_P2_LINES_RAW = [
+    [16.56,745.2,570.96,745.2,0.72],[16.56,723.6,570.96,723.6,0.72],[16.56,699.84,570.96,699.84,0.72],
+    [16.56,673.92,570.96,673.92,0.72],[162.0,658.08,570.96,658.08,0.72],
+    [16.56,599.76,289.44,599.76,0.72],[296.64,599.76,570.96,599.76,0.72],
+    [16.56,588.96,289.44,588.96,0.72],[296.64,588.96,570.96,588.96,0.72],
+    [16.56,578.16,289.44,578.16,0.72],[296.64,578.16,570.96,578.16,0.72],
+    [16.56,567.36,289.44,567.36,0.72],[296.64,567.36,570.96,567.36,0.72],
+    [16.56,556.56,289.44,556.56,0.72],[296.64,556.56,570.96,556.56,0.72],
+    [16.56,545.76,289.44,545.76,0.72],[296.64,545.76,570.96,545.76,0.72],
+    [16.56,534.96,289.44,534.96,0.72],[296.64,534.96,570.96,534.96,0.72],
+    [16.56,524.16,289.44,524.16,0.72],[296.64,524.16,570.96,524.16,0.72],
+    [16.56,513.36,289.44,513.36,0.72],[296.64,513.36,570.96,513.36,0.72],
+    [16.56,502.56,289.44,502.56,0.72],[296.64,502.56,570.96,502.56,0.72],
+    [16.56,491.76,289.44,491.76,0.72],[296.64,491.76,570.96,491.76,0.72],
+    [16.56,480.24,289.44,480.24,0.72],[296.64,480.24,570.96,480.24,0.72],
+    [16.56,468.72,289.44,468.72,0.72],[296.64,468.72,570.96,468.72,0.72],
+    [16.56,457.2,289.44,457.2,0.72],[296.64,457.2,570.96,457.2,0.72],
+    [16.56,445.68,289.44,445.68,0.72],[296.64,445.68,570.96,445.68,0.72],
+    [16.56,434.88,289.44,434.88,0.72],[296.64,434.88,570.96,434.88,0.72],
+    [16.56,424.08,289.44,424.08,0.72],[296.64,424.08,570.96,424.08,0.72],
+    [16.56,413.28,289.44,413.28,0.72],[296.64,413.28,570.96,413.28,0.72],
+    [16.56,402.48,289.44,402.48,0.72],[296.64,402.48,570.96,402.48,0.72],
+    [16.56,391.68,289.44,391.68,0.72],[296.64,391.68,570.96,391.68,0.72],
+    [16.56,380.88,289.44,380.88,0.72],[296.64,380.88,570.96,380.88,0.72],
+    [16.56,370.08,289.44,370.08,0.72],[296.64,370.08,570.96,370.08,0.72],
+    [16.56,359.28,289.44,359.28,0.72],[296.64,359.28,570.96,359.28,0.72],
+    [16.56,348.48,289.44,348.48,0.72],[296.64,348.48,570.96,348.48,0.72],
+    [16.56,337.68,289.44,337.68,0.72],[296.64,337.68,570.96,337.68,0.72],
+    [16.56,326.88,289.44,326.88,0.72],[296.64,326.88,570.96,326.88,0.72],
+    [16.56,316.08,289.44,316.08,0.72],[296.64,316.08,570.96,316.08,0.72],
+    [16.56,304.56,289.44,304.56,0.72],[296.64,304.56,570.96,304.56,0.72],
+    [16.56,293.76,289.44,293.76,0.72],[296.64,293.76,570.96,293.76,0.72],
+    [16.56,282.24,289.44,282.24,0.72],[296.64,282.24,570.96,282.24,0.72],
+    [16.56,271.44,289.44,271.44,0.72],[296.64,271.44,570.96,271.44,0.72],
+    [16.56,260.64,289.44,260.64,0.72],[296.64,260.64,570.96,260.64,0.72],
+    [16.56,249.12,289.44,249.12,0.72],[296.64,249.12,570.96,249.12,0.72],
+    [16.56,238.32,289.44,238.32,0.72],[296.64,238.32,570.96,238.32,0.72],
+    [16.56,227.52,289.44,227.52,0.72],[296.64,227.52,570.96,227.52,0.72],
+    [16.56,216.72,289.44,216.72,0.72],[296.64,216.72,570.96,216.72,0.72],
+    [16.56,205.2,289.44,205.2,0.72],[296.64,205.2,570.96,205.2,0.72],
+    [16.56,194.4,289.44,194.4,0.72],[296.64,194.4,570.96,194.4,0.72],
+    [16.56,183.6,289.44,183.6,0.72],[296.64,183.6,570.96,183.6,0.72],
+    [16.56,172.8,289.44,172.8,0.72],[296.64,172.8,570.96,172.8,0.72],
+    [16.56,162.0,289.44,162.0,0.72],[296.64,162.0,570.96,162.0,0.72],
+    [16.56,151.2,289.44,151.2,0.72],[296.64,151.2,570.96,151.2,0.72],
+    [16.56,139.68,289.44,139.68,0.72],[296.64,139.68,570.96,139.68,0.72],
+    [16.56,128.88,289.44,128.88,0.72],[296.64,128.88,570.96,128.88,0.72],
+    [16.56,117.36,289.44,117.36,0.72],[296.64,117.36,570.96,117.36,0.72],
+    [16.56,106.56,289.44,106.56,0.72],[296.64,106.56,570.96,106.56,0.72],
+    [16.56,95.76,289.44,95.76,0.72],[296.64,95.76,570.96,95.76,0.72],
+    [16.56,84.96,289.44,84.96,0.72],[296.64,84.96,570.96,84.96,0.72],
+    [16.56,73.44,289.44,73.44,0.72],[296.64,73.44,570.96,73.44,0.72],
+    [182.16,745.2,182.16,673.92,0.72],[361.44,771.84,361.44,673.92,0.72],[457.2,745.2,457.2,673.92,0.72],
+    [162.0,673.92,162.0,626.4,0.72],[241.92,673.92,241.92,626.4,0.72],[324.0,673.92,324.0,626.4,0.72],
+    [406.8,673.92,406.8,626.4,0.72],[489.6,673.92,489.6,626.4,0.72],
+    [137.52,622.08,137.52,61.92,0.72],[213.84,622.08,213.84,61.92,0.72],[289.44,622.08,289.44,61.92,0.72],
+    [296.64,622.08,296.64,61.92,0.72],[419.76,622.08,419.76,61.92,0.72],[491.04,622.08,491.04,61.92,0.72],
+  ];
+  const SUMLETTER_P2_LINES = sumletterShiftLines(SUMLETTER_P2_LINES_RAW);
+
+  const SUMLETTER_P2_RECTS_RAW = [
+    [16.56,626.4,554.4,145.44],[16.56,61.92,554.4,560.16],
+  ];
+  const SUMLETTER_P2_RECTS = sumletterShiftRects(SUMLETTER_P2_RECTS_RAW);
+
+  const SUMLETTER_P1_WORDS_RAW = [
+    [364.92,760.75,"Filename:",8],
+    [20.04,752.53,"FITREP/EVAL SUMMARY LETTER",12],
+    [20.76,736.11,"1. Name of Reporting Senior (Blk22)",8],
+    [185.54,736.11,"2. Grade (Blk23)",8],
+    [364.74,736.11,"3. SSN (Blk27)",8],
+    [460.49,736.11,"4. UIC (Blk26)",8],
+    [20.76,713.79,"5. Paygrade (Blk2)",8],
+    [185.64,713.79,"6. Promotion Status (Blk8)",8],
+    [364.86,713.79,"7. Desig (Off Only)",8],
+    [460.52,713.79,"8. Duty Status (Blk5)",8],
+    [20.76,690.75,"9. Billet Subcategory (Blk21)",8],
+    [185.57,690.75,"10. Report Type (Blk17-19)",8],
+    [364.84,690.75,"11. MBR UIC (Enl Only)",8],
+    [460.52,690.75,"12. Rpt End Date (Blk15)",8],
+    [20.76,663.83,"13. BREAKOUT",8],
+    [168.36,660.51,"Significant Problems",8],
+    [264.81,660.51,"Progressing",8],
+    [346.86,660.51,"Promotable",8],
+    [425.35,660.51,"Must Promote",8],
+    [506.62,660.51,"Early Promote",8],
+    [20.76,628.99,"TOTAL",8],
+    [34.44,603.79,"Last Name (ALPHA Order)",8],
+    [154.59,603.79,"SSN (Last 4)",8],
+    [228.75,603.79,"Trait Average",8],
+    [315.83,603.79,"Last Name (ALPHA Order)",8],
+    [435.24,603.79,"SSN (Last 4)",8],
+    [511.54,603.79,"Trait Average",8],
+    [20.76,327.31,"REPORT SUBMITTED ON TIME:",8],
+    [161.73,327.31,"YES",8],
+    [209.26,327.31,"NO*",8],
+    [20.76,312.19,"* ATTACH LETTER TO NAVPERSCOM",8],
+    [162.02,312.19,"EXPLAINING REASON",8],
+    [20.76,303.55,"FOR LATE SUBMISSION.",8],
+    [389.12,300.67,"NUMBER OF INDIVIDUALS",8],
+    [20.76,289.87,"Signature of Reporting Senior (Sign and Date)",8],
+    [378.6,276.91,"SUMMARY",8],
+    [422.02,276.91,"GROUP AVERAGE",8],
+    [169.08,269.71,"Date:",8],
+    [457.08,250.27,"CONTINUATION",8],
+    [519.08,250.27,"SHEET",8],
+    [504.24,207.15,"Created by: NAVFIT98A",6],
+    [20.76,206.35,"ISIC Address",8],
+    [169.05,206.35,"ISIC UIC",8],
+    [346.56,204.97,"NAVPERSCOM",9.9],
+    [417.08,204.97,"USE ONLY",9.9],
+    [524.4,199.95,"Version: 2.2.0.33",6],
+    [346.92,175.39,"Date Received by NAVPERSCOM:",8],
+    [381.48,136.51,"Accepted",8],
+    [20.76,133.63,"Reporting Senior Address",8],
+    [381.48,109.87,"Rejected/Resubmission Required",8],
+    [355.56,86.11,"(Signature and Date)",8],
+    [20.76,60.19,"E-Mail:",8],
+    [20.76,51.55,"Phone:",8],
+    [20.76,42.91,"Created:",8],
+    [20.76,32.11,"NAVPERS 1610/1 (REV 09-2024)",8],
+    [245.26,32.11,"CUI When Filled In - Previous Editions are Obsolete",8],
+  ];
+  const SUMLETTER_P1_WORDS = sumletterShiftWords(SUMLETTER_P1_WORDS_RAW);
+
+  const SUMLETTER_P2_WORDS_RAW = [
+    [364.92,760.75,"Filename:",8],
+    [20.04,752.53,"FITREP/EVAL SUMMARY LETTER",12],
+    [20.76,736.11,"1. Name of Reporting Senior (Blk22)",8],
+    [185.54,736.11,"2. Grade (Blk23)",8],
+    [364.74,736.11,"3. SSN (Blk27)",8],
+    [460.49,736.11,"4. UIC (Blk26)",8],
+    [20.76,713.79,"5. Paygrade (Blk2)",8],
+    [185.64,713.79,"6. Promotion Status (Blk8)",8],
+    [364.86,713.79,"7. Desig (Off Only)",8],
+    [460.52,713.79,"8. Duty Status (Blk5)",8],
+    [20.76,690.75,"9. Billet Subcategory (Blk21)",8],
+    [185.57,690.75,"10. Report Type (Blk17-19)",8],
+    [364.84,690.75,"11. MBR UIC (Enl Only)",8],
+    [460.52,690.75,"12. Rpt End Date (Blk15)",8],
+    [20.76,663.83,"13. BREAKOUT",8],
+    [168.36,660.51,"Significant Problems",8],
+    [264.81,660.51,"Progressing",8],
+    [346.86,660.51,"Promotable",8],
+    [425.35,660.51,"Must Promote",8],
+    [506.62,660.51,"Early Promote",8],
+    [20.76,628.99,"TOTAL",8],
+    [34.44,603.79,"Last Name (ALPHA Order)",8],
+    [154.59,603.79,"SSN (Last 4)",8],
+    [228.75,603.79,"Trait Average",8],
+    [315.83,603.79,"Last Name (ALPHA Order)",8],
+    [435.24,603.79,"SSN (Last 4)",8],
+    [511.54,603.79,"Trait Average",8],
+    [20.76,42.91,"NAVPERS 1610/1 (REV 09-2024)",8],
+    [245.26,42.91,"CUI When Filled In - Previous Editions are Obsolete",8],
+  ];
+  const SUMLETTER_P2_WORDS = sumletterShiftWords(SUMLETTER_P2_WORDS_RAW);
+
+  // Roster row top-divider Y positions (top edge of each data row's cell).
+  // Text baseline = rowTopY - 2.75 (matches the reference form's own baseline
+  // placement, verified against the filled sample).
+  const SUMLETTER_P1_ROW_TOP_Y_RAW = [599.76,588.96,578.16,567.36,556.56,545.76,534.96,524.16,513.36,502.56,491.76,480.24,468.72,457.2,445.68,434.88,424.08,413.28,402.48,391.68,380.88,370.08,359.28];
+  const SUMLETTER_P2_ROW_TOP_Y_RAW = [599.76,588.96,578.16,567.36,556.56,545.76,534.96,524.16,513.36,502.56,491.76,480.24,468.72,457.2,445.68,434.88,424.08,413.28,402.48,391.68,380.88,370.08,359.28,348.48,337.68,326.88,316.08,304.56,293.76,282.24,271.44,260.64,249.12,238.32,227.52,216.72,205.2,194.4,183.6,172.8,162.0,151.2,139.68,128.88,117.36,106.56,95.76,84.96,73.44];
+  const SUMLETTER_P1_ROW_TOP_Y = sumletterShiftYs(SUMLETTER_P1_ROW_TOP_Y_RAW);
+  const SUMLETTER_P2_ROW_TOP_Y = sumletterShiftYs(SUMLETTER_P2_ROW_TOP_Y_RAW);
+
+  // Roster column x-positions (left column; right column = +280.08), pre-shifted
+  const SUMLETTER_COL_DX = 280.08;
+  const SUMLETTER_NAME_X = 22.92 + SUMLETTER_DX, SUMLETTER_SSN_X = 156.83 + SUMLETTER_DX, SUMLETTER_AVG_X = 233.84 + SUMLETTER_DX;
+
+  // ── overlaySummaryLetter: stamps blocks 1-13 + roster + footer on page N ────
+  function overlaySummaryLetter(pdf, pg, group, pageNum, totalPages, rowTopYs, startIndex, omitRsSsn) {
+    const rs = group.rsInfo || {};
+    const bl0 = (group.reports[0] || {}).blocks || {};
+    const sg = DataModel.computeSummaryGroup({ reports: group.reports });
+    const dx = SUMLETTER_DX, dy = SUMLETTER_DY;
+    // Filename and ISIC UIC are intentionally not printed — NAVFIT98A doesn't
+    // print anything for either today; Filename is filled in by NAVPERSCOM
+    // internally after the report is mailed.
+
+    // Blocks 1-4 (RS name/grade/SSN/UIC)
+    if (rs.b22) pdf.text(pg, 22.92+dx, 725.29+dy, esc(rs.b22), DF, DS);
+    if (rs.b23) pdf.text(pg, 188.57+dx, 725.29+dy, esc(rs.b23), DF, DS);
+    if (rs.b27 && !omitRsSsn) pdf.text(pg, 367.75+dx, 725.29+dy, DataModel.formatSSN(rs.b27), DF, DS);
+    if (rs.b26) pdf.text(pg, 463.56+dx, 725.29+dy, esc(rs.b26), DF, DS);
+
+    // Blocks 5-8 (paygrade/promo status/desig/duty status) — from representative report
+    if (bl0.b2) pdf.text(pg, 22.92+dx, 701.53+dy, esc(bl0.b2), DF, DS);
+    if (bl0.b8) pdf.text(pg, 188.57+dx, 701.53+dy, esc(bl0.b8), DF, DS);
+    if (bl0.b3) pdf.text(pg, 367.75+dx, 701.53+dy, esc(bl0.b3), DF, DS);
+    if (bl0.b5) pdf.text(pg, 463.56+dx, 701.53+dy, esc(bl0.b5), DF, DS);
+
+    // Blocks 9-12 (billet subcat/report type/MBR UIC/period end date)
+    if (bl0.b21) pdf.text(pg, 22.92+dx, 676.33+dy, esc(bl0.b21), DF, DS);
+    if (group.reportType) pdf.text(pg, 188.57+dx, 676.33+dy, esc(group.reportType), DF, DS);
+    if (bl0.b6) pdf.text(pg, 367.75+dx, 676.33+dy, esc(bl0.b6), DF, DS);
+    if (bl0.b15) pdf.text(pg, 463.56+dx, 676.33+dy, esc(bl0.b15), DF, DS);
+
+    // Block 13 — Breakout counts (TOTAL, SP, PROG, P, MP, EP)
+    pdf.text(pg, 113.75+dx, 631.25+dy, String(sg.total || 0), DF, DS);
+    pdf.text(pg, 200.04+dx, 631.25+dy, String(sg.sp    || 0), DF, DS);
+    pdf.text(pg, 282.8+dx,  631.25+dy, String(sg.prog  || 0), DF, DS);
+    pdf.text(pg, 358.5+dx,  631.25+dy, String(sg.p     || 0), DF, DS);
+    pdf.text(pg, 441.26+dx, 631.25+dy, String(sg.mp    || 0), DF, DS);
+    pdf.text(pg, 521.87+dx, 631.25+dy, String(sg.ep    || 0), DF, DS);
+
+    // Roster rows — alphabetical by last name (blocks.b1), split 2 columns per page
+    const sorted = group.reports.slice().sort((a,b) => {
+      const na=(a.blocks?.b1||'').toLowerCase(), nb=(b.blocks?.b1||'').toLowerCase();
+      return na.localeCompare(nb);
+    });
+    const perCol = rowTopYs.length;
+    const pageReports = sorted.slice(startIndex, startIndex + perCol * 2);
+    pageReports.forEach((r, i) => {
+      const col = i < perCol ? 0 : 1;
+      const row = i < perCol ? i : i - perCol;
+      const x = col === 0 ? 0 : SUMLETTER_COL_DX;
+      const y = rowTopYs[row] - 9.75; // rowTopYs is already dy-shifted; -2.75 base, -4, -2, -1 requested adjustments
+      const lastName = (r.blocks?.b1 || '').split(',')[0].trim();
+      const ssn4 = DataModel.cleanSSN(r.blocks?.b4 || '').slice(-4);
+      const avg = DataModel.computeTraitAverage(r) || '';
+      if (lastName) pdf.text(pg, SUMLETTER_NAME_X + x, y, esc(lastName), DF, DS);
+      if (ssn4)     pdf.text(pg, SUMLETTER_SSN_X  + x, y, ssn4,          DF, DS);
+      if (avg)      pdf.text(pg, SUMLETTER_AVG_X  + x, y, avg,           DF, DS);
+    });
+
+    // Page-1-only fields: submission status, individuals/avg, ISIC address, RS address, contact
+    if (pageNum === 1) {
+      if (group.onTimeSubmission === 'yes') markX(pdf, pg, 186.0+dx, 329.72+dy, 21.6, 14.4);
+      else if (group.onTimeSubmission === 'no') markX(pdf, pg, 232.8+dx, 329.72+dy, 21.6, 14.4);
+
+      // Right-justify Individuals so its last digit aligns with the last digit
+      // of Summary Group Average below it (right edge anchored to the
+      // reference form's single-digit position: 544.8 + 1 char width).
+      const individualsText = String(group.reports.length || 0);
+      const courierCharW = DS * 0.6; // Courier advance width at DS(12pt)
+      const individualsRightEdge = 544.8 + courierCharW;
+      const individualsX = individualsRightEdge - individualsText.length * courierCharW;
+      pdf.text(pg, individualsX+dx, 299.05+dy, individualsText, DF, DS);
+      if (sg.groupTraitAvg) pdf.text(pg, 522.72+dx, 275.29+dy, esc(String(sg.groupTraitAvg)), DF, DS);
+
+      if (group.isicAddress) {
+        group.isicAddress.split('\n').slice(0,4).forEach((line,i) => {
+          pdf.text(pg, 22.32+dx, 190.75+dy - i*10.2, esc(line), DF, 9);
+        });
+      }
+      if (rs.rsAddress) {
+        rs.rsAddress.split('\n').slice(0,4).forEach((line,i) => {
+          pdf.text(pg, 22.32+dx, 119.47+dy - i*10.2, esc(line), DF, 9);
+        });
+      }
+      if (group.email) pdf.text(pg, 48.24+dx, 58.99+dy, esc(group.email), DF, 9);
+      if (group.phone) pdf.text(pg, 48.24+dx, 50.35+dy, esc(group.phone), DF, 9);
+      const created = new Date();
+      const createdStr = `${created.getMonth()+1}/${created.getDate()}/${created.getFullYear()} `+
+        created.toLocaleTimeString('en-US');
+      pdf.text(pg, 48.24+dx, 41.71+dy, createdStr, DF, 9);
+    }
+
+    // Footer page count (dynamic — overrides the static "Page N of 0" placeholder)
+    pdf.text(pg, 535.28+dx, (pageNum === 1 ? 32.11 : 42.91)+dy, `Page ${pageNum} of ${totalPages}`, LF, 8);
+  }
+
+  function renderSummaryLetter(group, opts = {}) {
+    const pdf = opts.writer || new PDFWriter();
+    const totalReports = (group.reports || []).length;
+    const needsPage2 = totalReports >= 47;
+    const totalPages = needsPage2 ? 2 : 1;
+
+    const p1 = pdf.addPage();
+    drawBlankForm(pdf, p1, SUMLETTER_P1_LINES, SUMLETTER_P1_RECTS, SUMLETTER_P1_WORDS);
+    overlaySummaryLetter(pdf, p1, group, 1, totalPages, SUMLETTER_P1_ROW_TOP_Y, 0, opts.omitRsSsn);
+
+    if (needsPage2) {
+      const p2 = pdf.addPage();
+      drawBlankForm(pdf, p2, SUMLETTER_P2_LINES, SUMLETTER_P2_RECTS, SUMLETTER_P2_WORDS);
+      // Page 1 always holds SUMLETTER_P1_ROW_TOP_Y.length*2 reports (2 columns);
+      // page 2 continues from there regardless of its own (different) row capacity.
+      overlaySummaryLetter(pdf, p2, group, 2, totalPages, SUMLETTER_P2_ROW_TOP_Y, SUMLETTER_P1_ROW_TOP_Y.length * 2, opts.omitRsSsn);
+    }
+
+    return pdf;
+  }
 
   // ── Form drawing ──────────────────────────────────────────────────
   // Draw all lines, rects, and static text from measured blank form data.
@@ -7868,7 +7542,7 @@ const PDFGenerator = (() => {
 
   // Row 5: RS info (B22-27)
   // Label y_top=670.9, data at ~661
-  function overlayRow5(pdf, pg, bl) {
+  function overlayRow5(pdf, pg, bl, omitRsSsn) {
     const y = 642;   // -1 down per user adjustment
     if (bl.b22) pdf.text(pg, X.formLeft + 4, y, esc(bl.b22), DF, DS);  // +2 right
     if (bl.b23) pdf.text(pg, X.b23 + 6, y, esc(bl.b23), DF, DS);       // +4 right
@@ -7876,7 +7550,7 @@ const PDFGenerator = (() => {
     if (bl.b25) pdf.text(pg, X.b25 + 3, y, esc(bl.b25), DF, DS);       // +1 right
     if (bl.b26) pdf.text(pg, X.b26 + 3, y, esc(bl.b26), DF, DS);       // +1 right
     const rsssn = bl.b27 ? DataModel.formatSSN(bl.b27) : '';
-    if (rsssn)  pdf.text(pg, X.b27 + 4, y, rsssn, DF, DS);             // +2 right
+    if (rsssn && !omitRsSsn)  pdf.text(pg, X.b27 + 4, y, rsssn, DF, DS);  // +2 right
   }
 
   // B28: Command Employment — 3 lines, label y_top=645.6, data starts ~635
@@ -7960,7 +7634,7 @@ const PDFGenerator = (() => {
 // overlayComments: fontSize, startYOverride, startXOverride, charsOverride
   // EVAL B43: defaults (startY=436, x=formLeft+18, 84/92 chars)
   // FITREP B41: startY=426
-  // CHIEFEVAL B40: startY=348, x=formLeft+4, chars=83, maxLines=9
+  // CHIEFEVAL B40: startY=348, x=formLeft+4, fontSize=10, chars=87, maxLines=6
   function overlayComments(pdf, pg, comments, fontSize, startYOverride, startXOverride, charsOverride, maxLinesOverride) {
     if (!comments) return;
     const sz           = fontSize   || 9.0;
@@ -8169,8 +7843,8 @@ const PDFGenerator = (() => {
 
   // ── Main render functions ─────────────────────────────────────────
 
-  function renderEVAL(report) {
-    const pdf = new PDFWriter();
+  function renderEVAL(report, opts = {}) {
+    const pdf = opts.writer || new PDFWriter();
     const bl  = report.blocks || {};
     const tr  = report.traits || {};
     const avg = DataModel.computeTraitAverage(report) || '';
@@ -8192,7 +7866,7 @@ const PDFGenerator = (() => {
     overlayRow2(pdf, p1, bl);
     overlayRow3(pdf, p1, bl);
     overlayRow4(pdf, p1, bl, true);
-    overlayRow5(pdf, p1, bl);
+    overlayRow5(pdf, p1, bl, opts.omitRsSsn);
     overlayB28(pdf, p1, bl);
     overlayB29(pdf, p1, bl);
     overlayB30_31(pdf, p1, bl);
@@ -8228,8 +7902,8 @@ const PDFGenerator = (() => {
     return pdf;
   }
 
-  function renderFITREP(report) {
-    const pdf = new PDFWriter();
+  function renderFITREP(report, opts = {}) {
+    const pdf = opts.writer || new PDFWriter();
     const bl  = report.blocks || {};
     const tr  = report.traits || {};
     const avg = DataModel.computeTraitAverage(report) || '';
@@ -8251,7 +7925,7 @@ const PDFGenerator = (() => {
     overlayRow2(pdf, p1, bl);
     overlayRow3(pdf, p1, bl);
     overlayRow4(pdf, p1, bl, false);
-    overlayRow5(pdf, p1, bl);
+    overlayRow5(pdf, p1, bl, opts.omitRsSsn);
     overlayB28(pdf, p1, bl);
     overlayB29(pdf, p1, bl);
     overlayB30_31(pdf, p1, bl);
@@ -8340,15 +8014,8 @@ const PDFGenerator = (() => {
 
   // ── drawRotatedLabel: text rotated 90° clockwise ───────────────────────────
   // tx,ty = PDF page coords of the anchor point.
-  // The rotation matrix [0 -1 1 0 tx ty] causes text to read bottom→top on page.
   function drawRotatedLabel(pdf, pg, tx, ty, text, font, size) {
-    pg.fonts.add(font);
-    const pdfName = PDFWriter.FONT_MAP[font]?.pdfName || font;
-    const esc = String(text)
-      .replace(/\\/g, '\\\\')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)');
-    pg.ops.push(`BT /${pdfName} ${PDFWriter.n(size)} Tf 0 -1 1 0 ${PDFWriter.n(tx)} ${PDFWriter.n(ty)} Tm (${esc}) Tj ET`);
+    pdf.textRotated(pg, tx, ty, text, font, size);
   }
 
   // ── overlayCPOGradeDesc: dynamic grade-column descriptor overlay ─────────
@@ -8442,9 +8109,9 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     const avg = DataModel.computeTraitAverage(report) || '';
 
     // ── B40: RS Comments on Performance ──────────────────────────────────
-    // Courier 11pt; x=formLeft+4=32.8; startY=348; ~82 chars/line; max 13 lines
+    // Courier 10pt; x=formLeft+4=32.8; startY=348; 87 chars/line; max 6 lines
     // Adjust startY (5th arg) to shift up/down; startX (6th) for left/right
-    if (report.comments) overlayComments(pdf, pg, report.comments, 11, 348, X.formLeft + 4, 82, 13);
+    if (report.comments) overlayComments(pdf, pg, report.comments, 10, 348, X.formLeft + 4, 87, 6);
 
     // ── B41: Individual promotion recommendation ──────────────────────────
     // Spelled-out label in Courier 11pt inside the B41 Individual row.
@@ -8546,10 +8213,10 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   }
 
   function cpoOverlayRow3(pdf, pg, bl) {
-    // B10-B13: down 3pts, right 15pts; B14-B15: down 2pts
+    // B10-B13: up 1pt, right 16pt from prior (net: +34x, -2y); B14-B15: down 2pts
     const occ = [bl.b10, bl.b11, bl.b12, bl.b13];
     occ.forEach((checked, i) => {
-      if (checked) markX(pdf, pg, X.cbOcc[i] + 18, X.cbOccY - 3, X.cbOccW, X.cbOccH);  // +18x, -3y
+      if (checked) markX(pdf, pg, X.cbOcc[i] + 34, X.cbOccY - 2, X.cbOccW, X.cbOccH);  // +34x, -2y
     });
     const dateY = 693 - 2;
     if (bl.b14) pdf.text(pg, X.r4phys + 35, dateY - 4, esc(bl.b14), DF, DS);
@@ -8568,7 +8235,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     if (bl.b21) pdf.text(pg, X.r4billet + 4, dataY, esc(bl.b21), DF, DS);
   }
 
-  function cpoOverlayRow5(pdf, pg, bl) {
+  function cpoOverlayRow5(pdf, pg, bl, omitRsSsn) {
     // B22-B27: down 2pts (dy=-2)
     const y = 642 - 2;
     if (bl.b22) pdf.text(pg, X.formLeft + 4, y, esc(bl.b22), DF, DS);
@@ -8577,7 +8244,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     if (bl.b25) pdf.text(pg, X.b25 + 3,      y, esc(bl.b25), DF, DS);
     if (bl.b26) pdf.text(pg, X.b26 + 3,      y, esc(bl.b26), DF, DS);
     const rsssn = bl.b27 ? DataModel.formatSSN(bl.b27) : '';
-    if (rsssn)  pdf.text(pg, X.b27 + 4,      y, rsssn, DF, DS);
+    if (rsssn && !omitRsSsn)  pdf.text(pg, X.b27 + 4, y, rsssn, DF, DS);
   }
 
   function cpoOverlayB29(pdf, pg, bl) {
@@ -8646,8 +8313,8 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   }
 
   // ── renderCHIEFEVAL ───────────────────────────────────────────────────────
-  function renderCHIEFEVAL(report) {
-    const pdf = new PDFWriter();
+  function renderCHIEFEVAL(report, opts = {}) {
+    const pdf = opts.writer || new PDFWriter();
     const bl  = report.blocks || {};
     const tg  = report.traitGrades || {};  // CHIEFEVAL uses traitGrades, not traits
 
@@ -8660,7 +8327,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     cpoOverlayRow2(pdf, p1, bl);   // B5-B9: down 3pts
     cpoOverlayRow3(pdf, p1, bl);   // B10-B13: down 3pts +15x; B14-B15: down 2pts
     cpoOverlayRow4(pdf, p1, bl);   // B16-B17: down 2pts
-    cpoOverlayRow5(pdf, p1, bl);   // B22-B27: down 2pts
+    cpoOverlayRow5(pdf, p1, bl, opts.omitRsSsn);   // B22-B27: down 2pts
     overlayB28(pdf, p1, bl);       // B28: shared (same geometry)
     cpoOverlayB29(pdf, p1, bl);    // B29: CHIEFEVAL-specific (-2y)
     cpoOverlayB30_31(pdf, p1, bl); // B30-B31: down 3pts
@@ -8695,8 +8362,8 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     });
 
     // Rotated group labels P1
-    drawRotatedLabel(pdf, p1, 38, 367, 'COMPETENCY', 'Times-Roman', 7);  // B33+B34 band
-    drawRotatedLabel(pdf, p1, 38, 148, 'CHARACTER',  'Times-Roman', 7);  // B35+B36 band
+    drawRotatedLabel(pdf, p1, 38, 407, 'COMPETENCY', 'Times-Roman', 8);  // B33+B34 band — up 40pt, +1pt font
+    drawRotatedLabel(pdf, p1, 38, 190, 'CHARACTER',  'Times-Roman', 8);  // B35+B36 band — up 42pt, +1pt font
 
     // ── Page 2 ────────────────────────────────────────────────────────────────
     const p2 = pdf.addPage();
@@ -8732,8 +8399,8 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     });
 
     // Rotated group labels P2
-    drawRotatedLabel(pdf, p2, 38, 656, 'CHARACTER', 'Times-Roman', 7);  // B37 band
-    drawRotatedLabel(pdf, p2, 38, 490, 'CULTURE',   'Times-Roman', 7);  // B38+B39 band
+    drawRotatedLabel(pdf, p2, 38, 686, 'CHARACTER', 'Times-Roman', 8);  // B37 band — up 30pt, +1pt font
+    drawRotatedLabel(pdf, p2, 38, 520, 'CULTURE',   'Times-Roman', 8);  // B38+B39 band — up 30pt, +1pt font
 
     overlayCHIEFEVALP2(pdf, p2, report);
 
@@ -8741,11 +8408,11 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   }
 
 
-  function _build(report) {
+  function _build(report, opts = {}) {
     const rt = report.reportType;
-    if (rt === 'EVAL')      return renderEVAL(report);
-    if (rt === 'FITREP')    return renderFITREP(report);
-    if (rt === 'CHIEFEVAL') return renderCHIEFEVAL(report);
+    if (rt === 'EVAL')      return renderEVAL(report, opts);
+    if (rt === 'FITREP')    return renderFITREP(report, opts);
+    if (rt === 'CHIEFEVAL') return renderCHIEFEVAL(report, opts);
     return null;
   }
 
@@ -8770,33 +8437,55 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   }
 
   // Async download: resolves fonts then triggers browser save
-  async function download(report, filename, onStatus) {
-    const pdf = _build(report);
+  async function download(report, filename, onStatus, opts = {}) {
+    const pdf = _build(report, opts);
     if (!pdf) return;
     const resolved = await _resolveFonts(pdf, onStatus);
     pdf.download(filename || `NavEval_${report.reportType}.pdf`, resolved);
   }
 
-  // Async group download: resolves fonts once, reuses for each report
-  async function downloadGroup(group, onStatus) {
-    const reports = group.reports || [];
-    // Pre-load all fonts once before looping (single permission prompt)
+  // Merge every report's rendered pages (and optionally the Summary Letter's
+  // pages) into one PDFWriter so the whole group downloads as a single file.
+  // Safe because PDFWriter's per-instance object-numbering state (_objs/
+  // _nextObj) is populated lazily inside toBlob(), not at page-creation time.
+  function _buildCombined(group, includeSummaryLetter, opts = {}) {
+    const master = new PDFWriter();
+    (group.reports || []).forEach(report => {
+      const pdf = _build(report, opts);
+      if (pdf) master.pages.push(...pdf.pages);
+    });
+    if (includeSummaryLetter) {
+      const sumPdf = renderSummaryLetter(group, opts);
+      if (sumPdf) master.pages.push(...sumPdf.pages);
+    }
+    return master;
+  }
+
+  // Async group download: all reports (optionally + Summary Letter) combined
+  // into a single PDF file — one font-resolve pass, one browser save dialog.
+  async function downloadGroup(group, filename, onStatus, includeSummaryLetter=false, opts = {}) {
     if (onStatus) onStatus('Preparing fonts…');
     await FontLoader.preload(onStatus);
-
-    for (let i = 0; i < reports.length; i++) {
-      const report = reports[i];
-      const name = (report.blocks?.b1 || '').split(',')[0].trim() || `Report_${i + 1}`;
-      const fn   = `${name}_${report.reportType}_${report.blocks?.b15 || ''}`.replace(/[^A-Za-z0-9._-]/g, '_') + '.pdf';
-      if (onStatus) onStatus(`Generating ${i + 1} of ${reports.length}: ${name}…`);
-      await download(report, fn);
-      // Brief pause so the browser can handle each save dialog
-      if (i < reports.length - 1) await new Promise(r => setTimeout(r, 700));
-    }
+    if (onStatus) onStatus('Generating combined PDF…');
+    const pdf = _buildCombined(group, includeSummaryLetter, opts);
+    const resolved = await _resolveFonts(pdf, onStatus);
+    pdf.download(filename || `NavEval_${group.reportType}_Group.pdf`, resolved);
     if (onStatus) onStatus('Done.');
   }
 
-  return { download, downloadGroup };
+  // Async Summary Letter download: NAVPERS 1610/1, group-scoped (not per-report)
+  async function downloadSummaryLetter(group, filename, onStatus, opts = {}) {
+    const pdf = renderSummaryLetter(group, opts);
+    if (!pdf) return;
+    const resolved = await _resolveFonts(pdf, onStatus);
+    pdf.download(filename || `SummaryLetter_${group.reportType}.pdf`, resolved);
+  }
+
+  return {
+    download, downloadGroup, downloadSummaryLetter,
+    build: _build,           // exposes the report-type dispatcher for Print Preview
+    HtmlWriter, registerHtmlFonts, serializeHtmlPages,
+  };
 })();
 
 
@@ -8925,39 +8614,6 @@ const AccdbBridge = (() => {
     'EqualOpp':          null,
   };
 
-  // ── Export: NavEval → NAVFIT98A interchange JSON ───────────────
-
-  /**
-   * Export a NavEval data object to NAVFIT98A-compatible interchange JSON.
-   * The output is UNENCRYPTED per the spec requirement.
-   *
-   * @param {Object} data - NavEval data object
-   * @returns {string} - JSON string
-   */
-  function exportToNavfit(data) {
-    const rt = data.reportType;
-    const fieldMap = rt === 'CHIEFEVAL' ? CHIEFEVAL_FIELD_MAP : EVAL_FIELD_MAP;
-
-    const navfitRecord = {
-      _navfit98a_interchange: true,
-      _naveval_version: '1.0.0',
-      _export_date: new Date().toISOString(),
-      _report_type: rt,
-      _schema_table: rt === 'EVAL' ? 'tblPERFEVAL' : rt === 'CHIEFEVAL' ? 'tblCHIEFEVAL' : 'tblFITREP',
-      fields: {}
-    };
-
-    Object.entries(fieldMap).forEach(([navfitKey, nePath]) => {
-      if (!nePath) return;
-      const val = getNestedValue(data, nePath);
-      if (val !== undefined && val !== null) {
-        navfitRecord.fields[navfitKey] = formatForNavfit(val, navfitKey);
-      }
-    });
-
-    return JSON.stringify(navfitRecord, null, 2);
-  }
-
   /**
    * Import NAVFIT98A interchange JSON into NavEval data model.
    *
@@ -9010,16 +8666,6 @@ const AccdbBridge = (() => {
 
   // ── Helpers ───────────────────────────────────────────────────
 
-  function getNestedValue(obj, path) {
-    const parts = path.split('.');
-    let cur = obj;
-    for (const part of parts) {
-      if (cur === null || cur === undefined) return undefined;
-      cur = cur[part];
-    }
-    return cur;
-  }
-
   function setNestedValue(obj, path, value) {
     const parts = path.split('.');
     let cur = obj;
@@ -9028,14 +8674,6 @@ const AccdbBridge = (() => {
       cur = cur[parts[i]];
     }
     cur[parts[parts.length - 1]] = value;
-  }
-
-  function formatForNavfit(value, fieldKey) {
-    // NAVFIT98A stores booleans as -1 (true) / 0 (false) in Access
-    if (typeof value === 'boolean') return value ? -1 : 0;
-    // Dates stored as YYMMMDD string — pass through
-    if (typeof value === 'string') return value.trim();
-    return value;
   }
 
   function parseFromNavfit(value, fieldKey) {
@@ -9051,37 +8689,12 @@ const AccdbBridge = (() => {
   }
 
   /**
-   * Save interchange JSON to disk (unencrypted .navfit.json file).
-   */
-  function saveInterchangeFile(data, filename) {
-    const content = exportToNavfit(data);
-    const blob = new Blob([content], { type: 'application/json' });
-    const memberName = (data.blocks?.b1 || 'Unnamed').replace(/[^A-Za-z0-9_-]/g,'_');
-    const name = filename || `${memberName}_NAVFIT98A_Export.navfit.json`;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
-    return name;
-  }
-
-  /**
    * Generate import instructions for users.
    */
   function getImportInstructions() {
     return `
-NAVFIT98A Import/Export Instructions
+NAVFIT98A Import Instructions
 =====================================
-
-EXPORTING TO NAVFIT98A:
-1. In NavEval, use "Export NAVFIT98A" from the editor sidebar.
-2. NavEval will save a .navfit.json interchange file to your computer.
-3. Open the companion NavEval-ACCDB utility (naveval-bridge.exe).
-4. Select "Import from NavEval JSON" and select the .navfit.json file.
-5. The utility will populate a NAVFIT98A-compatible .accdb file.
-6. Open NAVFIT98A and import the .accdb file normally.
 
 IMPORTING FROM NAVFIT98A:
 1. In NAVFIT98A, export the evaluation record to a file.
@@ -9102,9 +8715,7 @@ import feature.
   }
 
   return {
-    exportToNavfit,
     importFromNavfit,
-    saveInterchangeFile,
     getImportInstructions,
     EVAL_FIELD_MAP,
     CHIEFEVAL_FIELD_MAP
@@ -9723,9 +9334,17 @@ const XmlImporter = (() => {
 const App = (() => {
 
   let _group        = null;   // current group (group of reports)
-  let _currentFile  = null;   // current filename
+  let _currentFile  = null;   // current filename (display string)
   let _passphraseMode = null; // 'save' | 'open'
   let _pendingFile  = null;
+  let _currentFileHandle = null; // FileSystemFileHandle|null — gates Quicksave
+  let _currentHandleId   = null; // HandleStore key for _currentFileHandle
+  let _sessionPassphrase = null; // memory-only, reused by Quicksave — never persisted
+  let _pendingFileHandle = null; // mirrors _pendingFile during passphrase-on-open
+
+  function resetFileState() {
+    _currentFile = null; _currentFileHandle = null; _currentHandleId = null; _sessionPassphrase = null;
+  }
 
   const RECENT_KEY = 'navfitedge_recent_v1';
   const MAX_RECENT = 8;
@@ -9739,6 +9358,12 @@ const App = (() => {
     bindPrintEvents();
     bindFileInputEvents();
     loadRecentFiles();
+    // Quicksave can truly never work without the File System Access API —
+    // hide it entirely rather than leave a permanently-greyed-out button.
+    if (!HandleStore.isAvailable()) {
+      const btn = document.getElementById('btn-quicksave');
+      if (btn) btn.style.display = 'none';
+    }
   }
 
   // ── Screen Management ──────────────────────────────────────────
@@ -9777,7 +9402,7 @@ const App = (() => {
 
   function createNewGroup(reportType) {
     _group = DataModel.createDefaultGroup(reportType);
-    _currentFile = null;
+    resetFileState();
     openEditor();
   }
 
@@ -9817,10 +9442,10 @@ const App = (() => {
       showScreen('screen-landing');
     });
 
-    document.getElementById('btn-save-file')?.addEventListener('click', promptSaveFile);
+    document.getElementById('btn-save-as')?.addEventListener('click', promptSaveFile);
+    document.getElementById('btn-quicksave')?.addEventListener('click', doQuicksave);
     document.getElementById('btn-print-preview')?.addEventListener('click', () => showPrintChoice());
     document.getElementById('btn-grade-review')?.addEventListener('click', openGradeReview);
-    document.getElementById('btn-export-accdb')?.addEventListener('click', exportToNavfit98A);
     document.getElementById('btn-import-reports')?.addEventListener('click', () => {
       document.getElementById('file-input-import-reports').click();
     });
@@ -9835,6 +9460,7 @@ const App = (() => {
     showScreen('screen-editor');
     FormRenderer.init(_group, updatedGroup => { _group = updatedGroup; });
     FormRenderer.switchSection('admin');
+    updateQuicksaveButtonState();
   }
 
   // ── Grade Review (Item #7) ─────────────────────────────────────
@@ -9899,52 +9525,91 @@ const App = (() => {
       const name     = (report.blocks?.b1 || '').split(',')[0].trim() || 'Report';
       const filename = `${name}_${report.reportType}_${report.blocks?.b15 || ''}.pdf`
                          .replace(/[^A-Za-z0-9._-]/g, '_');
+      const omitRsSsn = document.getElementById('chk-omit-rs-ssn')?.checked || false;
       showToast('Generating PDF…', 'info');
       try {
-        await PDFGenerator.download(report, filename, msg => showToast(msg, 'info'));
+        await PDFGenerator.download(report, filename, msg => showToast(msg, 'info'), { omitRsSsn });
         showToast('PDF downloaded.', 'success');
       } catch (e) {
         showToast('PDF generation failed: ' + e.message, 'error');
       }
     });
 
-    // PDF download — all reports in group
+    // PDF download — all reports in group, combined into a single PDF
     document.getElementById('btn-download-pdf-all')?.addEventListener('click', async () => {
       hideModal('modal-print-choice');
       if (!_group) return;
       // Preload ALL fonts in one shot before any async gaps
       await FontLoader.preload(msg => showToast(msg, 'info'));
-      showToast('Generating PDFs…', 'info');
+      const omitRsSsn = document.getElementById('chk-omit-rs-ssn')?.checked || false;
+      showToast('Generating PDF…', 'info');
       try {
-        await PDFGenerator.downloadGroup(_group, msg => showToast(msg, 'info'));
-        showToast('All PDFs downloaded.', 'success');
+        const rsLastName = (_group.rsInfo?.b22 || 'Group').split(',')[0].trim() || 'Group';
+        const fn = `${rsLastName}_${_group.reportType}_AllReports.pdf`.replace(/[^A-Za-z0-9._-]/g, '_');
+        await PDFGenerator.downloadGroup(_group, fn, msg => showToast(msg, 'info'), false, { omitRsSsn });
+        showToast('PDF downloaded.', 'success');
+      } catch (e) {
+        showToast('PDF generation failed: ' + e.message, 'error');
+      }
+    });
+
+    // PDF download — all reports in group + Summary Letter, combined into a single PDF
+    document.getElementById('btn-download-pdf-all-summary')?.addEventListener('click', async () => {
+      hideModal('modal-print-choice');
+      if (!_group) return;
+      await FontLoader.preload(msg => showToast(msg, 'info'));
+      const omitRsSsn = document.getElementById('chk-omit-rs-ssn')?.checked || false;
+      showToast('Generating PDF…', 'info');
+      try {
+        const rsLastName = (_group.rsInfo?.b22 || 'Group').split(',')[0].trim() || 'Group';
+        const fn = `${rsLastName}_${_group.reportType}_AllReports_SummaryLetter.pdf`.replace(/[^A-Za-z0-9._-]/g, '_');
+        await PDFGenerator.downloadGroup(_group, fn, msg => showToast(msg, 'info'), true, { omitRsSsn });
+        showToast('PDF downloaded.', 'success');
+      } catch (e) {
+        showToast('PDF generation failed: ' + e.message, 'error');
+      }
+    });
+
+    // PDF download — Summary Letter only
+    document.getElementById('btn-download-pdf-summary-only')?.addEventListener('click', async () => {
+      hideModal('modal-print-choice');
+      if (!_group) return;
+      await FontLoader.preload(msg => showToast(msg, 'info'));
+      const omitRsSsn = document.getElementById('chk-omit-rs-ssn')?.checked || false;
+      showToast('Generating Summary Letter…', 'info');
+      try {
+        const sumFn = `SummaryLetter_${(_group.rsInfo?.b22||'Group').split(',')[0].trim()}.pdf`
+                        .replace(/[^A-Za-z0-9._-]/g, '_');
+        await PDFGenerator.downloadSummaryLetter(_group, sumFn, msg => showToast(msg, 'info'), { omitRsSsn });
+        showToast('Summary Letter downloaded.', 'success');
       } catch (e) {
         showToast('PDF generation failed: ' + e.message, 'error');
       }
     });
 
     // Print choice modal buttons (HTML preview path)
-    document.getElementById('btn-print-current')?.addEventListener('click', () => {
-      hideModal('modal-print-choice'); openPrintPreview(false);
+    document.getElementById('btn-print-current')?.addEventListener('click', async () => {
+      hideModal('modal-print-choice'); await openPrintPreview(false);
     });
-    document.getElementById('btn-print-all')?.addEventListener('click', () => {
-      hideModal('modal-print-choice'); openPrintPreview(true);
+    document.getElementById('btn-print-all')?.addEventListener('click', async () => {
+      hideModal('modal-print-choice'); await openPrintPreview(true);
     });
   }
 
-  function openPrintPreview(batchMode) {
+  async function openPrintPreview(batchMode) {
     if (!_group) return;
     const stage = document.getElementById('print-stage');
     if (!stage) return;
     if (batchMode) {
       // Print all reports in group
-      stage.innerHTML = _group.reports.map(r => PrintRenderer.render(r)).join('');
+      const pages = await Promise.all(_group.reports.map(r => PrintRenderer.render(r)));
+      stage.innerHTML = pages.join('');
       document.getElementById('print-title').textContent =
         `Print Preview — All ${_group.reports.length} Report${_group.reports.length!==1?'s':''}`;
     } else {
       // Print only active report
       const active = _group.reports[_group.activeIndex||0];
-      stage.innerHTML = PrintRenderer.render(active);
+      stage.innerHTML = await PrintRenderer.render(active);
       const name = (active.blocks?.b1||'').split(',')[0].trim()||'Report';
       document.getElementById('print-title').textContent =
         `Print Preview — ${name} (${_group.reportType})`;
@@ -9992,20 +9657,87 @@ const App = (() => {
     }
   }
 
-  function doSaveFile(passphrase) {
+  async function doSaveFile(passphrase) {
     if (!_group) return;
+    const suggested = _currentFile || DataModel.buildFilename(_group);
+
+    if (HandleStore.isAvailable()) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested,
+          types: [{ description: 'NavEval File', accept: { 'application/octet-stream': ['.nve'] } }]
+        });
+        const content  = NavEvalCrypto.encrypt(_group, passphrase);
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+
+        _currentFile = handle.name;
+        _currentFileHandle = handle;
+        _sessionPassphrase = passphrase;
+        _currentHandleId = DataModel.generateId();
+        try { await HandleStore.set(_currentHandleId, handle); } catch {}
+        document.getElementById('sidebar-filename').textContent = handle.name.replace(/\.nve$/i,'');
+        FormRenderer.markClean();
+        addRecentFile(handle.name, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId);
+        showToast('File saved.', 'success');
+        updateQuicksaveButtonState();
+      } catch (e) {
+        if (e.name === 'AbortError') return; // user cancelled the picker
+        showToast('Error saving: ' + e.message, 'error');
+      }
+      return;
+    }
+
+    // Fallback: classic blob download (non-Chromium) — no reusable handle
     try {
-      // Item #5: smart default filename from group data
-      const suggested = _currentFile || DataModel.buildFilename(_group);
       const filename = NavEvalCrypto.saveFile(_group, passphrase, suggested);
-      _currentFile = filename;
+      _currentFile = filename; _currentFileHandle = null; _currentHandleId = null; _sessionPassphrase = null;
       document.getElementById('sidebar-filename').textContent = filename.replace(/\.nve$/i,'');
       FormRenderer.markClean();
-      addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'');
+      addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'', null);
       showToast('File saved.', 'success');
     } catch(e) {
       showToast('Error saving: ' + e.message, 'error');
     }
+  }
+
+  // Quicksave: write back to the file handle established by the last Save As
+  // (or a successful Open/Recent-Files reopen), with no picker and no
+  // re-prompt for the passphrase. Any failure falls back to Save As.
+  async function doQuicksave() {
+    if (!_group) return;
+    if (!_currentFileHandle) { promptSaveFile(); return; }
+
+    try {
+      let perm = await _currentFileHandle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') perm = await _currentFileHandle.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') throw new Error('PERMISSION_DENIED');
+
+      const content  = NavEvalCrypto.encrypt(_group, _sessionPassphrase);
+      const writable = await _currentFileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+
+      FormRenderer.markClean();
+      addRecentFile(_currentFile, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId);
+      showToast('Saved. (Reused your existing passphrase.)', 'success');
+    } catch (e) {
+      const reason = e.message === 'PERMISSION_DENIED'
+        ? 'permission to write to this file was denied'
+        : e.name === 'NotFoundError'
+          ? 'the file could not be found — it may have been moved or deleted'
+          : (e.message || 'an unknown error occurred');
+      showToast(`Quicksave failed (${reason}). Opening Save As instead…`, 'error');
+      _currentFileHandle = null; _currentHandleId = null;
+      updateQuicksaveButtonState();
+      promptSaveFile();
+    }
+  }
+
+  function updateQuicksaveButtonState() {
+    const btn = document.getElementById('btn-quicksave');
+    if (btn) btn.disabled = !_currentFileHandle;
   }
 
   function bindFileInputEvents() {
@@ -10029,13 +9761,14 @@ const App = (() => {
     });
   }
 
-  async function openNveFile(file) {
+  async function openNveFile(file, handle = null) {
     try {
       const content = await NavEvalCrypto.readFile(file);
       const result  = NavEvalCrypto.decrypt(content, null);
 
       if (result.error === 'PASSPHRASE_REQUIRED') {
         _pendingFile = { content, filename: file.name };
+        _pendingFileHandle = handle;
         _passphraseMode = 'open';
         document.getElementById('passphrase-title').textContent = 'File is Passphrase Protected';
         document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
@@ -10047,19 +9780,19 @@ const App = (() => {
       }
       if (!result.ok) { showToast('Cannot open: ' + result.error, 'error'); return; }
 
-      loadGroup(result.data, file.name, result.metadata);
+      loadGroup(result.data, file.name, result.metadata, handle, null);
     } catch(e) { showToast('Error reading file: ' + e.message, 'error'); }
   }
 
   async function doOpenFileWithPassphrase(passphrase) {
     if (!_pendingFile) return;
     const result = NavEvalCrypto.decrypt(_pendingFile.content, passphrase);
-    if (!result.ok) { showToast('Incorrect passphrase.', 'error'); _pendingFile = null; return; }
-    loadGroup(result.data, _pendingFile.filename, result.metadata);
-    _pendingFile = null;
+    if (!result.ok) { showToast('Incorrect passphrase.', 'error'); _pendingFile = null; _pendingFileHandle = null; return; }
+    loadGroup(result.data, _pendingFile.filename, result.metadata, _pendingFileHandle, passphrase);
+    _pendingFile = null; _pendingFileHandle = null;
   }
 
-  function loadGroup(data, filename, metadata) {
+  function loadGroup(data, filename, metadata, handle = null, passphrase = null) {
     // Support both v3 group format and v2 single-report format (auto-upgrade)
     if (data._naveval && data.reports) {
       _group = data;
@@ -10073,7 +9806,14 @@ const App = (() => {
       return;
     }
     _currentFile = filename;
-    addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'');
+    _currentFileHandle = handle;
+    _sessionPassphrase = passphrase;
+    _currentHandleId = null;
+    if (handle) {
+      _currentHandleId = DataModel.generateId();
+      HandleStore.set(_currentHandleId, handle).catch(()=>{});
+    }
+    addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId);
     openEditor();
     showToast(`Opened: ${filename}`, 'success');
   }
@@ -10117,7 +9857,7 @@ const App = (() => {
       if (!legacyResult.ok) { showToast('Import failed: ' + (legacyResult.errors[0]||'Unknown'), 'error'); return; }
       _group = DataModel.createDefaultGroup(legacyResult.data.reportType || 'EVAL');
       _group.reports = [legacyResult.data];
-      _currentFile = null;
+      resetFileState();
       openEditor();
       showToast('Data imported.', 'success');
 
@@ -10282,7 +10022,7 @@ const App = (() => {
         _group.reports = reports;
         _group.rsInfo  = firstGroup?.rsInfo || {};
         _group.activeIndex = 0;
-        _currentFile = null;
+        resetFileState();
         openEditor();
         showToast(`Imported ${reports.length} report(s) as new ${importType} group.`, 'success');
       }
@@ -10329,22 +10069,12 @@ const App = (() => {
     showModal('modal-help');
   }
 
-  function exportToNavfit98A() {
-    if (!_group) return;
-    // Export first (active) report
-    const activeReport = _group.reports[_group.activeIndex||0];
-    try {
-      AccdbBridge.saveInterchangeFile(activeReport);
-      showToast('Exported. Use NavEval Bridge utility to convert to .accdb.', 'info');
-    } catch(e) { showToast('Export error: ' + e.message, 'error'); }
-  }
-
   // ── Recent Files ───────────────────────────────────────────────
 
-  function addRecentFile(filename, reportType, rsName) {
+  function addRecentFile(filename, reportType, rsName, handleId = null) {
     let recent = getRecentFiles();
     recent = recent.filter(r => r.filename !== filename);
-    recent.unshift({ filename, reportType, rsName, date: new Date().toISOString() });
+    recent.unshift({ filename, reportType, rsName, handleId, date: new Date().toISOString() });
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT))); } catch{}
     loadRecentFiles();
   }
@@ -10368,8 +10098,30 @@ const App = (() => {
         <span class="recent-item-meta">${r.filename.slice(-28)}</span>
         <span class="recent-item-meta">${formatDateShort(r.date)}</span>
       </div>`).join('');
-    list.querySelectorAll('.recent-item').forEach(item => {
-      item.addEventListener('click', () => showToast('Drag the file into the browser to re-open it.','info'));
+    list.querySelectorAll('.recent-item').forEach((item, i) => {
+      const r = recent[i];
+      item.addEventListener('click', async () => {
+        if (!r.handleId || !HandleStore.isAvailable()) {
+          showToast('Drag the file into the browser to re-open it.', 'info');
+          return;
+        }
+        let handle;
+        try { handle = await HandleStore.get(r.handleId); } catch { handle = null; }
+        if (!handle) {
+          showToast("This file's saved location is no longer available — drag it into the browser to re-open it.", 'info');
+          return;
+        }
+        try {
+          let perm = await handle.queryPermission({ mode: 'readwrite' });
+          if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'readwrite' });
+          if (perm !== 'granted') { showToast('Permission to access this file was denied.', 'error'); return; }
+
+          const file = await handle.getFile();
+          await openNveFile(file, handle);
+        } catch (e) {
+          showToast('Could not reopen this file — it may have been moved or deleted. Drag it into the browser to re-open it.', 'error');
+        }
+      });
     });
   }
 
@@ -10418,7 +10170,9 @@ const App = (() => {
       if (e.key === 'Escape') document.querySelectorAll('.modal:not(.hidden)').forEach(m=>m.classList.add('hidden'));
       if ((e.ctrlKey||e.metaKey) && e.key==='s') {
         e.preventDefault();
-        if (document.getElementById('screen-editor')?.classList.contains('active')) promptSaveFile();
+        if (document.getElementById('screen-editor')?.classList.contains('active')) {
+          if (_currentFileHandle) doQuicksave(); else promptSaveFile();
+        }
       }
       if ((e.ctrlKey||e.metaKey) && e.key==='p') {
         e.preventDefault();
@@ -10431,8 +10185,10 @@ const App = (() => {
         const counter = document.getElementById('comment-char-count');
         if (counter) {
           const len = e.target.value.length;
-          counter.textContent = `${len} chars`;
-          counter.style.color = len>1980 ? 'var(--red-500)' : 'var(--gray-400)';
+          const rt = _report.reportType;
+          const maxChars = rt==='CHIEFEVAL' ? 522 : ((_report.commentsFont||'10')==='11' ? 1512 : 1656);
+          counter.textContent = `${len} / ${maxChars}`;
+          counter.style.color = len>maxChars ? 'var(--red-500)' : 'var(--gray-400)';
         }
       }
     });
@@ -10459,16 +10215,33 @@ const App = (() => {
     console.log('%cNavEval v4 ready — BUPERSINST 1610.10H CH-1 (16 Dec 2025)', 'color:#e08c00;font-weight:bold');
   });
 
+  // Warn on accidental back/refresh/close when there are unsaved changes.
+  window.addEventListener('beforeunload', (e) => {
+    if (FormRenderer.isDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
+
   function bindDragDrop() {
-    // Drag .nve or .xml file into browser window to open
+    // Drag .nve or .xml file into browser window to open. Reads via
+    // dataTransfer.items (not .files) so we can opportunistically grab a
+    // FileSystemFileHandle (Chromium-only) alongside the File — enables
+    // Quicksave immediately after a drag-drop open. Falls back to identical
+    // behavior when getAsFileSystemHandle isn't available.
     document.addEventListener('dragover', e => e.preventDefault());
     document.addEventListener('drop', async e => {
       e.preventDefault();
-      const files = Array.from(e.dataTransfer.files);
-      const nveFiles = files.filter(f => f.name.toLowerCase().endsWith('.nve'));
-      const xmlFiles = files.filter(f => f.name.toLowerCase().endsWith('.xml'));
-      if (nveFiles.length > 0) await openNveFile(nveFiles[0]);
-      else if (xmlFiles.length > 0) await importNavfitXML(xmlFiles[0]);
+      const items = Array.from(e.dataTransfer.items || []).filter(i => i.kind === 'file');
+      const files = items.length ? items.map(i => i.getAsFile()).filter(Boolean) : Array.from(e.dataTransfer.files);
+      const nveIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.nve'));
+      const xmlIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.xml'));
+      if (nveIdx >= 0) {
+        let handle = null;
+        if (items[nveIdx] && typeof items[nveIdx].getAsFileSystemHandle === 'function') {
+          try { handle = await items[nveIdx].getAsFileSystemHandle(); } catch { handle = null; }
+        }
+        await openNveFile(files[nveIdx], handle);
+      } else if (xmlIdx >= 0) {
+        await importNavfitXML(files[xmlIdx]);
+      }
     });
   }
 
@@ -10498,7 +10271,7 @@ const App = (() => {
       if (result.groups.length === 1) {
         // Single group — open directly
         _group = result.groups[0];
-        _currentFile = null;
+        resetFileState();
         openEditor();
         showToast(
           `Imported ${_group.reports.length} report(s) from ${file.name}` +
@@ -10557,7 +10330,7 @@ const App = (() => {
       row.addEventListener('click', () => {
         const idx = parseInt(row.dataset.idx);
         _group = groups[idx];
-        _currentFile = null;
+        resetFileState();
         hideModal('modal-help');
         openEditor();
         showToast(`Opened group "${_group._source_parent}" — ${_group.reports.length} report(s)`, 'success');
