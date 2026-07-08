@@ -1,25 +1,26 @@
 # NAVFIT-Edge
-Introducing NAVFIT-Edge, an open-source alternative to NAVFIT98A.  NAVFIT-Edge is designed to make Sailors' lives easier with user experience (UX) improvements, more powerful and accurate validation, and maximum portability.
+Introducing NAVFIT-Edge, an open-source alternative to NAVFIT98A.  NAVFIT-Edge is designed to make Sailors' lives easier with user experience (UX) improvements, more powerful validation, and maximum portability.
 
 ## System requirements:
 
-No installation necessary.
-Latest version of Microsoft Edge or Google Chrome.  Not tested in other browsers.
-
+Windows and the latest version of Microsoft Edge or Google Chrome.  Not tested in other browsers or operating systems.  No installation necessary.
 
 ## FAQs
 
 ### Why do I need this?
-_NAVFIT98A is almost 30 years old and doesn't install/run in every computer/network configuration the Navy operates.  This one aims to fix that.  There have been several attempts to replace this program, but the two overarching hurdles seem to be:_
+_NAVFIT98A is almost 30 years old and doesn't install/run in every computer/network configuration the Navy operates.  This software aims to fix that.  There have been several attempts to replace NAVFIT98A, but the  overarching hurdles seem to be:_
 
 * _Cost_
 * _Navy IT vetting/Network Security_
+* _Design/Infrastructure Mismatch_
 
 _My solution is designed to get around this because:_
 
 _The cost is free.  I did this open-source in my off-duty spare time so that I can strengthen my development resume for my next career and hopefully help my fellow administrators in the fleet.  You're welcome._
 
 _Copies of the .html file and anything they create can be saved virtually anywhere.  It can be opened from a command's shared drive, a CD, from MS Teams, from OneDrive, or from some command's website.  It requires ZERO installation, ZERO internet connectivity and ZERO dependencies to run._
+
+_Products of this software don't change the existing infrastructure, e.g. physical mail -> examination -> scanning._
 
 ### Is this official software and authorized for use?
 _Not yet, but maybe one day if it proves useful._
@@ -43,13 +44,13 @@ _You can try.  It's open source._
 _You can export the summary groups in them for use in NAVFIT-Edge.  There are instructions included.  The best part?  You can send NAVFIT-Edge files in emails without .zip compression, unlike the .accdb files used by NAVFIT98A._
 
 ### Who are you?
-_I started as a submarine YN, and now serving as an admin Chief Warrant Officer with some software degrees._
+_I started as a submarine YN, and am now serving as an admin Chief Warrant Officer with some IT-related degrees._
 
 ### What is this written in?
 _HTML5/CSS/Javascript._
 
 ### Will it work at sea?
-_Yes.  A copy of NAVFIT-Edge requires no internet connection.  Just a browser like Microsoft Edge or Google Chrome._ 
+_Yes.  A copy of NAVFIT-Edge requires no internet connection.  Just Windows and a browser like Microsoft Edge or Google Chrome._ 
 
 ### Is it safe to type CUI into this?
 _Yes.  NAVFIT-Edge opens and runs in your browser and saves summary groups wherever you tell Windows to save them, such as My Documents, your OneDrive, your shared drive, or whatever you want.  The saved files (not the PDFs) are SHA-256 encrypted (DOW standard) and only readable using NAVFIT-Edge.  You can also add protection using an optional encrypted passphrase, similar to the way SAFE works for file dropoffs._
@@ -58,9 +59,9 @@ _Yes.  NAVFIT-Edge opens and runs in your browser and saves summary groups where
 _Nope, sorry about that._
 
 ### I found a bug!
-_Thanks! Send me an email at bryce.r.jameson.mil@us.navy.mil.  Try to include information that will help me fix the problem such as a screenshot, what operating system you're running, what browser your using, what function gave you problems, etc.  If you're savvy enough, you can also contribute on GitHub._
+_Thanks! let me know in the GitHub issues section, or send me an email at bryce.r.jameson.mil@us.navy.mil.  Try to include information that will help me fix the problem such as a screenshot, what operating system you're running, what browser your using, what function gave you problems, etc.  If you're savvy enough, you can also contribute fixes on GitHub._
 
-### This is helpful.  Why don't you build a true electronic EVAL?
+### This is helpful.  Why don't you build a true electronic EVAL system?
 _Maybe.  I could use a job after I retire…_
 
 ### Why did you decide on open-source instead of trying to cash in?
