@@ -1,3 +1,26 @@
+<!--
+MIT License
+
+Copyright (c) 2026 Bryce R. Jameson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -171,6 +194,9 @@ input, textarea, select { font-family: inherit; }
   color: var(--navy-200);
   letter-spacing: 0.08em;
 }
+
+.header-tag a { color: var(--amber-400); text-decoration: none; }
+.header-tag a:hover { text-decoration: underline; }
 
 /* ── Landing Main ── */
 .landing-main {
@@ -595,7 +621,35 @@ input, textarea, select { font-family: inherit; }
   border-radius: var(--radius-sm);
   border: 1px solid var(--navy-600);
   font-size: 11px;
+  cursor: pointer;
 }
+
+.sidebar-validation:hover { border-color: var(--navy-400); }
+
+.val-modal-group-total {
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-3);
+  border: 1px solid var(--navy-600);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--navy-200);
+}
+.val-modal-group-total strong { color: #fca5a5; }
+
+.val-modal-list { list-style: none; }
+.val-modal-list .val-list-item {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-1);
+  border-bottom: 1px solid var(--navy-700);
+  cursor: pointer;
+  color: #fca5a5;
+  font-size: 12px;
+}
+.val-modal-list .val-list-item.warn { color: #fcd34d; }
+.val-modal-list .val-list-item:hover { background: var(--navy-700); }
+.val-modal-ref { font-family: var(--font-mono); font-size: 10px; flex: 0 0 auto; opacity: 0.8; white-space: nowrap; }
+.val-modal-msg { flex: 1 1 auto; }
 
 .val-header {
   display: flex;
@@ -1635,9 +1689,9 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
       <div class="header-brand">
         <span class="brand-mark">▮</span>
         <span class="brand-name">NAVFIT-Edge</span>
-        <span class="brand-version">v0.1</span>
+        <span class="brand-version" id="brand-version">v0.1</span>
       </div>
-      <div class="header-tag">Navy Performance Evaluation System · Current EVALMAN: BUPERSINST 1610.10H CH-1 · 16 Dec 2025</div>
+      <div class="header-tag">Navy Performance Evaluation System · Current EVALMAN: <a href="https://www.mynavyhr.navy.mil/Portals/55/Reference/Instructions/BUPERS/BUPERSINST%201610.10%20CH-1%20_SIGNED.pdf?ver=5VehxXbIT915wFJLloe3Hw%3d%3d" target="_blank" rel="noopener">BUPERSINST 1610.10H CH-1</a> · 16 Dec 2025</div>
     </header>
     <main class="landing-main">
       <div class="landing-hero">
@@ -1667,7 +1721,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
       </div>
     </main>
     <footer class="app-footer">
-      <span>Verify this app is up to date here.</span>
+      <span>Verify this app is up to date <a href="https://github.com/brycejameson/NAVFIT-Edge" target="_blank" rel="noopener">here</a>.</span>
       <span>Data never leaves your machine</span>
       <a href="#" id="btn-help">Help &amp; Reference</a>
     </footer>
@@ -1800,6 +1854,18 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
     </div>
   </div>
 
+  <!-- ── Validation Modal ── -->
+  <div id="modal-validation" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box wide">
+      <div class="modal-header">
+        <h2 id="validation-modal-title">Errors &amp; Warnings</h2>
+        <button class="modal-close" data-modal="modal-validation">✕</button>
+      </div>
+      <div class="modal-body" id="validation-modal-body"></div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
   <input type="file" id="file-input-open" accept=".nve" style="display:none">
   <input type="file" id="file-input-accdb" accept=".xml,.accdb,.mdb,.json" style="display:none">
@@ -1854,6 +1920,26 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
 
 
 <script>
+// ═══════════════════════════════════════════════════════════════════
+// NAVFIT-Edge application version. Bump this on every release.
+// Stamped into every saved .nve file's (unencrypted) metadata so that
+// opening a file saved by an older version can warn the user to verify
+// the data. This is the app version — distinct from NavEvalCrypto's
+// FILE_VERSION, which tracks the .nve on-disk *format*, not the app.
+// ═══════════════════════════════════════════════════════════════════
+const NAVFIT_EDGE_VERSION = '0.2.0';
+
+// Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
+function compareVersions(a, b) {
+  const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 /* === crypto.js === */
 /**
  * NAVFIT-Edge Crypto Module
@@ -1867,8 +1953,19 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
  *   - Encrypted payload (base64 AES-CBC)
  * 
  * Key derivation:
- *   - Without passphrase: PBKDF2(NAVEVAL_DEFAULT_KEY + machineFingerprint, salt, 10000 iter)
+ *   - Without passphrase: PBKDF2(DEFAULT_KEY_BASE, salt, 10000 iter) — a fixed,
+ *     machine-independent key. This only obfuscates the file from ordinary
+ *     users/tools that aren't running NavEval; it is intentionally NOT tied
+ *     to the machine that saved the file, so files are portable between
+ *     machines/users without a passphrase. Real access control (protecting a
+ *     file from other people) requires the optional passphrase below.
  *   - With passphrase: PBKDF2(passphrase, salt, 10000 iter)
+ *
+ * Legacy note: files saved before this module derived the no-passphrase key
+ * from a per-machine fingerprint (getMachineFingerprint()) instead of the
+ * fixed DEFAULT_KEY_BASE. decrypt() retries with that legacy derivation if
+ * the fixed-key attempt fails, so old files keep opening on their original
+ * machine; new saves always use the portable fixed key.
  */
 
 const NavEvalCrypto = (() => {
@@ -1879,10 +1976,10 @@ const NavEvalCrypto = (() => {
   const KEY_SIZE_WORDS = 256 / 32; // 8 words = 256 bits
 
   /**
-   * Generate a machine fingerprint for default-key encryption.
-   * Combines several stable browser/platform characteristics.
-   * Not perfect security, but prevents casual reading of files
-   * outside the application.
+   * Legacy (pre-portable-key) machine fingerprint. No longer used to
+   * derive new files' keys — kept only so decrypt() can fall back to it
+   * when opening a passphrase-less file saved by an older version of
+   * NavEval that locked the key to the originating machine.
    */
   function getMachineFingerprint() {
     const parts = [
@@ -1919,7 +2016,7 @@ const NavEvalCrypto = (() => {
 
     const keySource = passphrase
       ? passphrase
-      : getMachineFingerprint();
+      : DEFAULT_KEY_BASE;
 
     const key = deriveKey(keySource, salt);
     const iv = CryptoJS.lib.WordArray.random(128 / 8);
@@ -1939,6 +2036,7 @@ const NavEvalCrypto = (() => {
 
     const metadata = {
       version: FILE_VERSION,
+      appVersion: NAVFIT_EDGE_VERSION,
       created: new Date().toISOString(),
       modified: new Date().toISOString(),
       reportType: data.reportType || 'EVAL',
@@ -1992,30 +2090,32 @@ const NavEvalCrypto = (() => {
       const salt = CryptoJS.enc.Base64.parse(payload.salt);
       const iv = CryptoJS.enc.Base64.parse(payload.iv);
 
-      const keySource = passphrase || getMachineFingerprint();
-      const key = deriveKey(keySource, salt);
-
-      let decrypted;
-      try {
-        decrypted = CryptoJS.AES.decrypt(payload.ct, key, {
-          iv: iv,
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7
-        });
-      } catch (e) {
-        return { ok: false, data: null, metadata, error: 'Decryption failed. Incorrect passphrase?' };
+      function tryDecrypt(keySource) {
+        const key = deriveKey(keySource, salt);
+        let decrypted;
+        try {
+          decrypted = CryptoJS.AES.decrypt(payload.ct, key, {
+            iv: iv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7
+          });
+        } catch (e) { return null; }
+        const plaintext = decrypted.toString(CryptoJS.enc.Utf8);
+        if (!plaintext) return null;
+        try { return JSON.parse(plaintext); } catch (e) { return null; }
       }
 
-      const plaintext = decrypted.toString(CryptoJS.enc.Utf8);
-      if (!plaintext) {
-        return { ok: false, data: null, metadata, error: 'Decryption failed. Incorrect passphrase?' };
+      let data = tryDecrypt(passphrase || DEFAULT_KEY_BASE);
+
+      // Legacy fallback: passphrase-less files saved before the portable-key
+      // fix (see module doc comment above) were locked to the originating
+      // machine's fingerprint. Retry with that derivation before giving up.
+      if (data === null && !passphrase) {
+        data = tryDecrypt(getMachineFingerprint());
       }
 
-      let data;
-      try {
-        data = JSON.parse(plaintext);
-      } catch (e) {
-        return { ok: false, data: null, metadata, error: 'Decrypted data is corrupted.' };
+      if (data === null) {
+        return { ok: false, data: null, metadata, error: 'Decryption failed. Incorrect passphrase?' };
       }
 
       return { ok: true, data, metadata, error: null };
@@ -2179,6 +2279,9 @@ const DataModel = (() => {
   const DUTY_STATUS = ['ACT', 'TAR', 'INACT', 'AT/ADOS'];
   const PROMOTION_STATUS_TABLE = ['REGULAR', 'FROCKED', 'SELECTED', 'SPOT'];
 
+  // FITREP Block 2 (Grade/Rate) is officers-only — valid entries per NAVPERSCOM.
+  const FITREP_OFFICER_GRADES = ['CAPT','CDR','LCDR','LT','LTJG','ENS','CWO5','CWO4','CWO3','CWO2','WO1','MIDN'];
+
   const BILLET_SUBCATEGORIES = [
     'NA', 'BASIC', 'APPROVED', 'INDIV AUG', 'CO AFLOAT', 'CO ASHORE',
     'OIC', 'SEA COMP', 'CRF', 'CANVASSER', 'RESIDENT', 'INTERN',
@@ -2322,7 +2425,7 @@ const DataModel = (() => {
 
   function createDefaultGroup(reportType='EVAL') {
     return {
-      _naveval:true, _version:'0.1.0',
+      _naveval:true, _version:NAVFIT_EDGE_VERSION,
       _created:new Date().toISOString(), _modified:new Date().toISOString(),
       reportType,
       rsInfo:{b22:'',b23:'',b24:'',b25:'',b26:'',b27:'',rsAddress:''},
@@ -2337,7 +2440,7 @@ const DataModel = (() => {
       _id: generateId(), reportType,
       _created:new Date().toISOString(), _modified:new Date().toISOString(),
       blocks:{
-        b1:'',b2:'',b3:'',b4:'',b5:'ACT',b6:'',b7:'',b8:'Regular',b9:'',
+        b1:'',b2:'',b3:'',b4:'',b5:'ACT',b6:'',b7:'',b8:'REGULAR',b9:'',
         b10:false,b11:false,b12:false,b13:false,
         b14:'',b15:'',b16:false,b17:true,b18:false,b19:false,
         b20:'',b21:'NA',
@@ -2419,7 +2522,10 @@ const DataModel = (() => {
       const avg=computeTraitAverage(r);
       if (avg!==null) avgs.push(parseFloat(avg));
     });
-    dist.total=dist.sp+dist.prog+dist.p+dist.mp+dist.ep+dist.nob;
+    // NOB reports are tracked (dist.nob) but excluded from the total used for
+    // quota/limit calculations — NAVPERSCOM rule 43M/46M: "NOB Report cannot
+    // be calculated in the summary group totals."
+    dist.total=dist.sp+dist.prog+dist.p+dist.mp+dist.ep;
     const groupAvg=avgs.length?(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(2):null;
     return {...dist,groupTraitAvg:groupAvg};
   }
@@ -2469,12 +2575,105 @@ const DataModel = (() => {
     return null;
   }
 
+  // ── Officer Designator Competitive Categories (FITREP Block 3) ─
+  // Source: NAVPERSCOM rejection-reason list. Ranges are checked narrowest
+  // first so a sub-range (e.g. a specific LDO community) wins over its
+  // broader parent range. Active/Reserve component tables genuinely overlap
+  // in raw designator numbers (e.g. Reserve LDO/WO Line 6100-6499 vs the
+  // Active LDO breakdowns) — component must be resolved by the caller
+  // (from Block 5 Duty Status) and the matching table used.
+  const DESIGNATOR_CATEGORIES_SHARED = [
+    // narrower sub-ranges before their broader parent
+    { min:1230, max:1239, label:'Special Duty (Permanent Military Professor)' },
+    { min:1280, max:1289, label:'Special Duty (Permanent Professional Recruiter)' },
+    { min:1200, max:1299, label:'Special Duty (Human Resources)' },
+    { min:1100, max:1199, label:'Unrestricted Line (URL)' },
+    { min:1300, max:1399, label:'Unrestricted Line (URL)' },
+    { min:1900, max:1999, label:'Unrestricted Line (URL)' },
+    { min:1400, max:1499, label:'Engineering Duty' },
+    { min:1500, max:1509, label:'Aerospace Engineering Duty' },
+    { min:1510, max:1519, label:'Aerospace Engineering Duty (Engineering)' },
+    { min:1520, max:1529, label:'Aerospace Engineering Duty (Maintenance)' },
+    { min:1540, max:1549, label:'Aviation Duty' },
+    { min:1650, max:1659, label:'Special Duty (Public Affairs)' },
+    { min:1660, max:1669, label:'Special Duty (Strategic Sealift)' },
+    { min:1680, max:1689, label:'Special Duty (Recruiter)' },
+    { min:1700, max:1799, label:'Special Duty (Foreign Area)' },
+    { min:1800, max:1800, label:'Information Warfare (Oceanography)' },
+    { min:1810, max:1810, label:'Information Warfare (Cryptologic Warfare)' },
+    { min:1820, max:1820, label:'Information Warfare (Information Professional)' },
+    { min:1830, max:1830, label:'Information Warfare (Intelligence)' },
+    { min:1840, max:1849, label:'Information Warfare (Cyber Warfare Engineer)' },
+    { min:1870, max:1870, label:'Information Warfare (Maritime Space)' },
+    { min:1880, max:1880, label:'Information Warfare (Maritime Cyber Warfare)' },
+    { min:2100, max:2109, label:'Medical Corps' },
+    { min:2200, max:2209, label:'Dental Corps' },
+    { min:2300, max:2309, label:'Medical Service Corps' },
+    { min:2500, max:2509, label:"Judge Advocate General's Corps" },
+    { min:2700, max:2709, label:'Senior Health Care Executive' },
+    { min:2900, max:2909, label:'Nurse Corps' },
+    { min:3100, max:3109, label:'Supply Corps' },
+    { min:4100, max:4109, label:'Chaplain Corps' },
+    { min:5100, max:5109, label:'Civil Engineer Corps' },
+    { min:6500, max:6599, label:'Limited Duty Officer (Staff)' },
+  ];
+  const DESIGNATOR_CATEGORIES_ACTIVE = [
+    { min:7371, max:7371, label:'Active CWO (UAV)' },
+    { min:7400, max:7409, label:'Active CWO (Submarine/Nuclear)' },
+    { min:6530, max:6539, label:'Active LDO (Civil Engineer)' },
+    { min:6510, max:6519, label:'Active LDO (Supply)' },
+    { min:6100, max:6199, label:'Active LDO (Surface)' },
+    { min:6200, max:6299, label:'Active LDO (Submarine/Nuclear)' },
+    { min:6300, max:6399, label:'Active LDO (Aviation)' },
+    { min:6400, max:6499, label:'Active LDO (General Line)' },
+    { min:6800, max:6899, label:'Active LDO (Information Warfare)' },
+    { min:7100, max:7199, label:'Active CWO (Surface)' },
+    { min:7200, max:7299, label:'Active CWO (Submarine/Nuclear)' },
+    { min:7300, max:7399, label:'Active CWO (Aviation)' },
+    { min:7400, max:7499, label:'Active CWO (General Line)' },
+    { min:7500, max:7599, label:'Active CWO (General Staff)' },
+    { min:7800, max:7899, label:'Active CWO (Information Warfare)' },
+  ];
+  const DESIGNATOR_CATEGORIES_RESERVE = [
+    { min:6100, max:6499, label:'Reserve LDO/WO (Line)' },
+    { min:7000, max:7999, label:'Chief Warrant Officer' },
+  ];
+
+  // Extracts a leading 4-digit designator from free-text Block 3 and looks
+  // up its competitive category. component: 'ACTIVE' | 'RESERVE'.
+  // Returns null if no 4-digit designator is found or it matches no table
+  // (silent — B3 isn't always a clean numeric designator, e.g. "NEC 0000").
+  function designatorCategory(desigStr, component) {
+    const m = String(desigStr||'').trim().match(/^(\d{4})/);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    const componentTable = component==='RESERVE' ? DESIGNATOR_CATEGORIES_RESERVE : DESIGNATOR_CATEGORIES_ACTIVE;
+    const hit = componentTable.find(r => n>=r.min && n<=r.max) || DESIGNATOR_CATEGORIES_SHARED.find(r => n>=r.min && n<=r.max);
+    return hit ? hit.label : null;
+  }
+
+  // Rewrites report.blocks.b8 to its canonical uppercase form wherever it
+  // case-insensitively matches a PROMOTION_STATUS_TABLE entry. Old files
+  // (and the pre-fix XML importer) could store Title Case ('Regular') which
+  // never matches any <select> option — this repairs the dropdown display
+  // for data saved before that was fixed.
+  function normalizePromotionStatus(group) {
+    (group?.reports || []).forEach(r => {
+      const v = r.blocks?.b8;
+      if (!v) return;
+      const match = PROMOTION_STATUS_TABLE.find(p => p.toLowerCase() === String(v).toLowerCase());
+      if (match && v !== match) r.blocks.b8 = match;
+    });
+  }
+
   return {
     REPORT_TYPES,PROMOTION_RECS,DUTY_STATUS,PROMOTION_STATUS_TABLE,BILLET_SUBCATEGORIES,
+    FITREP_OFFICER_GRADES,
     CHAR_LIMITS,EVAL_TRAITS,CHIEFEVAL_TRAITS,FITREP_TRAITS,PERIODIC_END_MONTHS,
     getPromoLimits,createDefaultGroup,createDefaultReport,generateId,
-    getTraitsForType,computeTraitAverage,computeSummaryGroup,
-    buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade
+    getTraitsForType,computeTraitAverage,computeSummaryGroup,normalizePromotionStatus,
+    buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
+    designatorCategory
   };
 })();
 
@@ -2529,19 +2728,34 @@ const Validator = (() => {
     if (!bl.b2?.trim()) addE('admin','b2','Grade/Rate (Block 2) is required.','B2');
     else if (bl.b2.trim().length>CL.b2.chars) addW('admin','b2',`Block 2 exceeds ${CL.b2.chars} character limit.`,'B2');
 
-    // Group match: paygrade must match across all reports
+    // Group match: paygrade must match across all reports.
+    // FITREPS ONLY: NAVPERSCOM treats a mismatch as a hard rejection ("Invalid
+    // summary group"); other report types keep it as a softer warning.
     if (group && group.reports.length>1) {
       const grades=group.reports.map(r=>r.blocks?.b2?.trim()||'');
-      if (grades.some(g=>g!==grades[0])) addW('admin','b2','Block 2 paygrade does not match across all reports in this group.','B2');
+      if (grades.some(g=>g!==grades[0])) {
+        if (rt==='FITREP') addE('admin','b2','Invalid summary group. Block 2, Grade/Rate, must be the same on all reports.','B2');
+        else addW('admin','b2','Block 2 paygrade does not match across all reports in this group.','B2');
+      }
+    }
+
+    // FITREP Block 2 must be a valid officer grade.
+    if (rt==='FITREP' && bl.b2?.trim() && !DataModel.FITREP_OFFICER_GRADES.includes(bl.b2.trim().toUpperCase())) {
+      addE('admin','b2',`Invalid entry in Block 2. Must be one of: ${DataModel.FITREP_OFFICER_GRADES.join(', ')}.`,'B2');
     }
 
     if (!bl.b3?.trim()) addW('admin','b3','Designator/Warfare (Block 3) should be entered.','B3');
     else if (bl.b3.trim().length>CL.b3.chars) addW('admin','b3',`Block 3 exceeds ${CL.b3.chars} character limit.`,'B3');
 
-    // FITREP: caution if designator groups don't align
+    // FITREP: Block 3 designators must be in the same competitive category
+    // across the group (not necessarily the identical designator). Component
+    // (Active/Reserve) is derived from each report's own Block 5.
     if (rt==='FITREP' && group && group.reports.length>1) {
-      const desigs=group.reports.map(r=>r.blocks?.b3?.trim()||'');
-      if (desigs.some(d=>d!==desigs[0])) addW('admin','b3','FITREP Block 3 designators do not all match. Verify alignment with BUPERSINST 1610.10H.','B3');
+      const catOf=r=>DataModel.designatorCategory(r.blocks?.b3, r.blocks?.b5==='ACT' ? 'ACTIVE' : 'RESERVE');
+      const cats=group.reports.map(catOf).filter(Boolean);
+      if (cats.length>1 && cats.some(c=>c!==cats[0])) {
+        addE('admin','b3','Invalid summary group. Block 3, Designator, must be in the same competitive category on all reports.','B3');
+      }
     }
 
     const ssn4=DataModel.cleanSSN(bl.b4);
@@ -2549,6 +2763,10 @@ const Validator = (() => {
     else if (ssn4.length!==9) addE('admin','b4','SSN must be 9 digits.','B4');
 
     if (!bl.b5) addE('admin','b5','Duty Status (Block 5) is required.','B5');
+    if (group && group.reports.length>1) {
+      const b5s=group.reports.map(r=>r.blocks?.b5||'');
+      if (b5s.some(v=>v!==b5s[0])) addE('admin','b5','Invalid summary group. Block 5, Duty/Competitive Status, must be the same on all reports.','B5');
+    }
 
     if (!bl.b6?.trim()) addE('admin','b6','UIC (Block 6) is required.','B6');
     else if (bl.b6.trim().length>CL.b6.chars) addW('admin','b6',`Block 6 exceeds ${CL.b6.chars} character limit.`,'B6');
@@ -2570,14 +2788,19 @@ const Validator = (() => {
       else if (bl[mf.key].trim().length>mf.limit) addW('admin',mf.key,`${mf.label} exceeds ${mf.limit} character limit.`,mf.key.toUpperCase());
       if (group && group.reports.length>1) {
         const vals=group.reports.map(r=>r.blocks?.[mf.key]?.trim()||'');
-        if (vals.some(v=>v!==vals[0])) addW('admin',mf.key,`${mf.label} does not match across all reports in this group.`,mf.key.toUpperCase());
+        if (vals.some(v=>v!==vals[0])) addE('admin',mf.key,`Invalid summary group. ${mf.label} must be the same on all reports.`,mf.key.toUpperCase());
       }
     });
+
+    // Block 8: SELECTED not authorized for O-1 (ENS) personnel.
+    if (bl.b8==='SELECTED' && DataModel.rateToPaygrade(bl.b2)==='O-1') {
+      addE('admin','b8','Invalid entry in Block 8, Promotion Status. Entry of "SELECTED" not authorized for O-1 personnel.','B8');
+    }
 
     // B15 group match
     if (group && group.reports.length>1) {
       const b15s=group.reports.map(r=>r.blocks?.b15?.trim()||'');
-      if (b15s.some(v=>v!==b15s[0])) addW('admin','b15','Period TO date (B15) does not match across all reports.','B15');
+      if (b15s.some(v=>v!==b15s[0])) addE('admin','b15','Invalid summary group. Block 15, Report End Date, must be the same on all reports.','B15');
     }
 
     // B27 RS SSN
@@ -2586,13 +2809,13 @@ const Validator = (() => {
     else if (rsSsn.length!==9) addE('admin','b27','RS SSN must be 9 digits.','B27');
     if (group && group.reports.length>1) {
       const b27s=group.reports.map(r=>DataModel.cleanSSN(r.blocks?.b27||''));
-      if (b27s.some(v=>v!==b27s[0])) addW('admin','b27','RS SSN (B27) does not match across all reports.','B27');
+      if (b27s.some(v=>v!==b27s[0])) addE('admin','b27','Invalid summary group. Blocks 22-27 must be the same on each report.','B27');
     }
 
     // B21 group match
     if (group && group.reports.length>1) {
       const b21s=group.reports.map(r=>r.blocks?.b21||'');
-      if (b21s.some(v=>v!==b21s[0])) addW('admin','b21','Billet Subcategory (B21) does not match across all reports.','B21');
+      if (b21s.some(v=>v!==b21s[0])) addE('admin','b21','Invalid summary group. Block 21, Billet Subcategory, must be the same on all reports.','B21');
     }
 
     if (!bl.b9?.trim()) addE('admin','b9','Date Reported (Block 9) is required.','B9');
@@ -2600,6 +2823,11 @@ const Validator = (() => {
 
     if (!([bl.b10,bl.b11,bl.b12,bl.b13].some(Boolean))) addE('admin','occasion','An occasion for report (Blocks 10–13) must be selected.','B10-13');
     if (bl.b13&&(bl.b10||bl.b11||bl.b12)) addE('admin','occasion','Special (B13) cannot be combined with another occasion.','B13');
+    if (group && group.reports.length>1) {
+      const occ=r=>[!!r.blocks?.b10,!!r.blocks?.b11,!!r.blocks?.b12,!!r.blocks?.b13].join(',');
+      const occs=group.reports.map(occ);
+      if (occs.some(o=>o!==occs[0])) addE('admin','occasion','Invalid summary group. Block 10-13, Occasion for Report, must be the same on all reports.','B10-13');
+    }
 
     if (!bl.b14?.trim()) addE('admin','b14','Period FROM (Block 14) is required.','B14');
     else if (!DataModel.isValidDate(bl.b14)) addE('admin','b14','FROM date must be YYMMMDD.','B14');
@@ -2611,7 +2839,7 @@ const Validator = (() => {
       try {
         const from=DataModel.parseDateYYMMMDD(bl.b14), to=DataModel.parseDateYYMMMDD(bl.b15);
         if (to<from) addE('admin','b15','TO date must be after FROM date.','B14-15');
-        else { const mo=DataModel.monthsBetween(from,to); if(mo>15) addE('admin','period','Report period exceeds 15-month maximum without PERS-32 approval.','B14-15'); else if(mo>12) addW('admin','period',`Report period is ${mo} months — verify authorized limits.`,'B14-15'); }
+        else { const mo=DataModel.monthsBetween(from,to); if(mo>15) addW('admin','period','Period of report exceeds maximum authorized limit of 15 months.','B14-15'); else if(mo>12) addW('admin','period',`Report period is ${mo} months — verify authorized limits.`,'B14-15'); }
       } catch(e){}
     }
 
@@ -2646,6 +2874,7 @@ const Validator = (() => {
       }
     }
     if (!bl.b21?.trim()) addE('duties','b21','Billet Subcategory (Block 21) is required. Use "NA" if not applicable.','B21');
+    if (/^SPECIAL\d{2}$/.test(bl.b21||'')) addW('duties','b21_special','Unauthorized use of Special billet subcategory in Block 21 unless approved in advance by CHNAVPERS.','B21');
 
     if (!bl.b28?.trim()) addW('duties','b28','Command Employment (Block 28) should be entered.','B28');
     else { const total=(bl.b28||'').length; if(total>CL.b28.total) addW('duties','b28',`Block 28 exceeds ${CL.b28.total} total character limit.`,'B28'); }
@@ -2673,18 +2902,21 @@ const Validator = (() => {
         const traits=DataModel.CHIEFEVAL_TRAITS;
         const oneGrades=traits.filter(t=>report.traitGrades?.[t.key]==='1.0');
         const twoGrades=traits.filter(t=>report.traitGrades?.[t.key]==='2.0');
+        traits.forEach(t=>{ if (!report.traitGrades?.[t.key]) addE('traits','missing_grade',`Block ${t.block} is missing a trait grade.`,t.block); });
         if (oneGrades.length>0&&!report.comments?.trim()) addE('traits','grade_1',`1.0 grade (${oneGrades.map(t=>t.block).join(', ')}) must be substantiated in RS comments.`,'B40');
         if (twoGrades.length>0&&!report.comments?.trim()) addE('traits','grade_2',`2.0 grade (${twoGrades.map(t=>t.block).join(', ')}) must be substantiated in RS comments.`,'B40');
+        if (twoGrades.length>=3&&report.promoRec==='P') addE('promotion','three_twos_p','A Promotable recommendation may not be assigned with three or more traits graded 2.0.','B33-39');
         if (oneGrades.length>0&&['P','MP','EP'].includes(report.promoRec)) addE('promotion','one_promo','A 1.0 grade prohibits Promotable or higher.','B33-39');
         if (twoGrades.length>0&&['MP','EP'].includes(report.promoRec)) addE('promotion','two_mp_ep','A 2.0 grade prohibits Must Promote or Early Promote.','B33-39');
       } else {
         const traits=DataModel.getTraitsForType(rt);
         const oneGrades=traits.filter(t=>report.traits?.[t.key]==='1.0');
         const twoGrades=traits.filter(t=>report.traits?.[t.key]==='2.0');
+        traits.forEach(t=>{ if (!report.traits?.[t.key]) addE('traits','missing_grade',`Block ${t.block} is missing a trait grade.`,t.block); });
         if (oneGrades.length>0&&!report.comments?.trim()) addE('traits','grade_1',`1.0 grade (${oneGrades.map(t=>t.abbr).join(', ')}) must be substantiated in comments.`,'B33-39');
         if (twoGrades.length>=3&&!report.comments?.trim()) addE('traits','grade_2','Three or more 2.0 grades require substantiation in comments.','B33-39');
-        const eqKey=rt==='CHIEFEVAL'?'character':'equal_opp';
-        if (report.traits?.[eqKey]==='2.0'&&['P','MP','EP'].includes(report.promoRec)) addE('promotion','eq_grade',`A 2.0 in ${rt==='CHIEFEVAL'?'Character':'Command Climate/EO'} prohibits Promotable or higher.`,'B35');
+        if (twoGrades.length>=3&&report.promoRec==='P') addE('promotion','three_twos_p','A Promotable recommendation may not be assigned with three or more traits graded 2.0.','B33-39');
+        if (report.traits?.equal_opp==='2.0'&&['P','MP','EP'].includes(report.promoRec)) addE('promotion','eq_grade','A 2.0 in Equal Opportunity prohibits Promotable or higher.',traits.find(t=>t.key==='equal_opp')?.block||'B35');
         if (oneGrades.length>0&&['P','MP','EP'].includes(report.promoRec)) addE('promotion','one_promo','A 1.0 grade prohibits Promotable or higher.','B33-39');
         if (twoGrades.length>0&&['MP','EP'].includes(report.promoRec)) addE('promotion','two_mp_ep','A 2.0 grade prohibits Must Promote or Early Promote.','B33-39');
       }
@@ -2703,6 +2935,17 @@ const Validator = (() => {
     if (isNOB&&report.promoRec&&report.promoRec!=='NOB') addE('promotion','nob_promo','Not Observed reports must have NOB promotion recommendation.','B45');
     if (report.promoRec==='SP'&&!report.comments?.trim()) addE('comments','sp_comments','Significant Problems must be justified in comments.','B43');
     if (report.promoRec==='PROG') addW('promotion','progressing','Verify member has not previously received Promotable or higher in this paygrade.','B45');
+
+    // NOTE 2/H: max promo rec for ENS/LTJG is Promotable, except designators 6000-6999.
+    if (rt==='FITREP' && ['O-1','O-2'].includes(DataModel.rateToPaygrade(bl.b2)) && ['MP','EP'].includes(report.promoRec)) {
+      const desigNum=parseInt((bl.b3||'').trim().match(/^(\d{4})/)?.[1]||'0',10);
+      if (!(desigNum>=6000&&desigNum<=6999)) {
+        addE('promotion','ens_ltjg_max','Maximum promotion recommendation for ENS/LTJG is Promotable (designators 6000-6999 excepted).','B45');
+      }
+    }
+
+    // (47-ENL) Enlisted Retention required.
+    if (rt==='EVAL' && !report.retention) addE('promotion','retention','Entry required in Block 47, Enlisted Retention.','B47');
 
     // ── Comments ───────────────────────────────────────────────
     if (!isNOB&&!report.comments?.trim()) addW('comments','no_comments','Comments on Performance should be entered for observed reports.','B43');
@@ -2803,7 +3046,7 @@ return {validate,getSectionStatus,checkDuplicateRanks,checkPFA};
 
 const FormRenderer = (() => {
 
-  let _group=null, _report=null, _onchange=null, _isDirty=false;
+  let _group=null, _report=null, _onchange=null, _isDirty=false, _lastValidation=null;
 
   const CL = () => DataModel.CHAR_LIMITS;
 
@@ -2825,7 +3068,7 @@ const FormRenderer = (() => {
   function setActiveReport(idx) {
     // No save prompt on report switching — only on Home/close
     _group.activeIndex=idx; _report=_group.reports[idx]; _isDirty=false;
-    renderReportList(); renderSection('admin'); setActiveTab('admin');
+    renderReportList(); switchSection(currentSection());
   }
 
   function markDirty()  { _isDirty=true;  document.getElementById('dirty-badge')?.style&&(document.getElementById('dirty-badge').style.display='inline'); }
@@ -3294,6 +3537,7 @@ const FormRenderer = (() => {
   }
 
   function updateValPanel(result) {
+    _lastValidation = result;
     const p=document.getElementById('sidebar-validation'), ic=document.getElementById('val-icon'), lb=document.getElementById('val-label'), li=document.getElementById('val-list');
     if (!p) return;
     p.className='sidebar-validation';
@@ -3306,6 +3550,67 @@ const FormRenderer = (() => {
       p.classList.add('val-warn'); if(ic) ic.textContent='⚠'; if(lb) lb.textContent=`${result.warnings.length} warning(s)`;
       if(li) li.innerHTML=result.warnings.slice(0,3).map(w=>`<li class="val-list-item warn">${w.message.slice(0,68)}…</li>`).join('');
     }
+  }
+
+  // Maps a Validator section id to the top-nav tab id it lives under —
+  // 'promotion'/'summary' both surface on the combined 'promosg' tab.
+  const VALIDATION_SECTION_TO_TAB = { promotion:'promosg', summary:'promosg' };
+
+  // Loops every report in the group through Validator.validate and sums the
+  // counts. Only called lazily when the modal opens — not on every keystroke.
+  function computeGroupTotals(group) {
+    let errors=0, warnings=0;
+    (group?.reports||[]).forEach(r=>{
+      const res=Validator.validate(r,group);
+      errors+=res.errors.length; warnings+=res.warnings.length;
+    });
+    return {errors,warnings,reportCount:(group?.reports||[]).length};
+  }
+
+  function openValidationModal() {
+    const result = _lastValidation;
+    const body = document.getElementById('validation-modal-body');
+    const title = document.getElementById('validation-modal-title');
+    if (!result || !body) return;
+    if (title) {
+      const idx = (_group?.activeIndex||0)+1;
+      const total = _group?.reports?.length||1;
+      const name = (_report?.blocks?.b1||'').split(',')[0].trim();
+      title.textContent = `Errors & Warnings — Report ${idx} of ${total}${name?` (${name})`:''}`;
+    }
+    const row = (item, cls) => `<li class="val-list-item ${cls}" data-section="${item.section||''}" data-field="${item.field||''}">
+      <span class="val-modal-ref">${escHtmlLocal(item.blockRef||'')}</span>
+      <span class="val-modal-msg">${escHtmlLocal(item.message||'')}</span>
+    </li>`;
+    const parts = [];
+    if (_group && _group.reports.length>1) {
+      const gt = computeGroupTotals(_group);
+      parts.push(`<p class="val-modal-group-total">Entire group (${gt.reportCount} reports): <strong>${gt.errors} error(s)</strong>, ${gt.warnings} warning(s)</p>`);
+    }
+    if (result.errors.length) parts.push(`<h4>Errors (${result.errors.length})</h4><ul class="val-modal-list">${result.errors.map(e=>row(e,'')).join('')}</ul>`);
+    if (result.warnings.length) parts.push(`<h4>Warnings (${result.warnings.length})</h4><ul class="val-modal-list">${result.warnings.map(w=>row(w,'warn')).join('')}</ul>`);
+    if (!result.errors.length && !result.warnings.length) parts.push('<p>All checks passed for this report.</p>');
+    body.innerHTML = parts.join('');
+    body.querySelectorAll('.val-list-item[data-field]').forEach(el=>{
+      el.addEventListener('click', () => {
+        const section = el.dataset.section;
+        const field = el.dataset.field;
+        if (section) {
+          const tab = VALIDATION_SECTION_TO_TAB[section] || section;
+          switchSection(tab);
+        }
+        document.getElementById('modal-validation')?.classList.add('hidden');
+        if (field) {
+          const target = document.querySelector(`[data-subkey="${field}"]`);
+          if (target) { target.focus(); target.scrollIntoView({block:'center'}); }
+        }
+      });
+    });
+    document.getElementById('modal-validation')?.classList.remove('hidden');
+  }
+
+  function escHtmlLocal(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   // ── Field Helpers ─────────────────────────────────────────────
@@ -3494,7 +3799,7 @@ const FormRenderer = (() => {
         placeholder="e.g., EOOW" maxlength="14" data-maxchars="14">
     </div>
     ${ta('b29',b29label,b.b29,4,'blocks','b29',342,b29hint)}
-    ${rt!=='CHIEFEVAL'?`<div class="field-hint" style="margin-top:4px;color:var(--gray-500)"><strong>PFA format (BUPERSINST 1650.1H):</strong> Include PFA score in format <code>PFA: YY-C: P/WS/NN/GM</code> where YY=fiscal year, C=cycle (1 or 2), P/F=pass/fail, WS=waist size, NN=score, GM=good-medium-low. Example: <code>PFA: 26-1: P/WS/65/GM</code></div>`:''}
+    ${rt!=='CHIEFEVAL'?`<div class="field-hint" style="margin-top:4px;color:var(--gray-500)"><strong>PFA format (BUPERSINST 1650.1H):</strong> Include PFA score in format <code>\"PFA: YY-C: P/WS/##/XX\"</code> where YY=Fiscal Year (2 digits), C=Cycle (1 or 2), P/F=Pass/Fail, WS/NWS=Within BCA Standards/Not Within BCA Standards, ##=Numerical Avg. Score (0-100), XX=Score Category (Good Medium, etc.). Example: <code>PFA: 26-1: P/WS/65/GM</code></div>`:''}
     `;
   }
 
@@ -4224,7 +4529,8 @@ ${rt!=='CHIEFEVAL'?`
 
   return {
     init, setActiveReport, isDirty, markClean, switchSection,
-    validateAndHighlight, updateSummaryAuto, renderGradeReviewScreen, bindGradeReview
+    validateAndHighlight, updateSummaryAuto, renderGradeReviewScreen, bindGradeReview,
+    openValidationModal
   };
 })();
 
@@ -7500,7 +7806,7 @@ const PDFGenerator = (() => {
     const dataY = 716;   // -1 down
     if (bl.b6) pdf.text(pg, X.b6 + 4, dataY, esc(bl.b6), DF, DS);
     if (bl.b7) pdf.text(pg, X.b7 + 3, dataY, esc(bl.b7), DF, DS);
-    if (bl.b8) pdf.text(pg, X.b8 + 25, dataY, esc(bl.b8), DF, DS);
+    if (bl.b8) pdf.text(pg, X.b8 + 25, dataY, esc(bl.b8).toUpperCase(), DF, DS);
     if (bl.b9) pdf.text(pg, X.b9 + 41, dataY, esc(bl.b9), DF, DS);
   }
 
@@ -8208,7 +8514,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     const dataY = 716 - 3;
     if (bl.b6) pdf.text(pg, X.b6 + 4,  dataY, esc(bl.b6), DF, DS);
     if (bl.b7) pdf.text(pg, X.b7 + 3,  dataY, esc(bl.b7), DF, DS);
-    if (bl.b8) pdf.text(pg, X.b8 + 25, dataY, esc(bl.b8), DF, DS);
+    if (bl.b8) pdf.text(pg, X.b8 + 25, dataY, esc(bl.b8).toUpperCase(), DF, DS);
     if (bl.b9) pdf.text(pg, X.b9 + 41, dataY, esc(bl.b9), DF, DS);
   }
 
@@ -8512,24 +8818,17 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
 /* === accdb-bridge.js === */
 /**
  * NavEval ACCDB Bridge
- * Provides import/export compatibility with NAVFIT98A (.accdb format).
  *
- * NAVFIT98A uses Microsoft Access .accdb files. Since browsers cannot
- * natively read .accdb files, this module:
+ * Browsers cannot read Microsoft Access .accdb files directly (no ODBC/Jet
+ * access from browser JS) — that's a platform limitation, not something
+ * fixable here without adding a server/native component. The supported
+ * import path is: in NAVFIT98A, External Data → Export → XML File, then
+ * import that .xml directly via XmlImporter (see importNavfitFile()) — no
+ * companion tool required.
  *
- *  EXPORT: Generates a structured JSON file (.navfit.json) that documents
- *          the exact NAVFIT98A field mapping, allowing a companion desktop
- *          utility or the user to populate an .accdb template.
- *
- *  IMPORT: Accepts a NAVFIT98A export JSON (produced by the companion
- *          utility or a user-authored conversion) and maps fields into
- *          NavEval's data model.
- *
- *  NOTE: The companion utility (naveval-accdb-bridge.exe / .py) is a
- *        separate tool that runs on the user's machine and handles the
- *        actual .accdb read/write using the Microsoft Access ODBC driver
- *        or mdb-tools on Linux. It communicates with NavEval via the
- *        JSON interchange format defined here.
+ * This module's importFromNavfit() is only the fallback for the legacy
+ * .navfit.json interchange format (a plain JSON dump matching the field
+ * map below), for users migrating data from an older manual conversion.
  *
  * NAVFIT98A Field Mapping Reference
  * Source: NAVFIT98A database schema (tblPERFEVAL, tblCHIEFEVAL, tblFITREP)
@@ -8688,35 +8987,8 @@ const AccdbBridge = (() => {
     return value;
   }
 
-  /**
-   * Generate import instructions for users.
-   */
-  function getImportInstructions() {
-    return `
-NAVFIT98A Import Instructions
-=====================================
-
-IMPORTING FROM NAVFIT98A:
-1. In NAVFIT98A, export the evaluation record to a file.
-2. Open the companion NavEval-ACCDB utility.
-3. Select "Export to NavEval JSON" and select the NAVFIT98A .accdb file.
-4. In NavEval, click "Import NAVFIT98A" and select the exported .navfit.json.
-
-DIRECT .accdb SUPPORT:
-Browser-based software cannot read .accdb files directly due to OS-level
-ODBC driver requirements. The companion utility (a small standalone exe
-or Python script) bridges this gap. It is available in the NavEval
-distribution package or at the NavEval repository.
-
-For emergency manual import: open the .accdb in Microsoft Access,
-export the relevant table to JSON/CSV, and use the NavEval manual
-import feature.
-    `.trim();
-  }
-
   return {
     importFromNavfit,
-    getImportInstructions,
     EVAL_FIELD_MAP,
     CHIEFEVAL_FIELD_MAP
   };
@@ -8827,11 +9099,11 @@ const XmlImporter = (() => {
   // ── Promotion status: NAVFIT98A text → NavEval options ────────
   function mapPromoStatus(raw) {
     const s = (raw||'').toUpperCase().trim();
-    if (s === 'REGULAR')  return 'Regular';
-    if (s === 'FROCKED')  return 'Frocked';
-    if (s === 'SELECTED') return 'Selected';
-    if (s === 'SPOT')     return 'Spot';
-    return 'Regular';
+    if (s === 'REGULAR')  return 'REGULAR';
+    if (s === 'FROCKED')  return 'FROCKED';
+    if (s === 'SELECTED') return 'SELECTED';
+    if (s === 'SPOT')     return 'SPOT';
+    return 'REGULAR';
   }
 
   // ── Build RS name in "LAST, F M" format ───────────────────────
@@ -9352,6 +9624,8 @@ const App = (() => {
   // ── Init ───────────────────────────────────────────────────────
 
   function init() {
+    const vEl = document.getElementById('brand-version');
+    if (vEl) vEl.textContent = 'v' + NAVFIT_EDGE_VERSION;
     bindLandingEvents();
     bindModalEvents();
     bindEditorEvents();
@@ -9418,6 +9692,7 @@ const App = (() => {
     document.querySelectorAll('.modal-backdrop').forEach(bd => {
       bd.addEventListener('click', () => bd.closest('.modal')?.classList.add('hidden'));
     });
+    document.getElementById('sidebar-validation')?.addEventListener('click', () => FormRenderer.openValidationModal());
     document.getElementById('btn-passphrase-confirm')?.addEventListener('click', handlePassphraseConfirm);
     document.getElementById('passphrase-input')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') handlePassphraseConfirm();
@@ -9813,17 +10088,30 @@ const App = (() => {
       _currentHandleId = DataModel.generateId();
       HandleStore.set(_currentHandleId, handle).catch(()=>{});
     }
+    DataModel.normalizePromotionStatus(_group);
     addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId);
     openEditor();
-    showToast(`Opened: ${filename}`, 'success');
+    const fileVersion = metadata?.appVersion || _group._version || null;
+    if (fileVersion && compareVersions(fileVersion, NAVFIT_EDGE_VERSION) < 0) {
+      showToast(`This file was created with an older version of NAVFIT-Edge (v${fileVersion}). Please verify the data is correct.`, 'warn');
+    } else if (!fileVersion) {
+      showToast('This file predates version tracking in NAVFIT-Edge. Please verify the data is correct.', 'warn');
+    } else {
+      showToast(`Opened: ${filename}`, 'success');
+    }
   }
 
   async function importNavfitFile(file) {
     const name = file.name.toLowerCase();
     try {
-      // .accdb/.mdb: cannot read directly in browser
+      // .accdb/.mdb: cannot read directly in browser — start a blank group
+      // instead of leaving the user stranded on the landing screen; they can
+      // fill it in manually or import XML data into it next.
       if (name.endsWith('.accdb') || name.endsWith('.mdb')) {
         showToast('Export from NAVFIT98A as XML first (External Data → Export → XML File), then import the .xml file here.', 'warn');
+        _group = DataModel.createDefaultGroup('EVAL');
+        resetFileState();
+        openEditor();
         return;
       }
 
@@ -10134,7 +10422,7 @@ const App = (() => {
     <h3>About NavEval</h3>
     <p>NavEval is a browser-based replacement for NAVFIT98A implementing BUPERSINST 1610.10H CH-1 (16 Dec 2025). All data stays on your machine — nothing is transmitted anywhere.</p>
     <h3>File Format (.nve)</h3>
-    <p>A <code>.nve</code> file contains a <strong>group of reports</strong> sharing a reporting senior. Files are AES-256 encrypted using a machine fingerprint by default; an optional passphrase provides additional protection.</p>
+    <p>A <code>.nve</code> file contains a <strong>group of reports</strong> sharing a reporting senior. Files are always AES-256 encrypted to keep them opaque to ordinary tools; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the file, set an optional passphrase.</p>
     <h3>Report Navigation</h3>
     <p>Use the report tabs at the top of the editor to switch between reports in a group. Use the <strong>＋</strong> tab to add a new report. The Grade Review screen shows all reports' grades on one screen for group-level adjustment.</p>
     <h3>Filename Convention</h3>
@@ -10212,7 +10500,7 @@ const App = (() => {
     bindKeyboard();
     bindDragDrop();
     showScreen('screen-landing');
-    console.log('%cNavEval v4 ready — BUPERSINST 1610.10H CH-1 (16 Dec 2025)', 'color:#e08c00;font-weight:bold');
+    console.log(`%cNavEval v${NAVFIT_EDGE_VERSION} ready — BUPERSINST 1610.10H CH-1 (16 Dec 2025)`, 'color:#e08c00;font-weight:bold');
   });
 
   // Warn on accidental back/refresh/close when there are unsaved changes.
@@ -10355,6 +10643,10 @@ const App = (() => {
       const srcGroup = result.data;
       const reports = srcGroup.reports || (srcGroup.reportType ? [srcGroup] : []);
       if (!reports.length) { showToast('No reports found in ' + file.name, 'warn'); return; }
+      if (srcGroup.reportType && srcGroup.reportType !== _group.reportType) {
+        showToast(`Cannot import ${file.name}: it contains ${srcGroup.reportType} reports, but the open group is ${_group.reportType}. Reports must be the same type.`, 'error');
+        return;
+      }
       // Update RS info on imported reports to match current group
       const rsKeys = ['b22','b23','b24','b25','b26','b27'];
       const rsSource = _group.reports[0]?.blocks || {};
