@@ -527,16 +527,31 @@ input, textarea, select { font-family: inherit; }
 }
 
 .sidebar-back {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--navy-300);
-  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   margin-bottom: var(--sp-3);
-  display: block;
+}
+
+.sidebar-back-arrow {
+  font-size: 20px;
+  line-height: 1;
+  color: var(--navy-300);
   transition: color 0.1s;
 }
 
-.sidebar-back:hover { color: var(--amber-400); }
+.sidebar-back-brand {
+  font-family: var(--font-condensed);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--navy-300);
+  transition: color 0.1s;
+}
+
+.sidebar-back:hover .sidebar-back-arrow,
+.sidebar-back:hover .sidebar-back-brand { color: var(--amber-400); }
 
 .sidebar-file-info {
   display: flex;
@@ -1128,6 +1143,61 @@ input, textarea, select { font-family: inherit; }
   border-radius: 2px;
 }
 
+.summary-table-wrap { overflow-x: auto; }
+.summary-table.sgr-wide { min-width: 1400px; }
+.summary-table td.sgr-sticky, .summary-table th.sgr-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.summary-table td.sgr-cell {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+/* ── Summary Group Review: RSCA banner + digestible group-fields grid ── */
+.rsca-banner {
+  display: flex;
+  gap: var(--sp-6);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-5);
+  background: var(--navy-800);
+  border-radius: var(--radius-sm);
+  color: white;
+}
+.rsca-banner-item { flex: 1; }
+.rsca-banner-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--navy-200);
+  margin-bottom: 2px;
+}
+.rsca-banner-value { font-size: 24px; font-weight: 700; font-family: var(--font-mono); }
+.rsca-banner-value.missing { color: var(--yellow-500); font-size: 14px; font-weight: 500; }
+
+.group-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-6);
+  padding: var(--sp-4);
+  background: var(--gray-50);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+.group-field-item-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: var(--gray-400);
+}
+.group-field-item-value { font-size: 13px; font-weight: 500; }
+.group-field-item-value.mismatch { color: var(--red-500); font-size: 11px; font-weight: 600; }
+
 /* ── Buttons ── */
 .btn-primary {
   padding: var(--sp-2) var(--sp-5);
@@ -1171,6 +1241,20 @@ input, textarea, select { font-family: inherit; }
   color: var(--navy-600);
   text-decoration: underline;
   font-size: inherit;
+}
+
+.pdf-icon-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--white);
+  background: var(--red-500);
+  border-radius: 3px;
+  padding: 2px 4px;
+  vertical-align: middle;
+  line-height: 1;
 }
 
 /* ── Print Preview Screen ── */
@@ -1712,7 +1796,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
         <button class="action-card" id="btn-import-accdb">
           <span class="action-icon">⬡</span>
           <span class="action-title">Import from NAVFIT98A</span>
-          <span class="action-desc">Import from NAVFIT98A exported JSON</span>
+          <span class="action-desc">Import from NAVFIT98A .accdb database</span>
         </button>
       </div>
       <div class="recent-files">
@@ -1789,7 +1873,10 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
       <!-- Left sidebar: report list -->
       <aside class="editor-sidebar">
         <div class="sidebar-header">
-          <button class="sidebar-back" id="btn-back-home">← Home</button>
+          <button class="sidebar-back" id="btn-back-home">
+            <span class="sidebar-back-arrow">←</span>
+            <span class="sidebar-back-brand">NAVFIT-EDGE</span>
+          </button>
           <div class="sidebar-file-info">
             <span class="sidebar-filename" id="sidebar-filename">Untitled</span>
             <span class="sidebar-type-badge" id="sidebar-type-badge">EVAL</span>
@@ -1813,7 +1900,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
         <div class="sidebar-actions">
           <button class="sidebar-btn" id="btn-save-as">Save As…</button>
           <button class="sidebar-btn primary" id="btn-quicksave" disabled>Quicksave</button>
-          <button class="sidebar-btn" id="btn-grade-review">Grade/Ranking Review</button>
+          <button class="sidebar-btn" id="btn-grade-review">Summary Group Review</button>
           <button class="sidebar-btn" id="btn-print-preview">Print Preview</button>
           <button class="sidebar-btn" id="btn-import-reports">Import Reports</button>
         </div>
@@ -1880,6 +1967,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
         <button class="modal-close" data-modal="modal-print-choice">✕</button>
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <div id="print-choice-error-banner"></div>
         <p class="modal-desc" style="margin-bottom:4px">
           <strong>Download PDF</strong> produces an exact, pixel-precise PDF using measured form coordinates — recommended for submission.
           <strong>Print Preview</strong> uses the browser's HTML renderer.
@@ -1890,16 +1978,16 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
         <div style="border-top:1px solid var(--border-color);padding-top:10px">
           <div class="section-label" style="margin-bottom:8px">Download PDF</div>
           <button class="btn-primary" id="btn-download-pdf-current" style="width:100%;padding:9px;margin-bottom:6px">
-            ⬇ Download PDF — Current Report
+            <span class="pdf-icon-badge">PDF</span> — Current Report
           </button>
           <button class="btn-secondary" id="btn-download-pdf-all" style="width:100%;padding:9px;margin-bottom:6px">
-            ⬇ Download PDF — All Reports in Group
+            <span class="pdf-icon-badge">PDF</span> — All Reports in Group
           </button>
           <button class="btn-secondary" id="btn-download-pdf-all-summary" style="width:100%;padding:9px;margin-bottom:6px">
-            ⬇ Download PDF — All Reports + Summary Letter
+            <span class="pdf-icon-badge">PDF</span> — All Reports + Summary Letter
           </button>
           <button class="btn-secondary" id="btn-download-pdf-summary-only" style="width:100%;padding:9px">
-            ⬇ Download PDF — Summary Letter Only
+            <span class="pdf-icon-badge">PDF</span> — Summary Letter Only
           </button>
         </div>
         <div style="border-top:1px solid var(--border-color);padding-top:10px">
@@ -1927,7 +2015,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nve on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.2.0';
+const NAVFIT_EDGE_VERSION = '0.3.0';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -2431,7 +2519,10 @@ const DataModel = (() => {
       rsInfo:{b22:'',b23:'',b24:'',b25:'',b26:'',b27:'',rsAddress:''},
       reports:[createDefaultReport(reportType)],
       activeIndex:0,
-      isicUIC:'', isicAddress:'', email:'', phone:'', onTimeSubmission:null
+      isicUIC:'', isicAddress:'', email:'', phone:'', onTimeSubmission:null,
+      // RSCA belongs to the Reporting Senior, shared by every report in the
+      // group (like rsInfo above) — see computeRSCA/computeGroupTraitSum/computePSGRSCA.
+      rscaManual:'', rscaHistCount:'', rscaHistSum:''
     };
   }
 
@@ -2528,6 +2619,49 @@ const DataModel = (() => {
     dist.total=dist.sp+dist.prog+dist.p+dist.mp+dist.ep;
     const groupAvg=avgs.length?(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(2):null;
     return {...dist,groupTraitAvg:groupAvg};
+  }
+
+  // Reporting Senior's Cumulative Average: manual value if entered, else
+  // Historical Trait Grade Sum / Count. Returns a '.00'-formatted string or
+  // null if neither a manual value nor complete historical data is present.
+  function computeRSCA(group) {
+    const manual=(group?.rscaManual||'').trim();
+    if (manual && !isNaN(parseFloat(manual))) return parseFloat(manual).toFixed(2);
+    const count=parseFloat(group?.rscaHistCount);
+    const sum=parseFloat(group?.rscaHistSum);
+    if (count>0 && !isNaN(sum)) return (sum/count).toFixed(2);
+    return null;
+  }
+
+  // Flattens every report's individual trait marks in the group into one
+  // running {sum,count} of non-NOB/numeric grades — the raw building block
+  // for Post-Summary-Group RSCA (as opposed to computeSummaryGroup's
+  // average-of-per-report-averages). Skips manualOverride reports, matching
+  // computeSummaryGroup's existing exclusion.
+  function computeGroupTraitSum(group) {
+    let sum=0, count=0;
+    (group?.reports||[]).forEach(r=>{
+      if (r.summaryGroup?.manualOverride) return;
+      const traits=getTraitsForType(r.reportType);
+      const store=r.reportType==='CHIEFEVAL'?r.traitGrades:r.traits;
+      traits.forEach(t=>{
+        const g=store?.[t.key];
+        if (g && g!=='NOB' && !isNaN(parseFloat(g))) { sum+=parseFloat(g); count++; }
+      });
+    });
+    return {sum,count};
+  }
+
+  // Post-Summary-Group RSCA: (current group's raw trait-mark sum + Historical
+  // Trait Grade Sum) / (current group's non-NOB trait-mark count + Historical
+  // Trait Grade Count), rounded to the nearest hundredth. Null if nothing to divide by.
+  function computePSGRSCA(group) {
+    const {sum,count}=computeGroupTraitSum(group);
+    const histCount=parseFloat(group?.rscaHistCount)||0;
+    const histSum=parseFloat(group?.rscaHistSum)||0;
+    const totalCount=count+histCount;
+    if (totalCount<=0) return null;
+    return ((sum+histSum)/totalCount).toFixed(2);
   }
 
   function buildFilename(group) {
@@ -2672,6 +2806,7 @@ const DataModel = (() => {
     CHAR_LIMITS,EVAL_TRAITS,CHIEFEVAL_TRAITS,FITREP_TRAITS,PERIODIC_END_MONTHS,
     getPromoLimits,createDefaultGroup,createDefaultReport,generateId,
     getTraitsForType,computeTraitAverage,computeSummaryGroup,normalizePromotionStatus,
+    computeRSCA,computeGroupTraitSum,computePSGRSCA,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
     designatorCategory
   };
@@ -2784,7 +2919,10 @@ const Validator = (() => {
       {key:'b26',label:'RS UIC (B26)',limit:CL.b26.chars},
     ];
     matchFields.forEach(mf=>{
-      if (!bl[mf.key]?.trim()) addE('admin',mf.key,`${mf.label} is required.`,mf.key.toUpperCase());
+      if (!bl[mf.key]?.trim()) {
+        if (mf.key==='b24') addW('admin','b24','Block 24, RS Designator, is blank. Should only be blank for civilian and Navy enlisted reporting seniors.','B24');
+        else addE('admin',mf.key,`${mf.label} is required.`,mf.key.toUpperCase());
+      }
       else if (bl[mf.key].trim().length>mf.limit) addW('admin',mf.key,`${mf.label} exceeds ${mf.limit} character limit.`,mf.key.toUpperCase());
       if (group && group.reports.length>1) {
         const vals=group.reports.map(r=>r.blocks?.[mf.key]?.trim()||'');
@@ -2956,6 +3094,9 @@ const Validator = (() => {
       const g=bl.b2.trim().toUpperCase();
       if ((g==='CDR'||g==='CAPT')&&!(report.comments||'').toLowerCase().includes('grgb')&&!(report.comments||'').toLowerCase().includes('get real')) addE('comments','grgb','GRGB comments are mandatory for CDR and CAPT FITREPs.','B41');
     }
+    if (rt==='EVAL' && ['E-4','E-5','E-6'].includes(DataModel.rateToPaygrade(bl.b2)) && !(report.comments||'').toUpperCase().includes('PSG RSCA')) {
+      addW('comments','psg_rsca','Reports on E-4 through E-6 personnel are required to include Post-Summary Group RSCA (PSG RSCA) in the comments block.','B43');
+    }
 
     // ── Summary ────────────────────────────────────────────────
     if (group&&!isNOB&&report.promoRec&&report.promoRec!=='NOB') {
@@ -2970,9 +3111,19 @@ const Validator = (() => {
       }
     }
 
+    // ── RSCA ───────────────────────────────────────────────────
+    if (!DataModel.computeRSCA(group)) {
+      if (rt==='CHIEFEVAL') addE('admin','rsca','RSCA Calculation is required — enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
+      else if (rt==='EVAL') addW('admin','rsca','RSCA is necessary to accurately calculate Post-Summary Group RSCA. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
+      else if (rt==='FITREP') addW('admin','rsca','RSCA should be carefully considered when grading FITREPs. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
+    }
+
     // ── Summary Letter ─────────────────────────────────────────
     if (group?.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(group.email.trim())) {
       addE('sumletter','email','E-Mail must be a valid email address.','EMAIL');
+    }
+    if (group?.onTimeSubmission === 'no') {
+      addW('sumletter','on_time','Report submitted late — a letter explaining the reason for late submission is required, attached to the summary group for NAVPERSCOM.','ON-TIME');
     }
 
     return {errors,warnings,sectionErrors};
@@ -3442,6 +3593,16 @@ const FormRenderer = (() => {
       if (!_group.rsInfo) _group.rsInfo={};
       _group.rsInfo.rsAddress=value;
     }
+    else if (field==='rscaGroup') {
+      // RSCA (manual value or historical count/sum) belongs to the Reporting
+      // Senior, like B22-27 — one shared value, propagated + kept in sync as
+      // report.rsca on every report so the existing CHIEFEVAL PDF overlay
+      // (which reads report.rsca per-report) needs no changes.
+      _group[subkey]=value;
+      const computed=DataModel.computeRSCA(_group);
+      _group.reports.forEach(r => { r.rsca=computed||''; });
+      updateRSCADisplay();
+    }
     else if (field==='group') _group[subkey]=value;
     else _report[field]=value;
     notifyChange();
@@ -3450,6 +3611,13 @@ const FormRenderer = (() => {
   function notifyChange() {
     _report._modified=new Date().toISOString(); _group._modified=new Date().toISOString();
     markDirty(); if(_onchange) _onchange(_group); validateAndHighlight();
+  }
+
+  function updateRSCADisplay() {
+    const el=document.getElementById('rsca-computed-display');
+    if (!el) return;
+    const val=DataModel.computeRSCA(_group);
+    el.textContent = val ? `Computed RSCA: ${val}` : 'Computed RSCA: — not yet calculated —';
   }
 
   function updateCharCount(el) {
@@ -3672,21 +3840,21 @@ const FormRenderer = (() => {
       ${fld('b2','B2 · Grade / Rate','text',b.b2,'e.g., ET2, LCDR','blocks','b2',5)}
     </div>
     <div class="field-row field-row-3">
-      ${fld('b3','B3 · Designator / Warfare Qual','text',b.b3,'e.g., 1110, NEC 0000','blocks','b3',12)}
-      ${fld('b4','B4 · SSN','text',ssnDisplay,'XXX-XX-XXXX','blocks','b4',11,'Stored as 9 digits; displayed with hyphens')}
+      ${fld('b3','B3 · Designator / Warfare Qual','text',b.b3,'e.g., 1110, 6410, SS, AW','blocks','b3',12)}
+      ${fld('b4','B4 · SSN','text',ssnDisplay,'XXXXXXXXX','blocks','b4',11,'Stored as 9 digits; displayed with hyphens')}
       <div class="field-group">
         <label class="field-label">B5 · Duty Status</label>
         <div class="radio-stack" style="margin-top:6px;flex-direction:row;gap:16px;flex-wrap:wrap">
           ${[{v:'ACT',l:'ACT'},{v:'TAR',l:'TAR'}].map(o=>`<label class="checkbox-item"><input type="radio" name="b5a" value="${o.v}" data-radio="blocks" data-subkey="b5" ${b.b5===o.v?'checked':''}> ${o.l}</label>`).join('')}
-          <span style="font-size:11px;color:var(--gray-400)">or</span>
+          <span style="font-size:11px;color:var(--gray-400)"></span>
           ${[{v:'INACT',l:'INACT'},{v:'AT/ADOS',l:'AT/ADSW/265'}].map(o=>`<label class="checkbox-item"><input type="radio" name="b5a" value="${o.v}" data-radio="blocks" data-subkey="b5" ${b.b5===o.v?'checked':''}> ${o.l}</label>`).join('')}
         </div>
-        <div class="field-hint">¹ Either ACT/TAR or INACT/AT/ADSW</div>
+        <div class="field-hint">¹ Either ACT, TAR, INACT, or AT/ADSW</div>
       </div>
     </div>
     <div class="field-row field-row-3">
       ${fld('b6','B6 · UIC','text',b.b6,'e.g., 12345','blocks','b6',5)}
-      ${fld('b7','B7 · Ship / Station','text',b.b7,'Full command name','blocks','b7',18)}
+      ${fld('b7','B7 · Ship / Station','text',b.b7,'e.g., VFA-81, SSN 698 BREMERTON','blocks','b7',18)}
       ${sel('b8','B8 · Promotion Status',b.b8,DataModel.PROMOTION_STATUS_TABLE.map(p=>({v:p,l:p})),'blocks','b8')}
     </div>
     <div class="field-row field-row-3">
@@ -3696,7 +3864,7 @@ const FormRenderer = (() => {
     ${divider('Physical Readiness &amp; Billet (Blocks 20–21)')}
     <div class="field-row field-row-2">
       ${fld('b20','B20 · Physical Readiness','text',b.b20,'',  'blocks','b20',rt==='CHIEFEVAL'?18:4,
-        rt==='CHIEFEVAL'?'e.g., 05/26 SATISFACTORY':'P=Pass F=Fail B=BCA/no PRT M=Med Waiver W=Partial Med N=No PFA')}
+        rt==='CHIEFEVAL'?'e.g., 05/26 SATISFACTORY':'P=Pass; F=Fail; B=BCA, no PRT; M=Med Waiver; W=Partial Med; N=No PFA')}
       ${sel('b21','B21 · Billet Subcategory',b.b21,DataModel.BILLET_SUBCATEGORIES.map(s=>({v:s,l:s})),'blocks','b21')}
     </div>
 
@@ -3733,17 +3901,27 @@ const FormRenderer = (() => {
 
     ${divider('Reporting Senior')}
     <div class="field-row field-row-2">
-      ${fld('rs-name','B22 · RS Name','text',b.b22,'LAST, F M','blocks','b22',18,'Must match across group')}
-      ${fld('rs-grade','B23 · Grade','text',b.b23,'e.g., CDR','blocks','b23',5,'Must match across group')}
+      ${fld('rs-name','B22 · RS Name','text',b.b22,'LAST, F M','blocks','b22',18,'Comma after last name. Suffix may be entered')}
+      ${fld('rs-grade','B23 · Grade','text',b.b23,'e.g., CDR, COL, GS15, CIV','blocks','b23',5,'No hyphens.  Do not leave blank.')}
     </div>
     <div class="field-row field-row-3">
-      ${fld('rs-desig','B24 · Designator','text',b.b24,'e.g., 1310','blocks','b24',5,'Must match across group')}
-      ${fld('rs-title','B25 · Title','text',b.b25,'e.g., CO, XO','blocks','b25',14,'Must match across group')}
-      ${fld('rs-uic','B26 · UIC','text',b.b26,'RS UIC','blocks','b26',5,'Must match across group')}
+      ${fld('rs-desig','B24 · Designator','text',b.b24,'e.g., 1310, 1120, USAF, USMC','blocks','b24',5,'Leave blank if civilian or Navy enlisted')}
+      ${fld('rs-title','B25 · Title','text',b.b25,'e.g., CO, XO, COMMANDER, DEPT HEAD','blocks','b25',14,'Always use \"CO\" for Commanding Officer and \"OIC\" for Officer-In-Charge')}
+      ${fld('rs-uic','B26 · UIC','text',b.b26,'e.g. 12345','blocks','b26',5,'Reporting senior\'s UIC may differ from UIC in block 6')}
     </div>
     <div class="field-row field-row-2">
-      ${fld('rs-ssn','B27 · RS SSN','text',rsSsnDisplay,'XXX-XX-XXXX','blocks','b27',11,'Must match across group')}
+      ${fld('rs-ssn','B27 · RS SSN','text',rsSsnDisplay,'XXXXXXXXX','blocks','b27',11,'RS SSN can be toggled to hide while printing (redacted member copy).')}
     </div>
+
+    ${divider('RSCA Calculation')}
+    <div class="field-row field-row-2">
+      ${fld('rsca-manual','RSCA (manual entry)','text',group.rscaManual||'','e.g., 4.23','rscaGroup','rscaManual',4,'Enter directly, 1.00–5.00. Leave blank to calculate from historical data below.')}
+    </div>
+    <div class="field-row field-row-2">
+      ${fld('rsca-hist-count','Historical Trait Grade Count','text',group.rscaHistCount||'','e.g., 210','rscaGroup','rscaHistCount',6,'Total graded trait marks across all reports this RS has previously signed')}
+      ${fld('rsca-hist-sum','Historical Trait Grade Sum','text',group.rscaHistSum||'','e.g., 903.5','rscaGroup','rscaHistSum',8,'Sum of those trait grade values')}
+    </div>
+    <div class="field-hint" id="rsca-computed-display">${DataModel.computeRSCA(group)?`Computed RSCA: ${DataModel.computeRSCA(group)}`:'Computed RSCA: — not yet calculated —'}</div>
 
     ${rt==='FITREP'?`
     ${divider('Reporting Senior Address — Block 44 (FITREP)')}
@@ -3759,16 +3937,16 @@ const FormRenderer = (() => {
     <div class="field-row field-row-3">
       ${fld('crs-title','Title','text',report.concurrentRS?.title||'','','concurrentRS','title')}
       ${fld('crs-uic','UIC','text',report.concurrentRS?.uic||'','','concurrentRS','uic')}
-      ${fld('crs-ssn','SSN','text',report.concurrentRS?.ssn?DataModel.formatSSN(report.concurrentRS.ssn):'','XXX-XX-XXXX','concurrentRS','ssn')}
+      ${fld('crs-ssn','SSN','text',report.concurrentRS?.ssn?DataModel.formatSSN(report.concurrentRS.ssn):'','XXXXXXXXX','concurrentRS','ssn')}
     </div>`:''}
 
     ${rt==='EVAL'?`
     ${divider('Rater Signature — Block 42')}
-    ${fld('b42','B42 · Rater Typed Name &amp; Rating','text',b.b42||'','Typed name and rating/rank','blocks','b42',28)}
+    ${fld('b42','B42 · Rater Typed Name &amp; Rating','text',b.b42||'','LNAME, F M, YNSC(SS)','blocks','b42',28)}
     ${divider('Reporting Senior Address — Block 48')}
     ${ta('rsAddress','B48 · RS Official Mailing Address',report.rsAddress||'',4,'rsAddress','rsAddress',116,'4 lines × 29 chars. Must match across group.')}
     ${divider('Senior Rater Signature — Block 49')}
-    ${fld('b49','B49 · Senior Rater Typed Name &amp; Rate/Rank','text',b.b49||'','Name and Rate/Rank','blocks','b49',29)}
+    ${fld('b49','B49 · Senior Rater Typed Name &amp; Rate/Rank','text',b.b49||'','LNAME, F M, LT','blocks','b49',29)}
     ${divider('Concurrent RS Typed Name — Block 52')}
     ${ta('b52','B52 · Concurrent RS Name, Grade, Command, UIC',b.b52||'',2,'blocks','b52',33,'33 chars')}`:''}
     `;
@@ -3794,9 +3972,9 @@ const FormRenderer = (() => {
       <label class="field-label">B29 Box · Abbreviation (max 14 chars)
         <span class="char-counter" style="float:right;font-size:10px;font-family:var(--font-mono);color:var(--gray-400)">${(b.b29_abbr||'').length}/14</span>
       </label>
-      <input type="text" class="field-input" style="max-width:200px;font-weight:600;font-size:15px"
+      <input type="text" class="field-input" style="max-width:200px;font-weight:600;font-size:12px"
         data-field="blocks" data-subkey="b29_abbr" value="${escHtml(b.b29_abbr||'')}"
-        placeholder="e.g., EOOW" maxlength="14" data-maxchars="14">
+        placeholder="e.g., LPO, N1, AOPS" maxlength="14" data-maxchars="14">
     </div>
     ${ta('b29',b29label,b.b29,4,'blocks','b29',342,b29hint)}
     ${rt!=='CHIEFEVAL'?`<div class="field-hint" style="margin-top:4px;color:var(--gray-500)"><strong>PFA format (BUPERSINST 1650.1H):</strong> Include PFA score in format <code>\"PFA: YY-C: P/WS/##/XX\"</code> where YY=Fiscal Year (2 digits), C=Cycle (1 or 2), P/F=Pass/Fail, WS/NWS=Within BCA Standards/Not Within BCA Standards, ##=Numerical Avg. Score (0-100), XX=Score Category (Good Medium, etc.). Example: <code>PFA: 26-1: P/WS/65/GM</code></div>`:''}
@@ -3811,7 +3989,7 @@ const FormRenderer = (() => {
     ${infoCard('Counseling is mandatory for all Periodic reports. Enter <strong>YYMMMDD</strong>, <strong>NOT REQ</strong>, or <strong>NOT PERF</strong> (NOT PERF requires explanation in comments).')}
     <div class="field-row field-row-2">
       ${fld('b30','B30 · Date Counseled','text',b.b30,'YYMMMDD, NOT REQ, or NOT PERF','blocks','b30',7)}
-      ${fld('b31','B31 · Counselor Name','text',b.b31,'Name of counseling officer/CPO','blocks','b31',18)}
+      ${fld('b31','B31 · Counselor Name','text',b.b31,'LNAME, F M','blocks','b31',18)}
     </div>
     <div class="field-hint" style="margin-top:-8px">¹ Block 32 (member signature) is completed on the paper form at time of review.</div>
     ${infoCard(`<strong>Midterm Counseling Target Dates by Paygrade (BUPERSINST 1650.1H)</strong>
@@ -3967,7 +4145,7 @@ const FormRenderer = (() => {
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b41a"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
             maxlength="33" data-maxchars="33"
-            placeholder="e.g., Recommend for Advancement">${escHtml(b.b41a||'')}</textarea>
+            placeholder="e.g., ASSIGNMENT IN RATE, LPO AT SEA, LDO">${escHtml(b.b41a||'')}</textarea>
           <div class="field-hint">2 lines × 16 chars</div>
         </div>
         <div class="field-group">
@@ -3975,7 +4153,7 @@ const FormRenderer = (() => {
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b41b"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
             maxlength="33" data-maxchars="33"
-            placeholder="Optional second rec">${escHtml(b.b41b||'')}</textarea>
+            placeholder="e.g.,OFFICER PROGRAMS, SPECIAL PROJECTS">${escHtml(b.b41b||'')}</textarea>
           <div class="field-hint">2 lines × 16 chars</div>
         </div>
       </div>`;
@@ -3983,8 +4161,8 @@ const FormRenderer = (() => {
       careerBlock=`
       ${divider('Career Milestone Recommendations (Blocks 46–47)')}
       <div class="field-row field-row-2">
-        ${fld('b46','B46 · First Recommendation','text',report.careerRec1||'','e.g., Department Head','blocks','b46',20)}
-        ${fld('b47','B47 · Second Recommendation','text',report.careerRec2||'','Optional','blocks','b47',20)}
+        ${fld('b46','B46 · First Recommendation','text',report.careerRec1||'','e.g., SEA, COB','blocks','b46',20)}
+        ${fld('b47','B47 · Second Recommendation','text',report.careerRec2||'','DEPT LCPO, CMC','blocks','b47',20)}
       </div>`;
     } else {
       careerBlock=`
@@ -3995,7 +4173,7 @@ const FormRenderer = (() => {
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b40a"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
             maxlength="27" data-maxchars="27"
-            placeholder="e.g., Dept Head">${escHtml(report.blocks?.b40a||'')}</textarea>
+            placeholder="e.g., DEPT HEAD, XO">${escHtml(report.blocks?.b40a||'')}</textarea>
           <div class="field-hint">2 lines × 13 chars</div>
         </div>
         <div class="field-group">
@@ -4003,7 +4181,7 @@ const FormRenderer = (() => {
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b40b"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
             maxlength="27" data-maxchars="27"
-            placeholder="Optional">${escHtml(report.blocks?.b40b||'')}</textarea>
+            placeholder="WAR COLLEGE">${escHtml(report.blocks?.b40b||'')}</textarea>
           <div class="field-hint">2 lines × 13 chars</div>
         </div>
       </div>`;
@@ -4044,7 +4222,7 @@ function renderPromotion(report,group) {
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b41a"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
             maxlength="33" data-maxchars="33"
-            placeholder="e.g., Recommend for Advancement">${escHtml(report.blocks?.b41a||'')}</textarea>
+            placeholder="e.g., ASSIGNMENT IN RATE, LPO">${escHtml(report.blocks?.b41a||'')}</textarea>
           <div class="field-hint">2 lines × 16 chars</div>
         </div>
         <div class="field-group">
@@ -4052,18 +4230,18 @@ function renderPromotion(report,group) {
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b41b"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
             maxlength="33" data-maxchars="33"
-            placeholder="Optional second rec">${escHtml(report.blocks?.b41b||'')}</textarea>
+            placeholder="RDC DUTY, SPECIAL PROGRAMS">${escHtml(report.blocks?.b41b||'')}</textarea>
           <div class="field-hint">2 lines × 16 chars</div>
         </div>
       </div>
       ${divider('Rater Signature — Block 42')}
-      ${fld('b42','B42 · Rater Typed Name & Rating','text',report.blocks?.b42||'','Typed name and rating/rank','blocks','b42',28)}`;
+      ${fld('b42','B42 · Rater Typed Name & Rating','text',report.blocks?.b42||'','LNAME, F N, YNSC(SS)','blocks','b42',28)}`;
     } else if (rt==='CHIEFEVAL') {
       careerBlock=`
       ${divider('Career Milestone Recommendations (Blocks 46–47)')}
       <div class="field-row field-row-2">
-        ${fld('b46','B46 · First Recommendation','text',report.careerRec1||'','e.g., Department Head','blocks','b46',20)}
-        ${fld('b47','B47 · Second Recommendation','text',report.careerRec2||'','Optional','blocks','b47',20)}
+        ${fld('b46','B46 · First Recommendation','text',report.careerRec1||'','e.g., LCPO AT SEA, SEA','blocks','b46',20)}
+        ${fld('b47','B47 · Second Recommendation','text',report.careerRec2||'','e.g., CMDCS, CPOIC','blocks','b47',20)}
       </div>`;
     } else {
       careerBlock=`
@@ -4122,7 +4300,7 @@ function renderPromotion(report,group) {
     if (rt==='EVAL') {
       b49block=`
       ${divider('Rater Signature — Block 49 (29 chars)')}
-      ${fld('b49','B49 · Senior Rater Typed Name &amp; Rate/Rank','text',report.blocks?.b49||'','Name and Rate/Rank','blocks','b49',29)}`;
+      ${fld('b49','B49 · Senior Rater Typed Name &amp; Rate/Rank','text',report.blocks?.b49||'','LNAME, F M, LT','blocks','b49',29)}`;
     }
     let b52block='';
     const b52max=rt==='CHIEFEVAL'?62:33;
@@ -4132,7 +4310,7 @@ function renderPromotion(report,group) {
 
     return `
     <div class="section-title">Comments</div>
-    ${infoCard(`<strong>${blockRef} — Comments on Performance:</strong> 1.0 and 2.0 grades must be substantiated. No continuation sheets permitted. ${rt==='FITREP'?'GRGB comments mandatory for CDR/CAPT.':''} Font must be 10pt or 12pt on printed form.`)}
+    ${infoCard(`<strong>${blockRef} — Comments on Performance:</strong> 1.0 and 2.0 grades must be substantiated. No continuation sheets permitted. ${rt==='FITREP'?'GRGB comments mandatory for CDR/CAPT.':''} `)}
     <div class="field-group">
       <label class="field-label" style="display:flex;justify-content:space-between;align-items:center">
         <span>${blockRef} · Comments on Performance</span>
@@ -4172,7 +4350,7 @@ ${rt!=='CHIEFEVAL'?`
       </div>
     </div>
     ${divider('RSCA — Block 44 (CHIEFEVAL)')}
-    ${fld('rsca','B44 · RSCA (manually entered)','text',report.rsca||'','e.g., 4.23','rsca','rsca',4,'Reporting Senior\'s Career Average')}`:
+    ${fld('rsca','B44 · RSCA (manually entered)','text',report.rsca||'','e.g., 4.23','rsca','rsca',4,'Reporting Senior\'s Cumulative Average')}`:
     '';
 
     return `
@@ -4285,10 +4463,6 @@ ${rt!=='CHIEFEVAL'?`
       </div>
     </div>`;
 
-    const chiefRSCABlock = rt==='CHIEFEVAL'?`
-    ${divider('RSCA — Block 44 (CHIEFEVAL)')}
-    ${fld('rsca','B44 · RSCA (manually entered)','text',report.rsca||'','e.g., 4.23','rsca','rsca',4,'Reporting Senior\'s Career Average')}`:
-    '';
 
     return `
     <div class="section-title">Promotion Recommendation &amp; Summary Group</div>
@@ -4357,82 +4531,163 @@ ${rt!=='CHIEFEVAL'?`
           style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--gray-100)'}"
           value="${auto.groupTraitAvg||''}">
       </div>
-    </div>
-    ${chiefRSCABlock}`;
+    </div>`;
   }
 
-  // ── Grade Review Screen ────────────────────────────────────────
+  // ── Summary Group Review Screen ─────────────────────────────────
+  const SGR_EXTRA_COLS = {
+    EVAL: [
+      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
+      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
+      {key:'b41a',label:'B41a'},{key:'b41b',label:'B41b'},{key:'b42',label:'B42'},
+      {key:'retention',label:'B47',top:true},{key:'b49',label:'B49'}
+    ],
+    CHIEFEVAL: [
+      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
+      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
+      {key:'b46',label:'B46'},{key:'b47',label:'B47'}
+    ],
+    FITREP: [
+      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
+      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
+      {key:'b40a',label:'B40a'},{key:'b40b',label:'B40b'}
+    ]
+  };
+
   function renderGradeReviewScreen(group) {
     const reports=group.reports||[];
-    const traits=DataModel.getTraitsForType(group.reportType);
-    const isCPO=group.reportType==='CHIEFEVAL';
+    const rt=group.reportType;
+    const traits=DataModel.getTraitsForType(rt);
+    const isCPO=rt==='CHIEFEVAL';
     const gradeOpts=['NOB','1.0','2.0','3.0','4.0','5.0'];
 
+    // Section 1 — RSCA / PSG RSCA banner
+    const rsca=DataModel.computeRSCA(group);
+    const psgRsca=DataModel.computePSGRSCA(group);
+    const rscaBanner=`
+      <div class="rsca-banner">
+        <div class="rsca-banner-item">
+          <div class="rsca-banner-label">RSCA</div>
+          <div class="rsca-banner-value ${rsca?'':'missing'}">${rsca||'Not yet calculated'}</div>
+        </div>
+        <div class="rsca-banner-item">
+          <div class="rsca-banner-label">POST-SUMMARY GROUP RSCA (PSG RSCA)</div>
+          <div class="rsca-banner-value ${psgRsca?'':'missing'}">${psgRsca||'Not yet calculated'}</div>
+        </div>
+      </div>`;
+
+    // Section 2 — digestible group-consistent fields
+    const gv=(getter)=>{
+      const vals=reports.map(r=>getter(r)||'');
+      const allSame=vals.every(v=>v===vals[0]);
+      return {value:vals[0]||'—',mismatch:!allSame};
+    };
+    const typeOfReportLabel=r=>{
+      const parts=[];
+      if (r.blocks?.b17) parts.push('Regular');
+      if (r.blocks?.b18) parts.push('Concurrent');
+      if (r.blocks?.b19) parts.push('Ops Cdr');
+      return parts.join(', ');
+    };
+    const groupFields=[
+      {label:'B2 · Grade/Rate',get:r=>r.blocks?.b2},
+      {label:'B5 · Duty Status',get:r=>r.blocks?.b5},
+      {label:'B8 · Promotion Status',get:r=>r.blocks?.b8},
+      {label:'B15 · Period TO',get:r=>r.blocks?.b15},
+      {label:'B17-19 · Type of Report',get:typeOfReportLabel},
+      {label:'B21 · Billet Subcategory',get:r=>r.blocks?.b21},
+      {label:'B22 · RS Name',get:r=>r.blocks?.b22},
+      {label:'B23 · RS Grade',get:r=>r.blocks?.b23},
+      {label:'B24 · RS Designator',get:r=>r.blocks?.b24},
+      {label:'B25 · RS Title',get:r=>r.blocks?.b25},
+      {label:'B26 · RS UIC',get:r=>r.blocks?.b26},
+      {label:'B27 · RS SSN',get:r=>DataModel.formatSSN(r.blocks?.b27||'')},
+    ];
+    const groupFieldsGrid=`
+      <div class="group-fields-grid">
+        ${groupFields.map(f=>{
+          const {value,mismatch}=gv(f.get);
+          return `<div class="group-field-item">
+            <div class="group-field-item-label">${escHtml(f.label)}</div>
+            <div class="group-field-item-value ${mismatch?'mismatch':''}">${mismatch?'⚠ Multiple values — see errors':escHtml(value)}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+
+    // Section 3 — expanded per-report table
+    const extraCols=SGR_EXTRA_COLS[rt]||[];
+    const extraColVal=(r,c)=>c.top ? (r[c.key]||'') : (r.blocks?.[c.key]||'');
+
     return `
-    <div style="padding:var(--sp-8);max-width:1200px">
-      <div class="section-title">Grade/Ranking Review</div>
-      <div class="section-subtitle">All reports — adjust grades and summary ranking before printing</div>
-      ${infoCard('Adjust trait grades, promotion recommendations, and summary rank here before printing.','blue')}
-      <div style="overflow-x:auto">
-        <table style="border-collapse:collapse;width:100%;font-size:11px;min-width:800px">
+    <div style="padding:var(--sp-8);max-width:1600px">
+      <div class="section-title">Summary Group Review</div>
+      <div class="section-subtitle">RSCA, group-consistent fields, and per-report grades — reviewed together before printing</div>
+      ${rscaBanner}
+      ${groupFieldsGrid}
+      ${infoCard('Adjust trait grades, promotion recommendations, and summary rank in the table below before printing.','blue')}
+      <div class="summary-table-wrap">
+        <table class="summary-table sgr-wide">
           <thead>
-            <tr style="background:var(--navy-800);color:white">
-              <th style="padding:6px 8px;text-align:left;position:sticky;left:0;background:var(--navy-800)">
+            <tr>
+              <th class="sgr-sticky" style="background:var(--navy-800)">
                 Member
                 <span style="display:inline-flex;gap:2px;margin-left:4px">
                   <button class="gr-sort-btn" data-sort="alpha-asc" title="A→Z" style="font-size:9px;padding:1px 4px;cursor:pointer;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:2px">A↑</button>
                   <button class="gr-sort-btn" data-sort="alpha-desc" title="Z→A" style="font-size:9px;padding:1px 4px;cursor:pointer;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:2px">Z↓</button>
                 </span>
               </th>
-              <th style="padding:6px 4px;text-align:center;font-size:10px">
+              <th style="text-align:center">
                 Rank
                 <span style="display:inline-flex;gap:2px;margin-top:2px">
                   <button class="gr-sort-btn" data-sort="rank-asc" title="Best first" style="font-size:9px;padding:1px 4px;cursor:pointer;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:2px">↑</button>
                   <button class="gr-sort-btn" data-sort="rank-desc" title="Worst first" style="font-size:9px;padding:1px 4px;cursor:pointer;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:2px">↓</button>
                 </span>
               </th>
-              <th style="padding:6px 4px;text-align:center;font-size:10px">Promo</th>
-              ${traits.map(t=>`<th style="padding:6px 4px;text-align:center;font-size:9px">${t.block}</th>`).join('')}
-              <th style="padding:6px 4px;text-align:center">Avg</th>
+              <th style="text-align:center">Promo</th>
+              ${traits.map(t=>`<th style="text-align:center">${t.block}</th>`).join('')}
+              <th style="text-align:center">Avg</th>
+              ${extraCols.map(c=>`<th style="text-align:center">${c.label}</th>`).join('')}
             </tr>
           </thead>
           <tbody id="grade-review-body">
             ${reports.map((r,ri)=>{
               const avg=DataModel.computeTraitAverage(r)||'—';
-              return `<tr data-ri="${ri}" style="border-bottom:1px solid var(--border-color);${ri%2?'background:var(--gray-50)':''}">
-                <td style="padding:4px 8px;font-weight:500;position:sticky;left:0;background:${ri%2?'var(--gray-50)':'white'}">
+              const rowBg=ri%2?'var(--gray-50)':'white';
+              return `<tr data-ri="${ri}">
+                <td class="sgr-sticky" style="background:${rowBg};font-weight:500">
                   ${escHtml((r.blocks?.b1||'').split(',')[0].trim()||`Report ${ri+1}`)}
                   <div style="font-size:9px;color:var(--gray-400)">${escHtml(r.blocks?.b2||'')}</div>
                 </td>
-                <td style="padding:3px;text-align:center">
-                  <input type="number" class="grade-review-rank" data-ri="${ri}"
+                <td style="text-align:center">
+                  <input type="number" class="grade-review-rank rank-input" data-ri="${ri}"
                     value="${r.summaryGroup?.memberRank||''}"
-                    min="1" max="${reports.length}"
-                    style="width:44px;font-size:11px;text-align:center;padding:2px">
+                    min="1" max="${reports.length}">
                 </td>
-                <td style="padding:3px;text-align:center">
+                <td style="text-align:center">
                   <select class="grade-review-promo" data-ri="${ri}" style="font-size:10px;padding:2px;border:1px solid var(--border-color);border-radius:2px">
                     <option value="">—</option>
                     ${DataModel.PROMOTION_RECS.map(p=>`<option value="${p.value}" ${r.promoRec===p.value?'selected':''}>${p.value}</option>`).join('')}
                   </select>
                 </td>
                 ${traits.map(t=>`
-                  <td style="padding:3px;text-align:center">
+                  <td style="text-align:center">
                     <select class="grade-review-sel" data-ri="${ri}" data-trait="${t.key}" data-iscpo="${isCPO?1:0}"
                       style="font-size:10px;padding:2px;border:1px solid var(--border-color);border-radius:2px;width:46px">
                       <option value="">—</option>
                       ${gradeOpts.map(g=>`<option value="${g}" ${(isCPO?r.traitGrades?.[t.key]:r.traits?.[t.key])===g?'selected':''}>${g}</option>`).join('')}
                     </select>
                   </td>`).join('')}
-                <td style="padding:4px;text-align:center;font-family:var(--font-mono);font-weight:600" id="gr-avg-${ri}">${avg}</td>
+                <td style="text-align:center;font-family:var(--font-mono);font-weight:600" id="gr-avg-${ri}">${avg}</td>
+                ${extraCols.map(c=>{ const v=extraColVal(r,c); return `<td class="sgr-cell" title="${escHtml(v)}">${escHtml(v)||'—'}</td>`; }).join('')}
               </tr>`;
             }).join('')}
           </tbody>
           <tfoot>
             <tr style="background:var(--navy-050);font-weight:600">
-              <td style="padding:6px 8px;font-family:var(--font-mono);font-size:10px" colspan="4">GROUP AVG</td>
-              ${traits.map(t=>`<td style="padding:6px 4px;text-align:center;font-family:var(--font-mono);font-size:10px" id="gr-col-${t.key}">—</td>`).join('')}
-              <td style="padding:6px 4px;text-align:center;font-family:var(--font-mono);font-weight:700" id="gr-total-avg">—</td>
+              <td class="sgr-sticky" style="background:var(--navy-050);font-family:var(--font-mono);font-size:10px" colspan="3">GROUP AVG</td>
+              ${traits.map(t=>`<td style="text-align:center;font-family:var(--font-mono);font-size:10px" id="gr-col-${t.key}">—</td>`).join('')}
+              <td style="text-align:center;font-family:var(--font-mono);font-weight:700" id="gr-total-avg">—</td>
+              ${extraCols.length?`<td colspan="${extraCols.length}"></td>`:''}
             </tr>
           </tfoot>
         </table>
@@ -4530,7 +4785,7 @@ ${rt!=='CHIEFEVAL'?`
   return {
     init, setActiveReport, isDirty, markClean, switchSection,
     validateAndHighlight, updateSummaryAuto, renderGradeReviewScreen, bindGradeReview,
-    openValidationModal
+    openValidationModal, computeGroupTotals
   };
 })();
 
@@ -10327,25 +10582,23 @@ const App = (() => {
         Importing from NAVFIT98A
       </h3>
       <p style="margin-bottom:16px;color:var(--gray-700);line-height:1.6">
-        NavEval imports directly from the XML export format produced by NAVFIT98A.
-        Follow these steps to export from NAVFIT98A:
+        NAVFIT-Edge imports from the XML export format produced by Microsoft Access .accdb files, the NAVFIT98A storage format.
+        Follow these steps to export that data:
       </p>
       <ol style="margin:0 0 20px 20px;color:var(--gray-700);line-height:2;font-size:13px">
-        <li>Open NAVFIT98A and navigate to the folder containing the reports you want to import.</li>
-        <li>From the menu, select <strong>External Data → Export → XML File</strong>.</li>
-        <li>In the export dialog, choose the <strong>Reports</strong> table.</li>
-        <li>Accept the default filename (<code>Reports.xml</code>) and click <strong>OK</strong>.</li>
-        <li>When prompted, you may also export the schema (<code>Reports.xsd</code>) — NavEval does not require it, but it is useful for reference.</li>
-        <li>Click <strong>Import XML File</strong> below and select the exported <code>Reports.xml</code> file.</li>
+        <li>Open the .accdb file containing NAVFIT98A data using Microsoft Access and select \"Reports\"</li>
+        <li>From the menu, select <strong>External Data → More (in the Export section) → XML File</strong>.</li>
+        <li>Accept the default filename or choose a path for (<code>Reports.xml</code>) and click <strong>OK</strong>.</li>
+        <li>When prompted, you may also export the schema (<code>Reports.xsd</code>) — NAVFIT-Edge does not require it, but it is useful for reference.</li>
+        <li>Click <strong>Import XML File</strong> below and select the exported <code>Reports.xml</code> (or whatever name you selected) file.</li>
       </ol>
       <div class="info-card blue" style="margin-bottom:16px">
         <strong>Note:</strong> All reports in the exported XML will be available for import.
-        NavEval will let you choose which reports to add to your active group.
+        NAVFIT-Edge will let you choose which reports to add to the group.
         Reports of different types (EVAL/CHIEFEVAL/FITREP) from the same XML are presented separately.
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn-primary" id="btn-do-xml-import">Import XML File</button>
-        <button class="btn-secondary modal-close" data-modal="modal-help">Close</button>
       </div>`;
 
     // Wire the import button inside the modal
@@ -10419,12 +10672,12 @@ const App = (() => {
     const el = document.getElementById('help-content');
     if (!el) return;
     el.innerHTML = `
-    <h3>About NavEval</h3>
-    <p>NavEval is a browser-based replacement for NAVFIT98A implementing BUPERSINST 1610.10H CH-1 (16 Dec 2025). All data stays on your machine — nothing is transmitted anywhere.</p>
+    <h3>About NAVFIT-Edge</h3>
+    <p>NAVFIT-Edge is a browser-based, open source replacement for NAVFIT98A.  It  implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-1 (16 Dec 2025). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
     <h3>File Format (.nve)</h3>
-    <p>A <code>.nve</code> file contains a <strong>group of reports</strong> sharing a reporting senior. Files are always AES-256 encrypted to keep them opaque to ordinary tools; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the file, set an optional passphrase.</p>
+    <p>A <code>.nve</code> file contains a <strong>single summary group of reports</strong>. Files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the file, a user saves it to locations only they have access to or sets an optional passphrase which can be given to other users.</p>
     <h3>Report Navigation</h3>
-    <p>Use the report tabs at the top of the editor to switch between reports in a group. Use the <strong>＋</strong> tab to add a new report. The Grade Review screen shows all reports' grades on one screen for group-level adjustment.</p>
+    <p>Use the report tabs at the top of the editor to switch between reports in a group. Use the <strong>＋</strong> tab to add a new report. The Summary Group Review screen shows RSCA, group-consistent fields, and all reports' grades on one screen for group-level adjustment.</p>
     <h3>Filename Convention</h3>
     <p>Default filenames are auto-generated as <code>PAYGRADE_RSLASTNAME_ENDDATE_OCCASION.nve</code>, e.g., <code>E6_SMITH_26NOV15_PERIODIC.nve</code>.</p>
     <h3>SSN Handling</h3>
@@ -10432,7 +10685,7 @@ const App = (() => {
     <h3>Date Format</h3>
     <p>All dates use YYMMMDD format (e.g., <code>24JAN15</code> = January 15, 2024).</p>
     <h3>Print Instructions</h3>
-    <p>Print at 100% scale on 8.5×11 paper. Disable browser headers/footers. Use Print → Save as PDF for digital submission.</p>
+    <p>Print at 100% scale on 8.5×11 paper. You may need to disable browser headers/footers.</p>
     <h3>Keyboard Shortcuts</h3>
     <p><code>Ctrl+S</code> — Save &nbsp;|&nbsp; <code>Ctrl+P</code> — Print preview &nbsp;|&nbsp; <code>Esc</code> — Close modal</p>`;
   }
@@ -10536,7 +10789,23 @@ const App = (() => {
   function showPrintChoice() {
     // Show modal to choose current report or all reports
     const modal = document.getElementById('modal-print-choice');
-    if (modal) { showModal('modal-print-choice'); return; }
+    if (modal) {
+      const banner = document.getElementById('print-choice-error-banner');
+      if (banner && _group) {
+        const gt = FormRenderer.computeGroupTotals(_group);
+        if (gt.errors || gt.warnings) {
+          banner.innerHTML = `<p class="val-modal-group-total" id="print-choice-banner-link" style="cursor:pointer">Remaining in group (${gt.reportCount} report${gt.reportCount===1?'':'s'}): <strong>${gt.errors} error(s)</strong>, ${gt.warnings} warning(s) — click to review</p>`;
+          document.getElementById('print-choice-banner-link')?.addEventListener('click', () => {
+            hideModal('modal-print-choice');
+            FormRenderer.openValidationModal();
+          });
+        } else {
+          banner.innerHTML = '';
+        }
+      }
+      showModal('modal-print-choice');
+      return;
+    }
     // Fallback: ask with confirm
     const all = _group.reports.length > 1 ? confirm('Print all reports? OK=All, Cancel=Current only') : false;
     openPrintPreview(all);
