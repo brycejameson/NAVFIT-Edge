@@ -802,6 +802,7 @@ input, textarea, select { font-family: inherit; }
 .field-row-2 { grid-template-columns: 1fr 1fr; }
 .field-row-3 { grid-template-columns: 1fr 1fr 1fr; }
 .field-row-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.field-row-6 { grid-template-columns: repeat(6, 1fr); }
 .field-row-auto { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 
 .field-label {
@@ -1785,13 +1786,13 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
       <div class="landing-actions">
         <button class="action-card primary" id="btn-new-eval">
           <span class="action-icon">✦</span>
-          <span class="action-title">New Group File</span>
+          <span class="action-title">New File</span>
           <span class="action-desc">Create EVAL, CHIEFEVAL, or FITREP group</span>
         </button>
         <button class="action-card" id="btn-open-file">
           <span class="action-icon">◈</span>
           <span class="action-title">Open File</span>
-          <span class="action-desc">Load .nve encrypted group file</span>
+          <span class="action-desc">Load .nfe encrypted group file</span>
         </button>
         <button class="action-card" id="btn-import-accdb">
           <span class="action-icon">⬡</span>
@@ -1823,17 +1824,17 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
         <button class="eval-type-card" data-type="EVAL">
           <span class="type-badge">EVAL</span>
           <span class="type-name">Enlisted Evaluation</span>
-          <span class="type-desc">NAVPERS 1616/26<br>Paygrades E-1 through E-6</span>
+          <span class="type-desc">NAVPERS 1616/26<br>Paygrades E-1 to E-6</span>
         </button>
         <button class="eval-type-card" data-type="CHIEFEVAL">
           <span class="type-badge chief">CHIEFEVAL</span>
           <span class="type-name">Chief Evaluation</span>
-          <span class="type-desc">NAVPERS 1616/27<br>Paygrades E-7 through E-9</span>
+          <span class="type-desc">NAVPERS 1616/27<br>Paygrades E-7 to E-9</span>
         </button>
         <button class="eval-type-card" data-type="FITREP">
           <span class="type-badge officer">FITREP</span>
           <span class="type-name">Fitness Report</span>
-          <span class="type-desc">NAVPERS 1610/2<br>Paygrades W-2 through O-6</span>
+          <span class="type-desc">NAVPERS 1610/2<br>Paygrades W-2 to O-6</span>
         </button>
       </div>
     </div>
@@ -1934,7 +1935,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
     <div class="modal-backdrop"></div>
     <div class="modal-box wide">
       <div class="modal-header">
-        <h2>NAVFIT-Edge Reference</h2>
+        <h2 id="modal-help-title">NAVFIT-Edge Reference</h2>
         <button class="modal-close" data-modal="modal-help">✕</button>
       </div>
       <div class="help-content" id="help-content"></div>
@@ -1954,9 +1955,9 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
   </div>
 
   <div id="toast-container"></div>
-  <input type="file" id="file-input-open" accept=".nve" style="display:none">
+  <input type="file" id="file-input-open" accept=".nfe" style="display:none">
   <input type="file" id="file-input-accdb" accept=".xml,.accdb,.mdb,.json" style="display:none">
-  <input type="file" id="file-input-import-reports" accept=".nve" multiple style="display:none">
+  <input type="file" id="file-input-import-reports" accept=".nfe" multiple style="display:none">
 
   <!-- Print/PDF choice modal -->
   <div id="modal-print-choice" class="modal hidden">
@@ -2010,12 +2011,12 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
 <script>
 // ═══════════════════════════════════════════════════════════════════
 // NAVFIT-Edge application version. Bump this on every release.
-// Stamped into every saved .nve file's (unencrypted) metadata so that
+// Stamped into every saved .nfe file's (unencrypted) metadata so that
 // opening a file saved by an older version can warn the user to verify
 // the data. This is the app version — distinct from NavEvalCrypto's
-// FILE_VERSION, which tracks the .nve on-disk *format*, not the app.
+// FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.3.0';
+const NAVFIT_EDGE_VERSION = '0.4.0';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -2031,7 +2032,7 @@ function compareVersions(a, b) {
 /* === crypto.js === */
 /**
  * NAVFIT-Edge Crypto Module
- * File format: .nve (NavEval Encrypted)
+ * File format: .nfe (NavEval Encrypted)
  * Encryption: AES-256-CBC via CryptoJS
  * 
  * Format:
@@ -2093,7 +2094,7 @@ const NavEvalCrypto = (() => {
   }
 
   /**
-   * Encrypt data object to .nve file content string
+   * Encrypt data object to .nfe file content string
    * @param {Object} data - The evaluation data object
    * @param {string|null} passphrase - Optional user passphrase
    * @returns {string} - File content string
@@ -2142,7 +2143,7 @@ const NavEvalCrypto = (() => {
   }
 
   /**
-   * Decrypt .nve file content
+   * Decrypt .nfe file content
    * @param {string} fileContent - Raw file content string
    * @param {string|null} passphrase - Optional passphrase if required
    * @returns {Object} - { ok: bool, data: Object|null, metadata: Object|null, error: string|null }
@@ -2221,7 +2222,7 @@ const NavEvalCrypto = (() => {
 
     const memberName = (data.blocks?.b1 || 'Unnamed').replace(/[^A-Za-z0-9_-]/g, '_');
     const reportType = data.reportType || 'EVAL';
-    const filename = suggestedName || `${memberName}_${reportType}.nve`;
+    const filename = suggestedName || `${memberName}_${reportType}.nfe`;
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2522,7 +2523,7 @@ const DataModel = (() => {
       isicUIC:'', isicAddress:'', email:'', phone:'', onTimeSubmission:null,
       // RSCA belongs to the Reporting Senior, shared by every report in the
       // group (like rsInfo above) — see computeRSCA/computeGroupTraitSum/computePSGRSCA.
-      rscaManual:'', rscaHistCount:'', rscaHistSum:''
+      rscaManual:'', rscaHistCount:'', rscaHistSum:'', rscaUseManual:false
     };
   }
 
@@ -2621,16 +2622,26 @@ const DataModel = (() => {
     return {...dist,groupTraitAvg:groupAvg};
   }
 
-  // Reporting Senior's Cumulative Average: manual value if entered, else
-  // Historical Trait Grade Sum / Count. Returns a '.00'-formatted string or
-  // null if neither a manual value nor complete historical data is present.
+  // Reporting Senior's Cumulative Average: when rscaUseManual is enabled,
+  // uses the manually-entered value only (no fallback); otherwise computed
+  // from Historical Trait Grade Sum / Count. Returns a '.00'-formatted
+  // string, or null if the active mode's data isn't complete yet.
   function computeRSCA(group) {
-    const manual=(group?.rscaManual||'').trim();
-    if (manual && !isNaN(parseFloat(manual))) return parseFloat(manual).toFixed(2);
+    if (group?.rscaUseManual) {
+      const manual=(group?.rscaManual||'').trim();
+      return (manual && !isNaN(parseFloat(manual))) ? parseFloat(manual).toFixed(2) : null;
+    }
     const count=parseFloat(group?.rscaHistCount);
     const sum=parseFloat(group?.rscaHistSum);
-    if (count>0 && !isNaN(sum)) return (sum/count).toFixed(2);
-    return null;
+    return (count>0 && !isNaN(sum)) ? (sum/count).toFixed(2) : null;
+  }
+
+  // Composes the structured Concurrent RS fields (Name/Grade/Title/UIC) into
+  // the single printed line every report type's PDF overlay already reads
+  // from blocks.b52 — keeps the PDF-rendering code untouched while the
+  // editor UI stays structured/consistent across report types.
+  function composeConcurrentRS(crs) {
+    return [crs?.name, crs?.grade, crs?.title, crs?.uic].filter(Boolean).join(', ');
   }
 
   // Flattens every report's individual trait marks in the group into one
@@ -2656,6 +2667,9 @@ const DataModel = (() => {
   // Trait Grade Sum) / (current group's non-NOB trait-mark count + Historical
   // Trait Grade Count), rounded to the nearest hundredth. Null if nothing to divide by.
   function computePSGRSCA(group) {
+    // A manually-entered RSCA can't be decomposed back into a trait count/sum,
+    // so PSG RSCA is undefined while manual mode is active.
+    if (group?.rscaUseManual) return null;
     const {sum,count}=computeGroupTraitSum(group);
     const histCount=parseFloat(group?.rscaHistCount)||0;
     const histSum=parseFloat(group?.rscaHistSum)||0;
@@ -2666,7 +2680,7 @@ const DataModel = (() => {
 
   function buildFilename(group) {
     const r=group.reports[group.activeIndex||0]||group.reports[0];
-    if (!r) return 'NAVFIT-Edge_Group.nve';
+    if (!r) return 'NAVFIT-Edge_Group.nfe';
     const blk=r.blocks||{};
     const rsLast=(group.rsInfo?.b22||blk.b22||'').split(',')[0].trim().toUpperCase()||'RS';
     const pg=(blk.b2||'').trim().replace(/\s+/g,'').toUpperCase()||'UNK';
@@ -2675,7 +2689,7 @@ const DataModel = (() => {
     if (blk.b10) occ='PERIODIC';
     else if (blk.b11) occ='DI';
     else if (blk.b12) occ='DRS';
-    return `${pg}_${rsLast}_${endDate}_${occ}.nve`;
+    return `${pg}_${rsLast}_${endDate}_${occ}.nfe`;
   }
 
   function formatSSN(raw) {
@@ -2806,7 +2820,7 @@ const DataModel = (() => {
     CHAR_LIMITS,EVAL_TRAITS,CHIEFEVAL_TRAITS,FITREP_TRAITS,PERIODIC_END_MONTHS,
     getPromoLimits,createDefaultGroup,createDefaultReport,generateId,
     getTraitsForType,computeTraitAverage,computeSummaryGroup,normalizePromotionStatus,
-    computeRSCA,computeGroupTraitSum,computePSGRSCA,
+    computeRSCA,computeGroupTraitSum,computePSGRSCA,composeConcurrentRS,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
     designatorCategory
   };
@@ -3113,9 +3127,9 @@ const Validator = (() => {
 
     // ── RSCA ───────────────────────────────────────────────────
     if (!DataModel.computeRSCA(group)) {
-      if (rt==='CHIEFEVAL') addE('admin','rsca','RSCA Calculation is required — enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
-      else if (rt==='EVAL') addW('admin','rsca','RSCA is necessary to accurately calculate Post-Summary Group RSCA. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
-      else if (rt==='FITREP') addW('admin','rsca','RSCA should be carefully considered when grading FITREPs. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
+      if (rt==='CHIEFEVAL') addE('promotion','rsca','RSCA Calculation is required — enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
+      else if (rt==='EVAL') addW('promotion','rsca','RSCA is necessary to accurately calculate Post-Summary Group RSCA. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
+      else if (rt==='FITREP') addW('promotion','rsca','RSCA should be carefully considered when grading FITREPs. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
     }
 
     // ── Summary Letter ─────────────────────────────────────────
@@ -3383,6 +3397,8 @@ const FormRenderer = (() => {
         setField(el.dataset.checkbox,v,el.dataset.subkey);
         // B16: cascade to NOB all traits
         if (el.dataset.subkey==='b16') { cascadeNOB(v); renderSection(currentSection()); return; }
+        // B18: Concurrent Report block visibility depends on this checkbox
+        if (el.dataset.subkey==='b18') { renderSection(currentSection()); return; }
       });
     });
     // commentsFont radio handled by [data-field] listener above
@@ -3552,6 +3568,29 @@ const FormRenderer = (() => {
       });
     }
 
+    // RSCA manual-entry override checkbox
+    const rmcb=document.getElementById('rsca-manual-cb');
+    if (rmcb) {
+      rmcb.addEventListener('change',()=>{
+        _group.rscaUseManual=rmcb.checked;
+        const manualInput=document.getElementById('f-rsca-manual');
+        const histCountInput=document.getElementById('f-rsca-hist-count');
+        const histSumInput=document.getElementById('f-rsca-hist-sum');
+        if (!rmcb.checked) { _group.rscaManual=''; if (manualInput) manualInput.value=''; }
+        if (manualInput) manualInput.disabled=!rmcb.checked;
+        if (histCountInput) histCountInput.disabled=rmcb.checked;
+        if (histSumInput) histSumInput.disabled=rmcb.checked;
+        const computed=DataModel.computeRSCA(_group);
+        _group.reports.forEach(r => { r.rsca=computed||''; });
+        updateRSCADisplay();
+        notifyChange();
+      });
+    }
+
+    // TEMPORARY — remove before v1.0 — Fill Test Data toggle button
+    const fillTestBtn=document.getElementById('btn-fill-test-data');
+    if (fillTestBtn) { fillTestBtn.addEventListener('click', toggleTestData); }
+
     // Trait expand buttons
     main.querySelectorAll('.trait-expand-btn').forEach(btn=>{
       btn.addEventListener('click',()=>{
@@ -3584,7 +3623,13 @@ const FormRenderer = (() => {
         _group.rsInfo[subkey]=value;
       }
     }
-    else if (field==='concurrentRS') _report.concurrentRS[subkey]=value;
+    else if (field==='concurrentRS') {
+      _report.concurrentRS[subkey]=value;
+      // Keep blocks.b52 (what every PDF overlay actually prints) in sync
+      // with the structured fields, so the UI can stay structured without
+      // touching the PDF-rendering code.
+      _report.blocks.b52=DataModel.composeConcurrentRS(_report.concurrentRS);
+    }
     else if (field==='summaryGroup') _report.summaryGroup[subkey]=value;
     else if (field==='rsAddressGroup') {
       // RS Address propagates to ALL reports in group, like B22-27 (#3)
@@ -3658,7 +3703,6 @@ const FormRenderer = (() => {
     const auto=DataModel.computeSummaryGroup(_group);
     Object.assign(_report.summaryGroup,auto);
     ['sp','prog','p','mp','ep','nob'].forEach(k=>{ const el=document.querySelector(`[data-sg="${k}"]`); if(el) el.value=auto[k]||0; });
-    const tel=document.getElementById('sg-total'); if(tel) tel.textContent=auto.total||0;
     const gel=document.querySelector('[data-sg="groupTraitAvg"]'); if(gel) gel.value=auto.groupTraitAvg||'';
     // Update 'Of' readonly total (rank block)
     document.querySelectorAll('[data-sg-total]').forEach(el=>el.value=auto.total||0);
@@ -3825,6 +3869,111 @@ const FormRenderer = (() => {
   function infoCard(html,type='') { return `<div class="info-card ${type}">${html}</div>`; }
   function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // TEMPORARY — PRINT-POSITION QA TOOL. Remove this whole block (and the
+  // "Fill Test Data" button + its wiring in bindFields()) before v1.0.
+  // ═══════════════════════════════════════════════════════════════════
+  function toggleTestData() {
+    const r=_report;
+    if (r._testDataFilled) {
+      const bak=r._testDataBackup;
+      if (bak) {
+        r.blocks=bak.blocks; r.traits=bak.traits; r.traitGrades=bak.traitGrades;
+        r.comments=bak.comments; r.qualifications=bak.qualifications;
+        r.promoRec=bak.promoRec; r.retention=bak.retention;
+        r.rsAddress=bak.rsAddress; r.concurrentRS=bak.concurrentRS;
+        if (!r.summaryGroup) r.summaryGroup={};
+        r.summaryGroup.memberRank=bak.memberRank;
+      }
+      delete r._testDataBackup;
+      delete r._testDataFilled;
+    } else {
+      r._testDataBackup={
+        blocks:JSON.parse(JSON.stringify(r.blocks||{})),
+        traits:JSON.parse(JSON.stringify(r.traits||{})),
+        traitGrades:JSON.parse(JSON.stringify(r.traitGrades||{})),
+        comments:r.comments, qualifications:r.qualifications,
+        promoRec:r.promoRec, retention:r.retention,
+        rsAddress:r.rsAddress,
+        concurrentRS:JSON.parse(JSON.stringify(r.concurrentRS||{})),
+        memberRank:r.summaryGroup?.memberRank
+      };
+      fillTestDataInto(r);
+      r._testDataFilled=true;
+    }
+    notifyChange();
+    renderSection(currentSection());
+  }
+
+  function fillTestDataInto(r) {
+    const rt=r.reportType;
+    const b=r.blocks=r.blocks||{};
+    const X=n=>'X'.repeat(n);
+
+    // Free text / textarea — filled to each field's real DOM max length
+    b.b1=X(27); b.b2=X(5); b.b3=X(12);
+    b.b6=X(5); b.b7=X(18);
+    b.b20=X(rt==='CHIEFEVAL'?18:4);
+    b.b22=X(18); b.b23=X(5); b.b24=X(5); b.b25=X(14); b.b26=X(5);
+    b.b28=X(270);
+    b.b29_abbr=X(14);
+    b.b29=X(342);
+    b.b31=X(18);
+
+    // Dates — must stay valid YYMMMDD or period/validation math breaks
+    b.b9='26JAN01'; b.b14='26JAN01'; b.b15='26JAN01'; b.b30='26JAN01';
+
+    // SSNs — must stay valid 9-digit or hyphenated display won't render
+    b.b4='123456789'; b.b27='123456789';
+
+    // Enums — must be a legal option or nothing prints
+    b.b5='ACT'; b.b8='REGULAR'; b.b21='NA';
+
+    // Checkboxes — all checked except B16 (NOB would clear all trait grades)
+    b.b10=true; b.b11=true; b.b12=true; b.b13=true;
+    b.b16=false;
+    b.b17=true; b.b18=true; if (rt!=='EVAL') b.b19=true;
+
+    // Type-specific fields
+    if (rt==='EVAL') {
+      b.b41a=X(33); b.b41b=X(33);
+      b.b42=X(28); b.b49=X(29);
+      r.qualifications=X(180);
+      r.retention='Recommended';
+    } else if (rt==='CHIEFEVAL') {
+      b.b46=X(20); b.b47=X(20);
+    } else if (rt==='FITREP') {
+      b.b40a=X(27); b.b40b=X(27);
+    }
+
+    // Concurrent RS (no enforced max length in the UI — reasonable fill)
+    r.concurrentRS={name:X(20),grade:X(10),title:X(15),uic:X(5),ssn:'123456789'};
+
+    // RS Address — shared field is uniformly capped at 150 chars regardless of type
+    r.rsAddress=X(150);
+
+    // Comments — length depends on report type / font
+    r.comments=X(rt==='CHIEFEVAL'?522:1656);
+
+    // Promotion recommendation
+    r.promoRec='P';
+
+    // Trait grades
+    const traits=DataModel.getTraitsForType(rt);
+    if (rt==='CHIEFEVAL') {
+      r.traitGrades=r.traitGrades||{};
+      traits.forEach(t=>{ r.traitGrades[t.key]='5.0'; });
+    } else {
+      r.traits=r.traits||{};
+      traits.forEach(t=>{ r.traits[t.key]='5.0'; });
+    }
+
+    // Summary rank (printed on CHIEFEVAL Block 42)
+    if (!r.summaryGroup) r.summaryGroup={};
+    r.summaryGroup.memberRank=1;
+  }
+  // ═══════════════════════════════════════════════════ end temporary block
+
   // ── Section Renderers ─────────────────────────────────────────
 
   function renderAdmin(report,group) {
@@ -3834,13 +3983,15 @@ const FormRenderer = (() => {
 
     return `
     <div class="section-title">Administrative Blocks</div>
+    <!-- TEMPORARY — remove before v1.0 -->
+    <button type="button" id="btn-fill-test-data" class="btn-secondary" style="margin-bottom:16px">${report._testDataFilled?'Restore Original Data':'Fill Test Data'}</button>
     ${divider('Member Information')}
-    <div class="field-row field-row-2">
+    <div class="field-row field-row-3">
       ${fld('b1','B1 · Member Name','text',b.b1,'LAST, FIRST MI SUFFIX','blocks','b1',27)}
       ${fld('b2','B2 · Grade / Rate','text',b.b2,'e.g., ET2, LCDR','blocks','b2',5)}
-    </div>
-    <div class="field-row field-row-3">
       ${fld('b3','B3 · Designator / Warfare Qual','text',b.b3,'e.g., 1110, 6410, SS, AW','blocks','b3',12)}
+    </div>
+    <div class="field-row field-row-2">
       ${fld('b4','B4 · SSN','text',ssnDisplay,'XXXXXXXXX','blocks','b4',11,'Stored as 9 digits; displayed with hyphens')}
       <div class="field-group">
         <label class="field-label">B5 · Duty Status</label>
@@ -3900,12 +4051,12 @@ const FormRenderer = (() => {
     </div>
 
     ${divider('Reporting Senior')}
-    <div class="field-row field-row-2">
+    <div class="field-row field-row-3">
       ${fld('rs-name','B22 · RS Name','text',b.b22,'LAST, F M','blocks','b22',18,'Comma after last name. Suffix may be entered')}
       ${fld('rs-grade','B23 · Grade','text',b.b23,'e.g., CDR, COL, GS15, CIV','blocks','b23',5,'No hyphens.  Do not leave blank.')}
-    </div>
-    <div class="field-row field-row-3">
       ${fld('rs-desig','B24 · Designator','text',b.b24,'e.g., 1310, 1120, USAF, USMC','blocks','b24',5,'Leave blank if civilian or Navy enlisted')}
+    </div>
+    <div class="field-row field-row-2">
       ${fld('rs-title','B25 · Title','text',b.b25,'e.g., CO, XO, COMMANDER, DEPT HEAD','blocks','b25',14,'Always use \"CO\" for Commanding Officer and \"OIC\" for Officer-In-Charge')}
       ${fld('rs-uic','B26 · UIC','text',b.b26,'e.g. 12345','blocks','b26',5,'Reporting senior\'s UIC may differ from UIC in block 6')}
     </div>
@@ -3913,22 +4064,7 @@ const FormRenderer = (() => {
       ${fld('rs-ssn','B27 · RS SSN','text',rsSsnDisplay,'XXXXXXXXX','blocks','b27',11,'RS SSN can be toggled to hide while printing (redacted member copy).')}
     </div>
 
-    ${divider('RSCA Calculation')}
-    <div class="field-row field-row-2">
-      ${fld('rsca-manual','RSCA (manual entry)','text',group.rscaManual||'','e.g., 4.23','rscaGroup','rscaManual',4,'Enter directly, 1.00–5.00. Leave blank to calculate from historical data below.')}
-    </div>
-    <div class="field-row field-row-2">
-      ${fld('rsca-hist-count','Historical Trait Grade Count','text',group.rscaHistCount||'','e.g., 210','rscaGroup','rscaHistCount',6,'Total graded trait marks across all reports this RS has previously signed')}
-      ${fld('rsca-hist-sum','Historical Trait Grade Sum','text',group.rscaHistSum||'','e.g., 903.5','rscaGroup','rscaHistSum',8,'Sum of those trait grade values')}
-    </div>
-    <div class="field-hint" id="rsca-computed-display">${DataModel.computeRSCA(group)?`Computed RSCA: ${DataModel.computeRSCA(group)}`:'Computed RSCA: — not yet calculated —'}</div>
-
-    ${rt==='FITREP'?`
-    ${divider('Reporting Senior Address — Block 44 (FITREP)')}
-    ${ta('rsAddress','B44 · RS Official Mailing Address',report.rsAddress||'',4,'rsAddress','rsAddress',116,'4 lines × 29 chars')}
-    `:''}
-
-    ${b.b18||rt==='FITREP'?`
+    ${b.b18?`
     ${divider('Concurrent Report — Regular RS')}
     <div class="field-row field-row-2">
       ${fld('crs-name','Regular RS Name','text',report.concurrentRS?.name||'','LAST, F M','concurrentRS','name')}
@@ -3941,14 +4077,11 @@ const FormRenderer = (() => {
     </div>`:''}
 
     ${rt==='EVAL'?`
-    ${divider('Rater Signature — Block 42')}
-    ${fld('b42','B42 · Rater Typed Name &amp; Rating','text',b.b42||'','LNAME, F M, YNSC(SS)','blocks','b42',28)}
-    ${divider('Reporting Senior Address — Block 48')}
-    ${ta('rsAddress','B48 · RS Official Mailing Address',report.rsAddress||'',4,'rsAddress','rsAddress',116,'4 lines × 29 chars. Must match across group.')}
-    ${divider('Senior Rater Signature — Block 49')}
-    ${fld('b49','B49 · Senior Rater Typed Name &amp; Rate/Rank','text',b.b49||'','LNAME, F M, LT','blocks','b49',29)}
-    ${divider('Concurrent RS Typed Name — Block 52')}
-    ${ta('b52','B52 · Concurrent RS Name, Grade, Command, UIC',b.b52||'',2,'blocks','b52',33,'33 chars')}`:''}
+    ${divider('Rater / Senior Rater Signatures — Blocks 42 &amp; 49')}
+    <div class="field-row field-row-2">
+      ${fld('b42','B42 · Rater Typed Name &amp; Rating','text',b.b42||'','LNAME, F M, YNSC(SS)','blocks','b42',28)}
+      ${fld('b49','B49 · Senior Rater Typed Name &amp; Rate/Rank','text',b.b49||'','LNAME, F M, LT','blocks','b49',29)}
+    </div>`:''}
     `;
   }
 
@@ -4063,6 +4196,7 @@ const FormRenderer = (() => {
         </div>`;
       }).join('')}
     </div>
+    <br>
     ${infoCard('1.0 → prohibits P/MP/EP · 2.0 in Cmd Climate/EO → prohibits P/MP/EP · Any 2.0 → prohibits MP/EP · Three 2.0s → must substantiate in comments')}`;
   }
 
@@ -4310,7 +4444,7 @@ function renderPromotion(report,group) {
 
     return `
     <div class="section-title">Comments</div>
-    ${infoCard(`<strong>${blockRef} — Comments on Performance:</strong> 1.0 and 2.0 grades must be substantiated. No continuation sheets permitted. ${rt==='FITREP'?'GRGB comments mandatory for CDR/CAPT.':''} `)}
+    ${infoCard(`<strong>${blockRef}:</strong> 1.0 and 2.0 grades must be substantiated. No continuation sheets or classified information permitted. ${rt==='FITREP'?'GRGB comments mandatory for CDR/CAPT.':''} Review Chapter 13 of the EVALMAN for additional guidance on required comments. `)}
     <div class="field-group">
       <label class="field-label" style="display:flex;justify-content:space-between;align-items:center">
         <span>${blockRef} · Comments on Performance</span>
@@ -4364,19 +4498,14 @@ ${rt!=='CHIEFEVAL'?`
         <span>Enable manual override for summary group counts</span>
       </label>
     </div>
-    <div class="field-row field-row-auto">
+    <div class="field-row field-row-6">
       ${['sp','prog','p','mp','ep','nob'].map(k=>`
         <div class="field-group">
           <label class="field-label">${k.toUpperCase()}</label>
           <input type="number" class="field-input" min="0" max="999"
             data-sg="${k}" value="${disp[k]||0}"
-            ${sg.manualOverride?'':'disabled'}
-            style="text-align:center;font-family:var(--font-mono);font-size:18px;font-weight:500">
+            ${sg.manualOverride?'':'disabled'}>
         </div>`).join('')}
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <span class="field-label" style="margin:0">Total:</span>
-      <span id="sg-total" style="font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--navy-700)">${disp.total||0}</span>
     </div>
 
     ${auto.total>0&&limits?`
@@ -4491,19 +4620,14 @@ ${rt!=='CHIEFEVAL'?`
         <span>Enable manual override for summary group counts</span>
       </label>
     </div>
-    <div class="field-row field-row-auto">
+    <div class="field-row field-row-6">
       ${['sp','prog','p','mp','ep','nob'].map(k=>`
         <div class="field-group">
           <label class="field-label">${k.toUpperCase()}</label>
           <input type="number" class="field-input" min="0" max="999"
             data-sg="${k}" value="${disp[k]||0}"
-            ${sg.manualOverride?'':'disabled'}
-            style="text-align:center;font-family:var(--font-mono);font-size:18px;font-weight:500">
+            ${sg.manualOverride?'':'disabled'}>
         </div>`).join('')}
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <span class="field-label" style="margin:0">Total:</span>
-      <span id="sg-total" style="font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--navy-700)">${disp.total||0}</span>
     </div>
     ${auto.total>0&&limits?`
     <div class="quota-indicator">
@@ -4531,6 +4655,36 @@ ${rt!=='CHIEFEVAL'?`
           style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--gray-100)'}"
           value="${auto.groupTraitAvg||''}">
       </div>
+    </div>
+
+    ${divider('RSCA Calculation')}
+    ${infoCard('For Administration and Reporting Senior Use only.','red')}
+    <div class="field-group" id="rsca-computed-display">${DataModel.computeRSCA(group)?`Computed Historical RSCA: ${DataModel.computeRSCA(group)}`:'Computed RSCA: — not yet calculated —'}</div>
+    <div class="field-row field-row-2">
+      <div class="field-group">
+        <label class="field-label">Historical Trait Grade Count</label>
+        <input type="text" class="field-input" id="f-rsca-hist-count" data-field="rscaGroup" data-subkey="rscaHistCount"
+          value="${escHtml(group.rscaHistCount||'')}" placeholder="e.g., 210" ${group.rscaUseManual?'disabled':''}>
+        <div class="field-hint">¹ Total graded trait marks across all reports this RS has previously signed</div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Historical Trait Grade Sum</label>
+        <input type="text" class="field-input" id="f-rsca-hist-sum" data-field="rscaGroup" data-subkey="rscaHistSum"
+          value="${escHtml(group.rscaHistSum||'')}" placeholder="e.g., 903" ${group.rscaUseManual?'disabled':''}>
+        <div class="field-hint">¹ Sum of those trait grade values</div>
+      </div>
+    </div>
+    <div class="field-group" style="margin:12px 0 8px">
+      <label class="checkbox-item">
+        <input type="checkbox" id="rsca-manual-cb" ${group.rscaUseManual?'checked':''}>
+        <span>Enable manual historical RSCA entry</span>
+      </label>
+    </div>
+    <div class="field-group">
+      <label class="field-label">RSCA (manual entry)</label>
+      <input type="text" class="field-input" id="f-rsca-manual" data-field="rscaGroup" data-subkey="rscaManual"
+        value="${escHtml(group.rscaManual||'')}" placeholder="e.g., 4.23" ${group.rscaUseManual?'':'disabled'}>
+      <div class="field-hint">¹ 1.00–5.00. Overrides the historical calculation above — Post-Summary Group RSCA cannot be calculated while a manual value is used.</div>
     </div>`;
   }
 
@@ -4564,6 +4718,7 @@ ${rt!=='CHIEFEVAL'?`
     // Section 1 — RSCA / PSG RSCA banner
     const rsca=DataModel.computeRSCA(group);
     const psgRsca=DataModel.computePSGRSCA(group);
+    const psgMissingMsg=group.rscaUseManual?'Unable to calculate PSG RSCA with Manual RSCA entry.':'Not yet calculated';
     const rscaBanner=`
       <div class="rsca-banner">
         <div class="rsca-banner-item">
@@ -4572,7 +4727,7 @@ ${rt!=='CHIEFEVAL'?`
         </div>
         <div class="rsca-banner-item">
           <div class="rsca-banner-label">POST-SUMMARY GROUP RSCA (PSG RSCA)</div>
-          <div class="rsca-banner-value ${psgRsca?'':'missing'}">${psgRsca||'Not yet calculated'}</div>
+          <div class="rsca-banner-value ${psgRsca?'':'missing'}">${psgRsca||psgMissingMsg}</div>
         </div>
       </div>`;
 
@@ -9659,6 +9814,7 @@ const XmlImporter = (() => {
 
     // Concurrent RS
     report.concurrentRS = buildConcurrentRS(el);
+    report.blocks.b52 = DataModel.composeConcurrentRS(report.concurrentRS);
 
     // Trait grades and comments
     if (rt === 'EVAL') {
@@ -9697,7 +9853,7 @@ const XmlImporter = (() => {
    * 1. Parse all <Reports> elements
    * 2. Group by Parent value
    * 3. Within each Parent group, further split by ReportType (EVAL/CHIEF/FITREP
-   *    cannot share a NavEval .nve group since they represent different forms)
+   *    cannot share a NavEval .nfe group since they represent different forms)
    * 4. Each resulting set → one NavEval group object
    *
    * Returns: { ok: bool, groups: Array<NavEvalGroup>, errors: string[], warnings: string[] }
@@ -9909,6 +10065,15 @@ const App = (() => {
   function showModal(id)  { document.getElementById(id)?.classList.remove('hidden'); }
   function hideModal(id)  { document.getElementById(id)?.classList.add('hidden'); }
 
+  // The #modal-help shell is reused for several unrelated purposes (Help &
+  // Reference, accdb/XML import instructions, the XML record picker, the
+  // multi-group selector) — each sets its own title here rather than always
+  // showing the default "NAVFIT-Edge Reference".
+  function setModalHelpTitle(title) {
+    const el = document.getElementById('modal-help-title');
+    if (el) el.textContent = title;
+  }
+
   // ── Landing ────────────────────────────────────────────────────
 
   function bindLandingEvents() {
@@ -9969,6 +10134,11 @@ const App = (() => {
       if (FormRenderer.isDirty()) {
         if (!confirm('You have unsaved changes. Leave without saving?')) return;
       }
+      // Returning home must fully clear the in-memory group — otherwise
+      // stale state (e.g. its reportType) can incorrectly restrict later
+      // actions like the XML import picker's type matching.
+      _group = null;
+      resetFileState();
       showScreen('screen-landing');
     });
 
@@ -9984,7 +10154,7 @@ const App = (() => {
   function openEditor() {
     if (!_group) return;
     const rt = _group.reportType;
-    document.getElementById('sidebar-filename').textContent = (_currentFile||'Untitled').replace(/\.nve$/i,'');
+    document.getElementById('sidebar-filename').textContent = (_currentFile||'Untitled').replace(/\.nfe$/i,'');
     document.getElementById('sidebar-type-badge').textContent = rt;
 
     showScreen('screen-editor');
@@ -10195,7 +10365,7 @@ const App = (() => {
       try {
         const handle = await window.showSaveFilePicker({
           suggestedName: suggested,
-          types: [{ description: 'NavEval File', accept: { 'application/octet-stream': ['.nve'] } }]
+          types: [{ description: 'NavEval File', accept: { 'application/octet-stream': ['.nfe'] } }]
         });
         const content  = NavEvalCrypto.encrypt(_group, passphrase);
         const writable = await handle.createWritable();
@@ -10207,9 +10377,9 @@ const App = (() => {
         _sessionPassphrase = passphrase;
         _currentHandleId = DataModel.generateId();
         try { await HandleStore.set(_currentHandleId, handle); } catch {}
-        document.getElementById('sidebar-filename').textContent = handle.name.replace(/\.nve$/i,'');
+        document.getElementById('sidebar-filename').textContent = handle.name.replace(/\.nfe$/i,'');
         FormRenderer.markClean();
-        addRecentFile(handle.name, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId);
+        addRecentFile(handle.name, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId, _group.reports[0]?.blocks?.b2||'', _group.reports[0]?.blocks?.b15||'');
         showToast('File saved.', 'success');
         updateQuicksaveButtonState();
       } catch (e) {
@@ -10223,9 +10393,9 @@ const App = (() => {
     try {
       const filename = NavEvalCrypto.saveFile(_group, passphrase, suggested);
       _currentFile = filename; _currentFileHandle = null; _currentHandleId = null; _sessionPassphrase = null;
-      document.getElementById('sidebar-filename').textContent = filename.replace(/\.nve$/i,'');
+      document.getElementById('sidebar-filename').textContent = filename.replace(/\.nfe$/i,'');
       FormRenderer.markClean();
-      addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'', null);
+      addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'', null, _group.reports[0]?.blocks?.b2||'', _group.reports[0]?.blocks?.b15||'');
       showToast('File saved.', 'success');
     } catch(e) {
       showToast('Error saving: ' + e.message, 'error');
@@ -10250,7 +10420,7 @@ const App = (() => {
       await writable.close();
 
       FormRenderer.markClean();
-      addRecentFile(_currentFile, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId);
+      addRecentFile(_currentFile, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId, _group.reports[0]?.blocks?.b2||'', _group.reports[0]?.blocks?.b15||'');
       showToast('Saved. (Reused your existing passphrase.)', 'success');
     } catch (e) {
       const reason = e.message === 'PERMISSION_DENIED'
@@ -10273,16 +10443,16 @@ const App = (() => {
   function bindFileInputEvents() {
     document.getElementById('file-input-open')?.addEventListener('change', async e => {
       const file = e.target.files[0]; if (!file) return; e.target.value = '';
-      await openNveFile(file);
+      await openNfeFile(file);
     });
     document.getElementById('file-input-accdb')?.addEventListener('change', async e => {
       const file = e.target.files[0]; if (!file) return; e.target.value = '';
       await importNavfitFile(file);
     });
-    // Import reports from another .nve file
+    // Import reports from another .nfe file
     document.getElementById('file-input-import-reports')?.addEventListener('change', async e => {
       const files = Array.from(e.target.files); e.target.value = '';
-      for (const file of files) await importReportsFromNve(file);
+      for (const file of files) await importReportsFromNfe(file);
     });
     // Import from NAVFIT98A XML
     document.getElementById('file-input-xml')?.addEventListener('change', async e => {
@@ -10291,7 +10461,7 @@ const App = (() => {
     });
   }
 
-  async function openNveFile(file, handle = null) {
+  async function openNfeFile(file, handle = null) {
     try {
       const content = await NavEvalCrypto.readFile(file);
       const result  = NavEvalCrypto.decrypt(content, null);
@@ -10344,7 +10514,7 @@ const App = (() => {
       HandleStore.set(_currentHandleId, handle).catch(()=>{});
     }
     DataModel.normalizePromotionStatus(_group);
-    addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId);
+    addRecentFile(filename, _group.reportType, _group.reports[0]?.blocks?.b22||'', _currentHandleId, _group.reports[0]?.blocks?.b2||'', _group.reports[0]?.blocks?.b15||'');
     openEditor();
     const fileVersion = metadata?.appVersion || _group._version || null;
     if (fileVersion && compareVersions(fileVersion, NAVFIT_EDGE_VERSION) < 0) {
@@ -10410,6 +10580,7 @@ const App = (() => {
   function showXmlRecordPicker(result) {
     const helpEl = document.getElementById('help-content');
     if (!helpEl) return;
+    setModalHelpTitle('Select Reports to Import');
 
     // Flatten all reports across all groups for display, preserving group/type info
     const allRecords = [];
@@ -10420,11 +10591,35 @@ const App = (() => {
       });
     });
 
-    // Determine import context: opening fresh, or adding to existing group
+    // Determine import context: opening fresh, or adding to existing group.
+    // Every record is selectable regardless of type — the only hard stop is
+    // a MIXED-type selection (checked below); a same-type selection merges
+    // into the open group, a different (but internally consistent) type
+    // instead starts a new group (see btn-do-import-selected handler).
     const hasActiveGroup = !!_group;
     const activeRT = _group?.reportType || null;
 
-    const rows = allRecords.map((rec, i) => {
+    const sortValue = (field, idx) => {
+      const rec = allRecords[idx], r = rec.report;
+      switch (field) {
+        case 'name': return (r.blocks?.b1 || '').toLowerCase();
+        case 'grade': return (r.blocks?.b2 || '').toLowerCase();
+        case 'type': return rec.rt || '';
+        case 'period': try { return DataModel.parseDateYYMMMDD(r.blocks?.b14).getTime(); } catch (e) { return 0; }
+        case 'rs': return (rec.rsName.split(',')[0] || '').toLowerCase();
+        default: return '';
+      }
+    };
+    let order = allRecords.map((_, i) => i);
+
+    const sortBtn = (field, dir, label) => `<button class="xml-sort-btn" data-field="${field}" data-dir="${dir}" title="${label}" style="font-size:9px;padding:1px 4px;cursor:pointer;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:2px">${dir==='asc'?'↑':'↓'}</button>`;
+    const sortableTh = (field, label) => `<th style="padding:6px;font-family:var(--font-mono);font-size:10px">
+      ${label}
+      <span style="display:inline-flex;gap:2px;margin-left:2px">${sortBtn(field,'asc','A→Z / oldest first')}${sortBtn(field,'desc','Z→A / newest first')}</span>
+    </th>`;
+
+    const rowHtml = (i) => {
+      const rec = allRecords[i];
       const r = rec.report;
       const name   = r.blocks?.b1 || '(unnamed)';
       const grade  = r.blocks?.b2 || '';
@@ -10432,14 +10627,9 @@ const App = (() => {
       const promo  = r.promoRec || '—';
       const avg    = DataModel.computeTraitAverage(r) || '—';
       const rtBadge= `<span style="font-family:var(--font-mono);font-size:9px;padding:1px 5px;border-radius:2px;background:var(--navy-100);color:var(--navy-700)">${rec.rt}</span>`;
-      // Disable records that don't match active group's type (if a group is open)
-      const disabled = hasActiveGroup && activeRT && rec.rt !== activeRT;
-      const disabledNote = disabled ? `<span style="font-size:10px;color:var(--red-500)">Type mismatch (active: ${activeRT})</span>` : '';
-
-      return `<tr style="${disabled?'opacity:0.4':''}">
+      return `<tr>
         <td style="padding:4px 6px;text-align:center">
-          <input type="checkbox" class="xml-record-cb" data-idx="${i}"
-            ${disabled?'disabled':''} style="width:14px;height:14px;cursor:pointer">
+          <input type="checkbox" class="xml-record-cb" data-idx="${i}" style="width:14px;height:14px;cursor:pointer">
         </td>
         <td style="padding:4px 8px;font-weight:500;font-size:12px">${escHtml(name)}</td>
         <td style="padding:4px 6px;font-family:var(--font-mono);font-size:11px">${escHtml(grade)}</td>
@@ -10448,14 +10638,14 @@ const App = (() => {
         <td style="padding:4px 6px;font-family:var(--font-mono);font-size:11px;text-align:center">${promo}</td>
         <td style="padding:4px 6px;font-family:var(--font-mono);font-size:11px;text-align:center">${avg}</td>
         <td style="padding:4px 6px;font-size:10px;color:var(--gray-400)">${escHtml(rec.rsName.split(',')[0])}</td>
-        ${disabledNote ? `<td style="padding:4px 6px">${disabledNote}</td>` : '<td></td>'}
       </tr>`;
-    }).join('');
+    };
 
     const importContext = hasActiveGroup
       ? `<div class="info-card blue" style="margin-bottom:12px">
-           Checked reports will be <strong>added to the currently open group</strong> (${escHtml(activeRT)}).
-           Reports of a different type are disabled.
+           Checked reports matching the currently open group's type (<strong>${escHtml(activeRT)}</strong>) will be <strong>added to it</strong>.
+           A different (but internally consistent) type will instead <strong>start a new group</strong>.
+           All checked reports must still be a single type.
          </div>`
       : `<div class="info-card blue" style="margin-bottom:12px">
            No group is currently open. Checked reports will create a <strong>new group</strong>.
@@ -10463,10 +10653,7 @@ const App = (() => {
          </div>`;
 
     helpEl.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-family:var(--font-condensed);font-size:16px;font-weight:700;color:var(--navy-800)">
-          Select Reports to Import
-        </h3>
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:12px">
         <span style="font-size:12px;color:var(--gray-500)">${result.totalRecords} record(s) found</span>
       </div>
       ${importContext}
@@ -10477,59 +10664,77 @@ const App = (() => {
             <tr style="background:var(--navy-800);color:white">
               <th style="padding:6px;width:32px">
                 <input type="checkbox" id="xml-select-all" style="width:14px;height:14px;cursor:pointer"
-                  title="Select all eligible records">
+                  title="Select all records">
               </th>
-              <th style="padding:6px 8px;text-align:left;font-family:var(--font-mono);font-size:10px">Member Name</th>
-              <th style="padding:6px;font-family:var(--font-mono);font-size:10px">Grade</th>
-              <th style="padding:6px;font-family:var(--font-mono);font-size:10px">Type</th>
-              <th style="padding:6px;font-family:var(--font-mono);font-size:10px">Period</th>
+              ${sortableTh('name','Member Name')}
+              ${sortableTh('grade','Grade')}
+              ${sortableTh('type','Type')}
+              ${sortableTh('period','Period')}
               <th style="padding:6px;font-family:var(--font-mono);font-size:10px">Rec</th>
               <th style="padding:6px;font-family:var(--font-mono);font-size:10px">Avg</th>
-              <th style="padding:6px;font-family:var(--font-mono);font-size:10px">RS</th>
-              <th style="padding:6px;font-family:var(--font-mono);font-size:10px"></th>
+              ${sortableTh('rs','RS')}
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody id="xml-record-tbody"></tbody>
         </table>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between">
         <span id="xml-selected-count" style="font-size:12px;color:var(--gray-500)">0 selected</span>
         <div style="display:flex;gap:8px">
-          <button class="btn-secondary modal-close" data-modal="modal-help">Cancel</button>
           <button class="btn-primary" id="btn-do-import-selected" disabled>Import Selected</button>
         </div>
       </div>`;
 
-    // Select-all checkbox
     const selectAll = document.getElementById('xml-select-all');
+    const tbody = document.getElementById('xml-record-tbody');
+
     const updateCount = () => {
-      const checked = document.querySelectorAll('.xml-record-cb:checked:not(:disabled)').length;
+      const checked = helpEl.querySelectorAll('.xml-record-cb:checked').length;
       const countEl = document.getElementById('xml-selected-count');
       if (countEl) countEl.textContent = `${checked} selected`;
       const importBtn = document.getElementById('btn-do-import-selected');
       if (importBtn) importBtn.disabled = checked === 0;
     };
 
-    selectAll?.addEventListener('change', () => {
-      document.querySelectorAll('.xml-record-cb:not(:disabled)').forEach(cb => {
-        cb.checked = selectAll.checked;
+    const updateSelectAllState = () => {
+      const total = helpEl.querySelectorAll('.xml-record-cb').length;
+      const checked = helpEl.querySelectorAll('.xml-record-cb:checked').length;
+      if (selectAll) { selectAll.checked = checked === total && total > 0; selectAll.indeterminate = checked > 0 && checked < total; }
+    };
+
+    const renderTbody = () => {
+      const checkedIdxs = new Set();
+      helpEl.querySelectorAll('.xml-record-cb:checked').forEach(cb => checkedIdxs.add(cb.dataset.idx));
+      tbody.innerHTML = order.map(rowHtml).join('');
+      tbody.querySelectorAll('.xml-record-cb').forEach(cb => {
+        if (checkedIdxs.has(cb.dataset.idx)) cb.checked = true;
+        cb.addEventListener('change', () => { updateCount(); updateSelectAllState(); });
       });
       updateCount();
+      updateSelectAllState();
+    };
+    renderTbody();
+
+    helpEl.querySelectorAll('.xml-sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const field = btn.dataset.field, dir = btn.dataset.dir;
+        order.sort((a, b) => {
+          const va = sortValue(field, a), vb = sortValue(field, b);
+          const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+          return dir === 'asc' ? cmp : -cmp;
+        });
+        renderTbody();
+      });
     });
 
-    helpEl.querySelectorAll('.xml-record-cb').forEach(cb => {
-      cb.addEventListener('change', () => {
-        updateCount();
-        // Update select-all state
-        const total    = document.querySelectorAll('.xml-record-cb:not(:disabled)').length;
-        const checked  = document.querySelectorAll('.xml-record-cb:checked:not(:disabled)').length;
-        if (selectAll) { selectAll.checked = checked === total; selectAll.indeterminate = checked > 0 && checked < total; }
-      });
+    selectAll?.addEventListener('change', () => {
+      helpEl.querySelectorAll('.xml-record-cb').forEach(cb => { cb.checked = selectAll.checked; });
+      updateCount();
     });
 
     document.getElementById('btn-do-import-selected')?.addEventListener('click', () => {
       const selected = [];
-      document.querySelectorAll('.xml-record-cb:checked:not(:disabled)').forEach(cb => {
+      helpEl.querySelectorAll('.xml-record-cb:checked').forEach(cb => {
         selected.push(allRecords[parseInt(cb.dataset.idx)]);
       });
       if (selected.length === 0) return;
@@ -10544,14 +10749,15 @@ const App = (() => {
       const reports = selected.map(r => r.report);
       const importType = types[0];
 
-      hideModal('modal-help');
-
-      if (hasActiveGroup && _group) {
-        // Add to existing group
+      if (hasActiveGroup && _group && importType === _group.reportType) {
+        // Same type as the open group — merge into it.
+        hideModal('modal-help');
         const rsKeys = ['b22','b23','b24','b25','b26','b27'];
         const rsSource = _group.reports[0]?.blocks || {};
+        const targetRsca = DataModel.computeRSCA(_group) || '';
         reports.forEach(r => {
           rsKeys.forEach(k => { r.blocks[k] = rsSource[k] || r.blocks[k] || ''; });
+          r.rsca = targetRsca;
           r._id = DataModel.generateId();
         });
         _group.reports.push(...reports);
@@ -10559,7 +10765,11 @@ const App = (() => {
         FormRenderer.switchSection('admin');
         showToast(`Added ${reports.length} report(s) to current group.`, 'success');
       } else {
-        // Create new group from selected reports
+        // Different type (or nothing open) — start a new, separate group.
+        if (hasActiveGroup && _group && FormRenderer.isDirty()) {
+          if (!confirm('You have unsaved changes in the currently open group. Discard them and start a new group?')) return;
+        }
+        hideModal('modal-help');
         const firstGroup = result.groups.find(g => g.reportType === importType);
         _group = DataModel.createDefaultGroup(importType);
         _group.reports = reports;
@@ -10577,10 +10787,8 @@ const App = (() => {
   function showImportAccdbDialog() {
     const helpEl = document.getElementById('help-content');
     if (!helpEl) return;
+    setModalHelpTitle('Importing from NAVFIT98A');
     helpEl.innerHTML = `
-      <h3 style="font-family:var(--font-condensed);font-size:17px;font-weight:700;color:var(--navy-800);margin-bottom:12px">
-        Importing from NAVFIT98A
-      </h3>
       <p style="margin-bottom:16px;color:var(--gray-700);line-height:1.6">
         NAVFIT-Edge imports from the XML export format produced by Microsoft Access .accdb files, the NAVFIT98A storage format.
         Follow these steps to export that data:
@@ -10612,10 +10820,10 @@ const App = (() => {
 
   // ── Recent Files ───────────────────────────────────────────────
 
-  function addRecentFile(filename, reportType, rsName, handleId = null) {
+  function addRecentFile(filename, reportType, rsName, handleId = null, paygrade = '', endDate = '') {
     let recent = getRecentFiles();
     recent = recent.filter(r => r.filename !== filename);
-    recent.unshift({ filename, reportType, rsName, handleId, date: new Date().toISOString() });
+    recent.unshift({ filename, reportType, rsName, handleId, paygrade, endDate, date: new Date().toISOString() });
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT))); } catch{}
     loadRecentFiles();
   }
@@ -10632,13 +10840,18 @@ const App = (() => {
       list.innerHTML = '<p class="no-recent">No recent files.</p>';
       return;
     }
-    list.innerHTML = recent.map(r => `
+    list.innerHTML = recent.map(r => {
+      const fn = r.filename.length > 48 ? '…' + r.filename.slice(-48) : r.filename;
+      return `
       <div class="recent-item">
         <span class="recent-item-badge">${r.reportType||'EVAL'}</span>
         <span class="recent-item-name">${escHtml(r.rsName||r.filename)}</span>
-        <span class="recent-item-meta">${r.filename.slice(-28)}</span>
+        <span class="recent-item-meta">${escHtml(r.paygrade||'')}</span>
+        <span class="recent-item-meta">${escHtml(r.endDate||'')}</span>
+        <span class="recent-item-meta">${escHtml(fn)}</span>
         <span class="recent-item-meta">${formatDateShort(r.date)}</span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     list.querySelectorAll('.recent-item').forEach((item, i) => {
       const r = recent[i];
       item.addEventListener('click', async () => {
@@ -10658,7 +10871,7 @@ const App = (() => {
           if (perm !== 'granted') { showToast('Permission to access this file was denied.', 'error'); return; }
 
           const file = await handle.getFile();
-          await openNveFile(file, handle);
+          await openNfeFile(file, handle);
         } catch (e) {
           showToast('Could not reopen this file — it may have been moved or deleted. Drag it into the browser to re-open it.', 'error');
         }
@@ -10671,15 +10884,16 @@ const App = (() => {
   function renderHelpContent() {
     const el = document.getElementById('help-content');
     if (!el) return;
+    setModalHelpTitle('NAVFIT-Edge Reference');
     el.innerHTML = `
     <h3>About NAVFIT-Edge</h3>
     <p>NAVFIT-Edge is a browser-based, open source replacement for NAVFIT98A.  It  implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-1 (16 Dec 2025). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
-    <h3>File Format (.nve)</h3>
-    <p>A <code>.nve</code> file contains a <strong>single summary group of reports</strong>. Files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the file, a user saves it to locations only they have access to or sets an optional passphrase which can be given to other users.</p>
+    <h3>File Format (.nfe)</h3>
+    <p>A <code>.nfe</code> file contains a <strong>single summary group of reports</strong>. Files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the file, a user saves it to locations only they have access to or sets an optional passphrase which can be given to other users.</p>
     <h3>Report Navigation</h3>
     <p>Use the report tabs at the top of the editor to switch between reports in a group. Use the <strong>＋</strong> tab to add a new report. The Summary Group Review screen shows RSCA, group-consistent fields, and all reports' grades on one screen for group-level adjustment.</p>
     <h3>Filename Convention</h3>
-    <p>Default filenames are auto-generated as <code>PAYGRADE_RSLASTNAME_ENDDATE_OCCASION.nve</code>, e.g., <code>E6_SMITH_26NOV15_PERIODIC.nve</code>.</p>
+    <p>Default filenames are auto-generated as <code>PAYGRADE_RSLASTNAME_ENDDATE_OCCASION.nfe</code>, e.g., <code>E6_SMITH_26NOV15_PERIODIC.nfe</code>.</p>
     <h3>SSN Handling</h3>
     <p>SSNs are stored as 9 digits (no hyphens) and displayed/printed in ###-##-#### format automatically.</p>
     <h3>Date Format</h3>
@@ -10762,7 +10976,7 @@ const App = (() => {
   });
 
   function bindDragDrop() {
-    // Drag .nve or .xml file into browser window to open. Reads via
+    // Drag .nfe or .xml file into browser window to open. Reads via
     // dataTransfer.items (not .files) so we can opportunistically grab a
     // FileSystemFileHandle (Chromium-only) alongside the File — enables
     // Quicksave immediately after a drag-drop open. Falls back to identical
@@ -10772,14 +10986,14 @@ const App = (() => {
       e.preventDefault();
       const items = Array.from(e.dataTransfer.items || []).filter(i => i.kind === 'file');
       const files = items.length ? items.map(i => i.getAsFile()).filter(Boolean) : Array.from(e.dataTransfer.files);
-      const nveIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.nve'));
+      const nfeIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.nfe'));
       const xmlIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.xml'));
-      if (nveIdx >= 0) {
+      if (nfeIdx >= 0) {
         let handle = null;
-        if (items[nveIdx] && typeof items[nveIdx].getAsFileSystemHandle === 'function') {
-          try { handle = await items[nveIdx].getAsFileSystemHandle(); } catch { handle = null; }
+        if (items[nfeIdx] && typeof items[nfeIdx].getAsFileSystemHandle === 'function') {
+          try { handle = await items[nfeIdx].getAsFileSystemHandle(); } catch { handle = null; }
         }
-        await openNveFile(files[nveIdx], handle);
+        await openNfeFile(files[nfeIdx], handle);
       } else if (xmlIdx >= 0) {
         await importNavfitXML(files[xmlIdx]);
       }
@@ -10848,6 +11062,7 @@ const App = (() => {
     // Show a modal listing all groups so user can pick which to open
     const helpEl = document.getElementById('help-content');
     if (!helpEl) return;
+    setModalHelpTitle(`Multiple Groups Found in ${filename}`);
 
     const rows = groups.map((g, i) => {
       const rType = g.reportType;
@@ -10863,7 +11078,6 @@ const App = (() => {
     }).join('');
 
     helpEl.innerHTML = `
-      <h3 style="margin-bottom:12px">Multiple Groups Found in ${filename}</h3>
       <p style="margin-bottom:16px;color:var(--gray-600);font-size:13px">
         ${groups.length} folder group(s) found. Select a group to open:
       </p>
@@ -10878,10 +11092,7 @@ const App = (() => {
           </tr>
         </thead>
         <tbody>${rows}</tbody>
-      </table>
-      <div style="margin-top:16px;display:flex;gap:8px">
-        <button class="btn-secondary modal-close" data-modal="modal-help">Cancel</button>
-      </div>`;
+      </table>`;
 
     document.querySelectorAll('.xml-group-row').forEach(row => {
       row.addEventListener('click', () => {
@@ -10899,7 +11110,7 @@ const App = (() => {
     showModal('modal-help');
   }
 
-  async function importReportsFromNve(file) {
+  async function importReportsFromNfe(file) {
     if (!_group) return;
     try {
       const fileContent = await NavEvalCrypto.readFile(file);
@@ -10916,11 +11127,15 @@ const App = (() => {
         showToast(`Cannot import ${file.name}: it contains ${srcGroup.reportType} reports, but the open group is ${_group.reportType}. Reports must be the same type.`, 'error');
         return;
       }
-      // Update RS info on imported reports to match current group
+      // Update RS info (and RSCA) on imported reports to match current group —
+      // group-wide values already established in the open group win, the
+      // incoming file's own values never override them.
       const rsKeys = ['b22','b23','b24','b25','b26','b27'];
       const rsSource = _group.reports[0]?.blocks || {};
+      const targetRsca = DataModel.computeRSCA(_group) || '';
       reports.forEach(r => {
         rsKeys.forEach(k => { r.blocks[k] = rsSource[k] || ''; });
+        r.rsca = targetRsca;
         r._id = DataModel.generateId(); // avoid ID collisions
       });
       _group.reports.push(...reports);
