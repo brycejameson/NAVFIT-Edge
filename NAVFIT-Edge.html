@@ -27,6 +27,13 @@ SOFTWARE.
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NAVFIT-Edge — Navy Performance Evaluation System</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('navfit-theme');
+      if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Sans+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
@@ -123,6 +130,31 @@ SOFTWARE.
   --sidebar-width: 240px;
   --sidebar-bg: var(--navy-800);
   --sidebar-text: var(--navy-100);
+
+  /* Content-zone surfaces (theme-aware; chrome/badges/status colors stay fixed) */
+  --surface-bg:          var(--gray-50);
+  --surface-card-bg:     var(--white);
+  --surface-text:        var(--gray-900);
+  --surface-text-muted:  var(--gray-500);
+  --surface-heading:     var(--navy-800);
+  --surface-border:      var(--border-color);
+  --surface-hover:       var(--navy-050);
+  --surface-disabled-bg: var(--gray-100);
+  --placeholder-color:   #9ca3af;
+  --field-error-bg:      var(--red-100);
+}
+
+:root[data-theme="dark"] {
+  --surface-bg:          #0b0f16;
+  --surface-card-bg:     #151b26;
+  --surface-text:        #e6ebf2;
+  --surface-text-muted:  #93a2b8;
+  --surface-heading:     #c2d4e8;
+  --surface-border:      #2a3547;
+  --surface-hover:       #1c2534;
+  --surface-disabled-bg: #1a2029;
+  --placeholder-color:   #5b6879;
+  --field-error-bg:      #3a1a1a;
 }
 
 /* ── Reset & Base ── */
@@ -132,8 +164,8 @@ html { font-size: 14px; }
 
 body {
   font-family: var(--font-sans);
-  background: var(--gray-50);
-  color: var(--gray-900);
+  background: var(--surface-bg);
+  color: var(--surface-text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -208,7 +240,7 @@ input, textarea, select { font-family: inherit; }
 .landing-hero {
   margin-bottom: var(--sp-12);
   padding-bottom: var(--sp-10);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .hero-title {
@@ -216,7 +248,7 @@ input, textarea, select { font-family: inherit; }
   font-size: 72px;
   font-weight: 700;
   line-height: 0.9;
-  color: var(--navy-800);
+  color: var(--surface-heading);
   letter-spacing: -0.02em;
   margin-bottom: var(--sp-5);
 }
@@ -246,8 +278,8 @@ input, textarea, select { font-family: inherit; }
   align-items: flex-start;
   gap: var(--sp-2);
   padding: var(--sp-6);
-  background: var(--white);
-  border: 1px solid var(--border-color);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);
   transition: all 0.15s ease;
   text-align: left;
@@ -325,8 +357,8 @@ input, textarea, select { font-family: inherit; }
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
-  background: var(--white);
-  border: 1px solid var(--border-color);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.1s;
@@ -334,7 +366,7 @@ input, textarea, select { font-family: inherit; }
 
 .recent-item:hover {
   border-color: var(--navy-300);
-  background: var(--navy-050);
+  background: var(--surface-hover);
 }
 
 .recent-item-badge {
@@ -390,9 +422,9 @@ input, textarea, select { font-family: inherit; }
 
 .modal-box {
   position: relative;
-  background: var(--white);
+  background: var(--surface-card-bg);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--surface-border);
   box-shadow: var(--shadow-lg);
   max-width: 600px;
   width: 90%;
@@ -408,7 +440,7 @@ input, textarea, select { font-family: inherit; }
   align-items: center;
   justify-content: space-between;
   padding: var(--sp-5) var(--sp-6);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .modal-header h2 {
@@ -416,7 +448,7 @@ input, textarea, select { font-family: inherit; }
   font-weight: 700;
   font-size: 18px;
   letter-spacing: 0.02em;
-  color: var(--navy-800);
+  color: var(--surface-heading);
 }
 
 .modal-close {
@@ -432,8 +464,8 @@ input, textarea, select { font-family: inherit; }
 }
 
 .modal-close:hover {
-  background: var(--gray-100);
-  color: var(--gray-900);
+  background: var(--surface-hover);
+  color: var(--surface-text);
 }
 
 .modal-body { padding: var(--sp-6); }
@@ -445,7 +477,7 @@ input, textarea, select { font-family: inherit; }
   gap: var(--sp-3);
   margin-top: var(--sp-6);
   padding-top: var(--sp-4);
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--surface-border);
 }
 
 /* ── Eval Type Grid ── */
@@ -462,7 +494,7 @@ input, textarea, select { font-family: inherit; }
   align-items: flex-start;
   gap: var(--sp-2);
   padding: var(--sp-5);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);
   transition: all 0.15s;
   text-align: left;
@@ -470,7 +502,7 @@ input, textarea, select { font-family: inherit; }
 
 .eval-type-card:hover {
   border-color: var(--navy-400);
-  background: var(--navy-050);
+  background: var(--surface-hover);
   box-shadow: var(--shadow-sm);
 }
 
@@ -492,7 +524,7 @@ input, textarea, select { font-family: inherit; }
   font-family: var(--font-condensed);
   font-size: 15px;
   font-weight: 600;
-  color: var(--navy-800);
+  color: var(--surface-heading);
 }
 
 .type-desc {
@@ -760,7 +792,7 @@ input, textarea, select { font-family: inherit; }
 .editor-main {
   flex: 1;
   overflow-y: auto;
-  background: var(--gray-50);
+  background: var(--surface-bg);
 }
 
 .form-section {
@@ -775,7 +807,7 @@ input, textarea, select { font-family: inherit; }
   font-family: var(--font-condensed);
   font-size: 22px;
   font-weight: 700;
-  color: var(--navy-800);
+  color: var(--surface-heading);
   margin-bottom: var(--sp-2);
   letter-spacing: 0.02em;
 }
@@ -829,11 +861,11 @@ input, textarea, select { font-family: inherit; }
 .field-input {
   width: 100%;
   padding: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   font-size: 13px;
-  color: var(--gray-900);
-  background: var(--white);
+  color: var(--surface-text);
+  background: var(--surface-card-bg);
   transition: all 0.1s;
   outline: none;
   font-family: 'Courier New', Courier, monospace; /* All typed text in Courier New */
@@ -846,7 +878,7 @@ input, textarea, select { font-family: inherit; }
 
 .field-input.error {
   border-color: var(--red-500);
-  background: var(--red-100);
+  background: var(--field-error-bg);
 }
 
 .field-input.warn {
@@ -854,7 +886,7 @@ input, textarea, select { font-family: inherit; }
 }
 
 .field-input:disabled {
-  background: var(--gray-100);
+  background: var(--surface-disabled-bg);
   color: var(--gray-400);
   cursor: not-allowed;
 }
@@ -866,6 +898,10 @@ input, textarea, select { font-family: inherit; }
   background-position: right 10px center;
   padding-right: 28px;
   cursor: pointer;
+}
+
+:root[data-theme="dark"] .field-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235b6879' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 
 .field-textarea {
@@ -895,7 +931,7 @@ input, textarea, select { font-family: inherit; }
 /* ── Section Divider ── */
 .form-divider {
   height: 1px;
-  background: var(--border-color);
+  background: var(--surface-border);
   margin: var(--sp-8) 0;
 }
 
@@ -916,7 +952,7 @@ input, textarea, select { font-family: inherit; }
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color);
+  background: var(--surface-border);
 }
 
 /* ── Checkbox Group ── */
@@ -967,8 +1003,8 @@ input, textarea, select { font-family: inherit; }
   align-items: center;
   gap: var(--sp-4);
   padding: var(--sp-3) var(--sp-4);
-  background: var(--white);
-  border: 1px solid var(--border-color);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   transition: all 0.1s;
 }
@@ -980,7 +1016,7 @@ input, textarea, select { font-family: inherit; }
   flex: 0 0 200px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--navy-700);
+  color: var(--surface-heading);
 }
 
 .trait-block-num {
@@ -1000,21 +1036,21 @@ input, textarea, select { font-family: inherit; }
 .grade-btn {
   flex: 1;
   padding: var(--sp-2) var(--sp-1);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
   color: var(--gray-500);
-  background: var(--white);
+  background: var(--surface-card-bg);
   transition: all 0.1s;
   text-align: center;
 }
 
 .grade-btn:hover {
   border-color: var(--navy-300);
-  color: var(--navy-600);
-  background: var(--navy-050);
+  color: var(--surface-heading);
+  background: var(--surface-hover);
 }
 
 .grade-btn.selected {
@@ -1036,7 +1072,7 @@ input, textarea, select { font-family: inherit; }
   font-family: var(--font-mono);
   font-size: 18px;
   font-weight: 500;
-  color: var(--navy-700);
+  color: var(--surface-heading);
 }
 
 /* ── Promotion Recommendation Widget ── */
@@ -1051,21 +1087,21 @@ input, textarea, select { font-family: inherit; }
 
 .promo-btn {
   padding: var(--sp-3) var(--sp-2);
-  border: 2px solid var(--border-color);
+  border: 2px solid var(--surface-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-condensed);
   font-size: 12px;
   font-weight: 600;
   text-align: center;
   color: var(--gray-600);
-  background: var(--white);
+  background: var(--surface-card-bg);
   transition: all 0.12s;
   letter-spacing: 0.03em;
 }
 
 .promo-btn:hover {
   border-color: var(--navy-400);
-  color: var(--navy-600);
+  color: var(--surface-heading);
 }
 
 .promo-btn.selected.sp { background: var(--red-600); border-color: var(--red-600); color: white; }
@@ -1078,8 +1114,8 @@ input, textarea, select { font-family: inherit; }
 /* ── Quota Indicator ── */
 .quota-indicator {
   padding: var(--sp-4);
-  background: var(--white);
-  border: 1px solid var(--border-color);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   margin-top: var(--sp-4);
 }
@@ -1129,18 +1165,18 @@ input, textarea, select { font-family: inherit; }
 
 .summary-table td {
   padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--surface-border);
   vertical-align: middle;
 }
 
-.summary-table tr:hover td { background: var(--navy-050); }
+.summary-table tr:hover td { background: var(--surface-hover); }
 
 .rank-input {
   width: 50px;
   padding: 2px var(--sp-2);
   text-align: center;
   font-family: var(--font-mono);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--surface-border);
   border-radius: 2px;
 }
 
@@ -1186,9 +1222,9 @@ input, textarea, select { font-family: inherit; }
   gap: var(--sp-3);
   margin-bottom: var(--sp-6);
   padding: var(--sp-4);
-  background: var(--gray-50);
+  background: var(--surface-bg);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--surface-border);
 }
 .group-field-item-label {
   font-family: var(--font-mono);
@@ -1217,9 +1253,9 @@ input, textarea, select { font-family: inherit; }
 
 .btn-secondary {
   padding: var(--sp-2) var(--sp-5);
-  background: var(--white);
-  color: var(--gray-700);
-  border: 1px solid var(--border-color);
+  background: var(--surface-card-bg);
+  color: var(--surface-text);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-condensed);
   font-weight: 600;
@@ -1228,7 +1264,7 @@ input, textarea, select { font-family: inherit; }
   transition: all 0.1s;
 }
 
-.btn-secondary:hover { background: var(--gray-100); }
+.btn-secondary:hover { background: var(--surface-hover); }
 
 .btn-danger {
   background: var(--red-600);
@@ -1404,7 +1440,7 @@ input, textarea, select { font-family: inherit; }
 }
 
 .batch-drop-zone {
-  border: 2px dashed var(--border-color);
+  border: 2px dashed var(--surface-border);
   border-radius: var(--radius-md);
   padding: var(--sp-12);
   text-align: center;
@@ -1488,9 +1524,9 @@ input, textarea, select { font-family: inherit; }
   font-family: var(--font-condensed);
   font-size: 15px;
   font-weight: 700;
-  color: var(--navy-800);
+  color: var(--surface-heading);
   margin: var(--sp-5) 0 var(--sp-2);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--surface-border);
   padding-bottom: var(--sp-2);
 }
 
@@ -1499,7 +1535,7 @@ input, textarea, select { font-family: inherit; }
 .help-content code {
   font-family: var(--font-mono);
   font-size: 11px;
-  background: var(--gray-100);
+  background: var(--surface-disabled-bg);
   padding: 1px 4px;
   border-radius: 2px;
 }
@@ -1521,6 +1557,7 @@ input, textarea, select { font-family: inherit; }
 @media print {
   body { background: white !important; }
   .print-toolbar { display: none !important; }
+  .theme-toggle { display: none !important; }
   /* .screen's on-screen height:100vh + overflow:hidden clips everything
      past the first viewport-height of content when printing — without
      this override, multi-page reports only ever print their first page. */
@@ -1580,7 +1617,7 @@ input, textarea, select { font-family: inherit; }
 }
 
 .report-tab:hover { background: var(--navy-600); color: var(--white); }
-.report-tab.active { background: var(--gray-50); color: var(--navy-800); border-color: var(--amber-500); }
+.report-tab.active { background: var(--surface-bg); color: var(--surface-heading); border-color: var(--amber-500); }
 .report-tab.add-report-tab {
   color: var(--amber-400);
   background: transparent;
@@ -1603,7 +1640,7 @@ input, textarea, select { font-family: inherit; }
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  background: var(--gray-100);
+  background: var(--surface-disabled-bg);
   border-bottom: 2px solid var(--navy-500);
   padding: 8px 12px 0;
   flex-shrink: 0;
@@ -1618,8 +1655,8 @@ input, textarea, select { font-family: inherit; }
   font-weight: 600;
   letter-spacing: 0.03em;
   color: var(--gray-600);
-  background: var(--white);
-  border: 1px solid var(--gray-300);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-border);
   border-bottom: none;
   cursor: pointer;
   white-space: nowrap;
@@ -1628,12 +1665,12 @@ input, textarea, select { font-family: inherit; }
   bottom: -1px;
 }
 
-.section-tab:hover { background: var(--navy-050); color: var(--navy-700); }
+.section-tab:hover { background: var(--surface-hover); color: var(--surface-heading); }
 .section-tab.active {
-  background: var(--white);
-  color: var(--navy-800);
+  background: var(--surface-card-bg);
+  color: var(--surface-heading);
   border-color: var(--navy-500);
-  border-bottom-color: var(--white);
+  border-bottom-color: var(--surface-card-bg);
   font-weight: 700;
   z-index: 1;
 }
@@ -1731,14 +1768,14 @@ input, textarea, select { font-family: inherit; }
   grid-template-columns: 220px 180px 1fr;
   gap: 12px;
   padding: 10px;
-  background: var(--white);
-  border: 1px solid var(--border-color);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   margin-bottom: 6px;
   align-items: start;
 }
 .cpo-trait-left { }
-.cpo-trait-name { font-size: 11px; font-weight: 600; color: var(--navy-700); margin-bottom: 4px; }
+.cpo-trait-name { font-size: 11px; font-weight: 600; color: var(--surface-heading); margin-bottom: 4px; }
 .cpo-trait-desc { font-size: 10px; color: var(--gray-500); white-space: pre-wrap; line-height: 1.4; }
 .cpo-trait-middle { }
 .cpo-trait-right { }
@@ -1760,7 +1797,7 @@ input, textarea, select { font-family: inherit; }
 }
 
 /* Gray placeholder text in all inputs and textareas */
-input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
+input::placeholder, textarea::placeholder { color: var(--placeholder-color); opacity: 1; }
 
 /* B28/B29 fixed-width text, horizontal scroll to preserve WYSIWYG */
 [data-subkey='b28'], [data-subkey='b29'] {
@@ -1769,10 +1806,37 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
   overflow-y: hidden;
 }
 
+/* ── Theme Toggle ── */
+.theme-toggle {
+  position: fixed;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  z-index: 600;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-border);
+  color: var(--surface-heading);
+  font-size: 15px;
+  box-shadow: var(--shadow-md);
+  transition: all 0.15s;
+}
+
+.theme-toggle:hover {
+  border-color: var(--navy-400);
+  transform: translateY(-1px);
+}
+
 </style>
 </head>
 <body>
 <div id="app">
+
+  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">☾</button>
 
   <!-- ── Landing ── -->
   <div id="screen-landing" class="screen active">
@@ -1981,7 +2045,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
         <label class="checkbox-item" style="margin-bottom:4px">
           <input type="checkbox" id="chk-omit-rs-ssn"> Omit Reporting Senior's SSN from PDF (for member copy)
         </label>
-        <div style="border-top:1px solid var(--border-color);padding-top:10px">
+        <div style="border-top:1px solid var(--surface-border);padding-top:10px">
           <div class="section-label" style="margin-bottom:8px">Download PDF</div>
           <button class="btn-primary" id="btn-download-pdf-current" style="width:100%;padding:9px;margin-bottom:6px">
             <span class="pdf-icon-badge">PDF</span> — Current Report
@@ -1996,7 +2060,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
             <span class="pdf-icon-badge">PDF</span> — Summary Letter Only
           </button>
         </div>
-        <div style="border-top:1px solid var(--border-color);padding-top:10px">
+        <div style="border-top:1px solid var(--surface-border);padding-top:10px">
           <div class="section-label" style="margin-bottom:8px">Browser Print Preview (HTML)</div>
           <button class="btn-secondary" id="btn-print-current" style="width:100%;padding:7px;margin-bottom:6px;font-size:12px">Preview Current Report</button>
           <button class="btn-secondary" id="btn-print-all" style="width:100%;padding:7px;font-size:12px">Preview All Reports</button>
@@ -2021,7 +2085,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.4.1';
+const NAVFIT_EDGE_VERSION = '0.4.2';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -4243,7 +4307,7 @@ const FormRenderer = (() => {
     ${infoCard('NOB=Not Observed (this trait) · 1.0=Below Standards · 2.0=Progressing · 3.0=Promotable · 4.0=Must Promote · 5.0=Early Promote','blue')}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <span class="field-label" style="margin:0">Performance Trait Grades</span>
-      <span style="font-family:var(--font-mono);font-size:10px;color:var(--gray-500)">Avg: <strong id="trait-avg-display" style="font-size:18px;color:var(--navy-700)">${avg||'—'}</strong></span>
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--gray-500)">Avg: <strong id="trait-avg-display" style="font-size:18px;color:var(--surface-heading)">${avg||'—'}</strong></span>
     </div>
     <div class="trait-grid" ${isNOB?'style="opacity:0.4;pointer-events:none"':''}>
       ${traits.map(t=>{
@@ -4287,7 +4351,7 @@ const FormRenderer = (() => {
     ${isNOB?infoCard('<strong>Not Observed</strong> — all grades set to NOB.'):''}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <span class="field-label" style="margin:0">Performance Grades &amp; Comments</span>
-      <span style="font-family:var(--font-mono);font-size:10px;color:var(--gray-500)">Member Avg: <strong id="trait-avg-display" style="font-size:18px;color:var(--navy-700)">${avg||'—'}</strong></span>
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--gray-500)">Member Avg: <strong id="trait-avg-display" style="font-size:18px;color:var(--surface-heading)">${avg||'—'}</strong></span>
     </div>
     ${groups.map(grp=>{
       const grpTraits=traits.filter(t=>grp.keys.includes(t.key));
@@ -4309,7 +4373,7 @@ const FormRenderer = (() => {
                 <option value="">—</option>
                 ${gradeOpts.map(g=>`<option value="${g.v}" ${grade===g.v?'selected':''}>${g.l}</option>`).join('')}
               </select>
-              ${grade&&grade!=='NOB'?`<div style="font-size:28px;font-weight:700;font-family:'Courier New',monospace;text-align:center;color:var(--navy-700);padding:4px 0">${grade}</div>`:''}
+              ${grade&&grade!=='NOB'?`<div style="font-size:28px;font-weight:700;font-family:'Courier New',monospace;text-align:center;color:var(--surface-heading);padding:4px 0">${grade}</div>`:''}
               <div class="cpo-grade-text" data-trait-key="${t.key}" style="font-size:9px;color:var(--gray-600);margin-top:4px;white-space:pre-wrap;line-height:1.5">${escHtml(getCPOGradeText(t.key, grade))}</div>
             </div>
             <div class="cpo-trait-right">
@@ -4551,7 +4615,7 @@ ${rt!=='CHIEFEVAL'?`
       ${fld('sg-rank','Member Rank (manual — first box)','text',sg.memberRank||'','e.g., 3','summaryGroup','memberRank',3,'First number entered manually; second auto-calculated from group')}
       <div class="field-group">
         <label class="field-label">Of (auto-calculated)</label>
-        <input class="field-input" data-sg-total style="background:var(--gray-100);font-family:var(--font-mono);font-size:16px" readonly value="${auto.total||0}">
+        <input class="field-input" data-sg-total style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:16px" readonly value="${auto.total||0}">
       </div>
     </div>
     ${divider('RSCA — Block 44 (CHIEFEVAL)')}
@@ -4598,12 +4662,12 @@ ${rt!=='CHIEFEVAL'?`
     <div class="field-row field-row-2" style="margin-top:16px">
       <div class="field-group">
         <label class="field-label">Member Trait Average (auto)</label>
-        <input class="field-input" readonly style="background:var(--gray-100);font-family:var(--font-mono);font-size:16px;font-weight:600" value="${DataModel.computeTraitAverage(report)||''}">
+        <input class="field-input" readonly style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:16px;font-weight:600" value="${DataModel.computeTraitAverage(report)||''}">
       </div>
       <div class="field-group">
         <label class="field-label">Group Trait Average (auto)</label>
         <input class="field-input" data-sg="groupTraitAvg" ${sg.manualOverride?'':'readonly'}
-          style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--gray-100)'}"
+          style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--surface-disabled-bg)'}"
           value="${auto.groupTraitAvg||''}">
       </div>
     </div>
@@ -4659,7 +4723,7 @@ ${rt!=='CHIEFEVAL'?`
       ${fld('sg-rank','Member Rank','number',sg.memberRank||'','e.g., 1','summaryGroup','memberRank',3,rt==='CHIEFEVAL'?'Printed in Block 42':'Stored for sorting only — not printed')}
       <div class="field-group">
         <label class="field-label">Of (auto)</label>
-        <input class="field-input" data-sg-total style="background:var(--gray-100);font-family:var(--font-mono);font-size:16px" readonly value="${auto.total||0}">
+        <input class="field-input" data-sg-total style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:16px" readonly value="${auto.total||0}">
       </div>
     </div>`;
 
@@ -4718,12 +4782,12 @@ ${rt!=='CHIEFEVAL'?`
     <div class="field-row field-row-2" style="margin-top:16px">
       <div class="field-group">
         <label class="field-label">Member Trait Average (auto)</label>
-        <input class="field-input" readonly style="background:var(--gray-100);font-family:var(--font-mono);font-size:16px;font-weight:600" value="${DataModel.computeTraitAverage(report)||''}">
+        <input class="field-input" readonly style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:16px;font-weight:600" value="${DataModel.computeTraitAverage(report)||''}">
       </div>
       <div class="field-group">
         <label class="field-label">Group Trait Average (auto)</label>
         <input class="field-input" data-sg="groupTraitAvg" ${sg.manualOverride?'':'readonly'}
-          style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--gray-100)'}"
+          style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--surface-disabled-bg)'}"
           value="${auto.groupTraitAvg||''}">
       </div>
     </div>
@@ -4878,7 +4942,7 @@ ${rt!=='CHIEFEVAL'?`
           <tbody id="grade-review-body">
             ${reports.map((r,ri)=>{
               const avg=DataModel.computeTraitAverage(r)||'—';
-              const rowBg=ri%2?'var(--gray-50)':'white';
+              const rowBg=ri%2?'var(--surface-bg)':'var(--surface-card-bg)';
               return `<tr data-ri="${ri}">
                 <td class="sgr-sticky" style="background:${rowBg};font-weight:500">
                   ${escHtml((r.blocks?.b1||'').split(',')[0].trim()||`Report ${ri+1}`)}
@@ -4890,7 +4954,7 @@ ${rt!=='CHIEFEVAL'?`
                     min="1" max="${reports.length}">
                 </td>
                 <td style="text-align:center">
-                  <select class="grade-review-promo" data-ri="${ri}" style="font-size:10px;padding:2px;border:1px solid var(--border-color);border-radius:2px">
+                  <select class="grade-review-promo" data-ri="${ri}" style="font-size:10px;padding:2px;border:1px solid var(--surface-border);border-radius:2px">
                     <option value="">—</option>
                     ${DataModel.PROMOTION_RECS.map(p=>`<option value="${p.value}" ${r.promoRec===p.value?'selected':''}>${p.value}</option>`).join('')}
                   </select>
@@ -4898,7 +4962,7 @@ ${rt!=='CHIEFEVAL'?`
                 ${traits.map(t=>`
                   <td style="text-align:center">
                     <select class="grade-review-sel" data-ri="${ri}" data-trait="${t.key}" data-iscpo="${isCPO?1:0}"
-                      style="font-size:10px;padding:2px;border:1px solid var(--border-color);border-radius:2px;width:46px">
+                      style="font-size:10px;padding:2px;border:1px solid var(--surface-border);border-radius:2px;width:46px">
                       <option value="">—</option>
                       ${gradeOpts.map(g=>`<option value="${g}" ${(isCPO?r.traitGrades?.[t.key]:r.traits?.[t.key])===g?'selected':''}>${g}</option>`).join('')}
                     </select>
@@ -10104,12 +10168,37 @@ const App = (() => {
 
   const RECENT_KEY = 'navfitedge_recent_v1';
   const MAX_RECENT = 8;
+  const THEME_KEY = 'navfit-theme';
+
+  // ── Theme ──────────────────────────────────────────────────────
+
+  function toggleTheme() {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem(THEME_KEY, next); } catch {}
+    updateThemeToggleGlyph();
+  }
+
+  function updateThemeToggleGlyph() {
+    const btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    btn.textContent = isDark ? '☀' : '☾';
+    btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.title = btn.getAttribute('aria-label');
+  }
+
+  function bindThemeToggle() {
+    document.getElementById('theme-toggle')?.addEventListener('click', toggleTheme);
+    updateThemeToggleGlyph();
+  }
 
   // ── Init ───────────────────────────────────────────────────────
 
   function init() {
     const vEl = document.getElementById('brand-version');
     if (vEl) vEl.textContent = 'v' + NAVFIT_EDGE_VERSION;
+    bindThemeToggle();
     bindLandingEvents();
     bindModalEvents();
     bindEditorEvents();
@@ -10959,8 +11048,9 @@ const App = (() => {
     if (!el) return;
     setModalHelpTitle('NAVFIT-Edge Reference');
     el.innerHTML = `
+    <h2><a href="https://github.com/brycejameson/NAVFIT-Edge/wiki" target="_blank" rel="noopener">Official NAVFIT-Edge Github Wiki</a></h2>
     <h3>About NAVFIT-Edge</h3>
-    <p>NAVFIT-Edge is a browser-based, open source replacement for NAVFIT98A.  It  implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-1 (16 Dec 2025). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
+    <p>NAVFIT-Edge is a browser-based, open-source alternative to NAVFIT98A. It implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-1 (16 Dec 2025). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
     <h3>File Format (.nfe)</h3>
     <p>A <code>.nfe</code> file contains a <strong>single summary group of reports</strong>. Files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the file, a user saves it to locations only they have access to or sets an optional passphrase which can be given to other users.</p>
     <h3>Report Navigation</h3>
@@ -10972,7 +11062,7 @@ const App = (() => {
     <h3>Date Format</h3>
     <p>All dates use YYMMMDD format (e.g., <code>24JAN15</code> = January 15, 2024).</p>
     <h3>Print Instructions</h3>
-    <p>Print at 100% scale on 8.5×11 paper. You may need to disable browser headers/footers.</p>
+    <p>Print at 100% scale on 8.5×11 paper. You may need to manually select this in your print dialogue, or disable browser headers/footers.</p>
     <h3>Keyboard Shortcuts</h3>
     <p><code>Ctrl+S</code> — Save &nbsp;|&nbsp; <code>Ctrl+P</code> — Print preview &nbsp;|&nbsp; <code>Esc</code> — Close modal</p>`;
   }
@@ -11143,10 +11233,10 @@ const App = (() => {
       const parent = g._source_parent || `Group ${i+1}`;
       const rsName = g.rsInfo?.b22 || g.reports[0]?.blocks?.b22 || '—';
       return `<tr style="cursor:pointer" class="xml-group-row" data-idx="${i}">
-        <td style="padding:8px 12px;border-bottom:1px solid var(--border-color)">${parent}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid var(--border-color);font-family:var(--font-mono)">${rType}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid var(--border-color)">${rsName}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid var(--border-color);text-align:center">${count}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid var(--surface-border)">${parent}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid var(--surface-border);font-family:var(--font-mono)">${rType}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid var(--surface-border)">${rsName}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid var(--surface-border);text-align:center">${count}</td>
       </tr>`;
     }).join('');
 
@@ -11176,7 +11266,7 @@ const App = (() => {
         openEditor();
         showToast(`Opened group "${_group._source_parent}" — ${_group.reports.length} report(s)`, 'success');
       });
-      row.addEventListener('mouseenter', () => row.style.background = 'var(--navy-050)');
+      row.addEventListener('mouseenter', () => row.style.background = 'var(--surface-hover)');
       row.addEventListener('mouseleave', () => row.style.background = '');
     });
 
