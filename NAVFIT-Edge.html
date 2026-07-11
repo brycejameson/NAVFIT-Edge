@@ -1521,10 +1521,16 @@ input, textarea, select { font-family: inherit; }
 @media print {
   body { background: white !important; }
   .print-toolbar { display: none !important; }
+  /* .screen's on-screen height:100vh + overflow:hidden clips everything
+     past the first viewport-height of content when printing — without
+     this override, multi-page reports only ever print their first page. */
+  .screen { height: auto !important; overflow: visible !important; }
   .print-stage {
     background: white !important;
     padding: 0 !important;
     display: block !important;
+    overflow: visible !important;
+    height: auto !important;
   }
   .nav-form-page {
     box-shadow: none !important;
@@ -1900,9 +1906,9 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
         <!-- Actions -->
         <div class="sidebar-actions">
           <button class="sidebar-btn" id="btn-save-as">Save As…</button>
-          <button class="sidebar-btn primary" id="btn-quicksave" disabled>Quicksave</button>
+          <button class="sidebar-btn" id="btn-quicksave" disabled>Quicksave</button>
           <button class="sidebar-btn" id="btn-grade-review">Summary Group Review</button>
-          <button class="sidebar-btn" id="btn-print-preview">Print Preview</button>
+          <button class="sidebar-btn primary" id="btn-print-preview">Print</button>
           <button class="sidebar-btn" id="btn-import-reports">Import Reports</button>
         </div>
       </aside>
@@ -1970,11 +1976,10 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
       <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
         <div id="print-choice-error-banner"></div>
         <p class="modal-desc" style="margin-bottom:4px">
-          <strong>Download PDF</strong> produces an exact, pixel-precise PDF using measured form coordinates — recommended for submission.
-          <strong>Print Preview</strong> uses the browser's HTML renderer.
+          ⚠ When printing, set the browser's print dialog scale to <strong>Actual Size / 100%.</strong>
         </p>
         <label class="checkbox-item" style="margin-bottom:4px">
-          <input type="checkbox" id="chk-omit-rs-ssn"> Omit Reporting Senior's SSN from PDF
+          <input type="checkbox" id="chk-omit-rs-ssn"> Omit Reporting Senior's SSN from PDF (for member copy)
         </label>
         <div style="border-top:1px solid var(--border-color);padding-top:10px">
           <div class="section-label" style="margin-bottom:8px">Download PDF</div>
@@ -2016,7 +2021,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; opacity: 1; }
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.4.0';
+const NAVFIT_EDGE_VERSION = '0.4.1';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3354,6 +3359,59 @@ const FormRenderer = (() => {
   // ── Field Binding ──────────────────────────────────────────────
   function bindTopLevelEvents() { bindFields(); }
 
+  // Wraps text into lines where line i's max length is lineMax[i] (the
+  // last entry is reused for any further lines). Returns {lines, overflowed}
+  // — overflowed=true means content remains after the last allowed line.
+  function wrapVariableLines(text, lineMax) {
+    const outputLines=[];
+    let overflowed=false;
+    for (const userLine of text.split('\n')) {
+      let remaining=userLine;
+      while (true) {
+        if (outputLines.length>=lineMax.length) { if (remaining.length) overflowed=true; break; }
+        const max=lineMax[outputLines.length];
+        if (remaining.length<=max) { outputLines.push(remaining); break; }
+        let breakAt=remaining.lastIndexOf(' ',max);
+        if (breakAt<=0) breakAt=max;
+        outputLines.push(remaining.slice(0,breakAt));
+        remaining=remaining.slice(breakAt).replace(/^ /,'');
+      }
+      if (overflowed) break;
+    }
+    return {lines:outputLines, overflowed};
+  }
+
+  // Enforces a variable-per-line wrap on a textarea as the user types,
+  // rejecting (restoring the previous value) if content would exceed the
+  // field's total line budget — mirrors the B43 comments textarea's
+  // reject-on-overflow behavior above, generalized for per-line-position
+  // limits that differ line to line.
+  function bindVariableWrapTextarea(selector, field, subkey, lineMax, getCurrent) {
+    const taEl=document.querySelector(selector);
+    if (!taEl) return;
+    taEl.addEventListener('input', () => {
+      const sel=taEl.selectionStart, raw=taEl.value;
+      const {lines, overflowed}=wrapVariableLines(raw, lineMax);
+      if (overflowed) {
+        taEl.value=getCurrent();
+        const safePos=taEl.value.length;
+        try { taEl.setSelectionRange(safePos,safePos); } catch(e){}
+        taEl.classList.add('field-error');
+        validateAndHighlight();
+        return;
+      }
+      taEl.classList.remove('field-error');
+      const wrapped=lines.join('\n');
+      if (wrapped!==raw) {
+        taEl.value=wrapped;
+        const newSel=Math.min(sel,wrapped.length);
+        try { taEl.setSelectionRange(newSel,newSel); } catch(e){}
+      }
+      setField(field, taEl.value, subkey);
+      updateCharCount(taEl);
+    });
+  }
+
   function bindFields() {
     const main=document.getElementById('editor-main');
     if (!main) return;
@@ -3556,6 +3614,17 @@ const FormRenderer = (() => {
         updateCharCount(commentsTa);
       });
     }
+
+    // Variable-per-line word-wrap for B29 / B40a-b / B41a-b / RS Address —
+    // same reject-on-overflow WYSIWYG behavior as the comments textarea
+    // above, generalized to support each line having its own max length
+    // (e.g. B29's first line is shorter than lines 2-4).
+    bindVariableWrapTextarea('[data-subkey="b29"]','blocks','b29',[69,90,90,90], ()=>_report.blocks?.b29||'');
+    bindVariableWrapTextarea('[data-subkey="b40a"]','blocks','b40a',[14,14], ()=>_report.blocks?.b40a||'');
+    bindVariableWrapTextarea('[data-subkey="b40b"]','blocks','b40b',[14,14], ()=>_report.blocks?.b40b||'');
+    bindVariableWrapTextarea('[data-subkey="b41a"]','blocks','b41a',[16,16], ()=>_report.blocks?.b41a||'');
+    bindVariableWrapTextarea('[data-subkey="b41b"]','blocks','b41b',[16,16], ()=>_report.blocks?.b41b||'');
+    bindVariableWrapTextarea('[data-subkey="rsAddress"]','rsAddressGroup','rsAddress',[26,26,26,26], ()=>_report.rsAddress||'');
 
     // Override checkbox
     const ocb=document.getElementById('sg-override-cb');
@@ -3909,6 +3978,7 @@ const FormRenderer = (() => {
     const rt=r.reportType;
     const b=r.blocks=r.blocks||{};
     const X=n=>'X'.repeat(n);
+    const Xlines=(...lens)=>lens.map(X).join('\n');
 
     // Free text / textarea — filled to each field's real DOM max length
     b.b1=X(27); b.b2=X(5); b.b3=X(12);
@@ -3917,7 +3987,7 @@ const FormRenderer = (() => {
     b.b22=X(18); b.b23=X(5); b.b24=X(5); b.b25=X(14); b.b26=X(5);
     b.b28=X(270);
     b.b29_abbr=X(14);
-    b.b29=X(342);
+    b.b29=Xlines(69,90,90,90);
     b.b31=X(18);
 
     // Dates — must stay valid YYMMMDD or period/validation math breaks
@@ -3936,21 +4006,21 @@ const FormRenderer = (() => {
 
     // Type-specific fields
     if (rt==='EVAL') {
-      b.b41a=X(33); b.b41b=X(33);
+      b.b41a=Xlines(16,16); b.b41b=Xlines(16,16);
       b.b42=X(28); b.b49=X(29);
       r.qualifications=X(180);
       r.retention='Recommended';
     } else if (rt==='CHIEFEVAL') {
       b.b46=X(20); b.b47=X(20);
     } else if (rt==='FITREP') {
-      b.b40a=X(27); b.b40b=X(27);
+      b.b40a=Xlines(14,14); b.b40b=Xlines(14,14);
     }
 
     // Concurrent RS (no enforced max length in the UI — reasonable fill)
     r.concurrentRS={name:X(20),grade:X(10),title:X(15),uic:X(5),ssn:'123456789'};
 
-    // RS Address — shared field is uniformly capped at 150 chars regardless of type
-    r.rsAddress=X(150);
+    // RS Address — wraps at 26 chars/line across 4 lines
+    r.rsAddress=Xlines(26,26,26,26);
 
     // Comments — length depends on report type / font
     r.comments=X(rt==='CHIEFEVAL'?522:1656);
@@ -4091,9 +4161,10 @@ const FormRenderer = (() => {
     const b29label=rt==='CHIEFEVAL'
       ?'B29 · Primary/Watch-standing Duties/Collateral'
       :'B29 · Primary/Collateral/Watchstanding Duties';
-    const b29hint=rt==='CHIEFEVAL'
+    const b29wrap="Line 1: 69 chars · Lines 2-4: 90 chars/line.";
+    const b29hint=(rt==='CHIEFEVAL'
       ?"Enter Primary duty abbreviation in box. Qualifications and Watch-standing listed as Qualified, Progressing, Remedial, Or Delinquent."
-      :"Include primary billet, collateral duties, watchstanding qualifications. If B20='B', explain PRT non-participation here.";
+      :"Include primary billet, collateral duties, watchstanding qualifications. If B20='B', explain PRT non-participation here.")+" "+b29wrap;
 
     return `
     <div class="section-title">Duties &amp; Employment</div>
@@ -4109,7 +4180,7 @@ const FormRenderer = (() => {
         data-field="blocks" data-subkey="b29_abbr" value="${escHtml(b.b29_abbr||'')}"
         placeholder="e.g., LPO, N1, AOPS" maxlength="14" data-maxchars="14">
     </div>
-    ${ta('b29',b29label,b.b29,4,'blocks','b29',342,b29hint)}
+    ${ta('b29',b29label,b.b29,4,'blocks','b29',339,b29hint)}
     ${rt!=='CHIEFEVAL'?`<div class="field-hint" style="margin-top:4px;color:var(--gray-500)"><strong>PFA format (BUPERSINST 1650.1H):</strong> Include PFA score in format <code>\"PFA: YY-C: P/WS/##/XX\"</code> where YY=Fiscal Year (2 digits), C=Cycle (1 or 2), P/F=Pass/Fail, WS/NWS=Within BCA Standards/Not Within BCA Standards, ##=Numerical Avg. Score (0-100), XX=Score Category (Good Medium, etc.). Example: <code>PFA: 26-1: P/WS/65/GM</code></div>`:''}
     `;
   }
@@ -4278,17 +4349,17 @@ const FormRenderer = (() => {
           <label class="field-label">B41 · Career Rec 1</label>
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b41a"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
-            maxlength="33" data-maxchars="33"
+            data-maxchars="32"
             placeholder="e.g., ASSIGNMENT IN RATE, LPO AT SEA, LDO">${escHtml(b.b41a||'')}</textarea>
-          <div class="field-hint">2 lines × 16 chars</div>
+          <div class="field-hint">Line 1: 16 chars · Line 2: 16 chars</div>
         </div>
         <div class="field-group">
           <label class="field-label">B41 · Career Rec 2 (optional)</label>
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b41b"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
-            maxlength="33" data-maxchars="33"
+            data-maxchars="32"
             placeholder="e.g.,OFFICER PROGRAMS, SPECIAL PROJECTS">${escHtml(b.b41b||'')}</textarea>
-          <div class="field-hint">2 lines × 16 chars</div>
+          <div class="field-hint">Line 1: 16 chars · Line 2: 16 chars</div>
         </div>
       </div>`;
     } else if (rt==='CHIEFEVAL') {
@@ -4300,23 +4371,23 @@ const FormRenderer = (() => {
       </div>`;
     } else {
       careerBlock=`
-      ${divider('Career Milestone Screening — Block 40 (2 boxes × 2 lines × 13 chars)')}
+      ${divider('Career Milestone Screening — Block 40 (2 boxes × 2 lines × 14 chars)')}
       <div class="field-row field-row-2">
         <div class="field-group">
           <label class="field-label">B40 · Career Milestone 1</label>
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b40a"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
-            maxlength="27" data-maxchars="27"
+            data-maxchars="28"
             placeholder="e.g., DEPT HEAD, XO">${escHtml(report.blocks?.b40a||'')}</textarea>
-          <div class="field-hint">2 lines × 13 chars</div>
+          <div class="field-hint">Line 1: 14 chars · Line 2: 14 chars</div>
         </div>
         <div class="field-group">
           <label class="field-label">B40 · Career Milestone 2 (optional)</label>
           <textarea class="field-input field-textarea" data-field="blocks" data-subkey="b40b"
             rows="2" style="font-family:'Courier New',monospace;font-size:12px;resize:none"
-            maxlength="27" data-maxchars="27"
+            data-maxchars="28"
             placeholder="WAR COLLEGE">${escHtml(report.blocks?.b40b||'')}</textarea>
-          <div class="field-hint">2 lines × 13 chars</div>
+          <div class="field-hint">Line 1: 14 chars · Line 2: 14 chars</div>
         </div>
       </div>`;
     }
@@ -4543,9 +4614,9 @@ ${rt!=='CHIEFEVAL'?`
     const ot = group.onTimeSubmission;
     return `
     <div class="section-title">Summary Letter Info</div>
-    ${infoCard('These fields are group-wide — they apply to the whole Reporting Senior summary group and feed the NAVPERS 1610/1 Summary Letter, not the individual report.')}
+    ${infoCard('These fields are group-wide — they apply to the whole Reporting Senior summary group and feed the NAVPERS 1610/1 Summary Letter as well as individual reports.')}
     ${divider('Reporting Senior Address')}
-    ${ta('sumletter-rsaddr','Reporting Senior Address',group.rsInfo?.rsAddress||'',4,'rsAddressGroup','rsAddress',150,'Shared across every report in this group.')}
+    ${ta('sumletter-rsaddr','Reporting Senior Address',group.rsInfo?.rsAddress||'',4,'rsAddressGroup','rsAddress',104,'Shared across every report in this group. Lines 1-3: 26 chars/line · Line 4: 26 chars.')}
     ${divider('ISIC')}
     <div class="field-row field-row-2">
       ${fld('sumletter-isicuic','ISIC UIC','text',group.isicUIC||'','','group','isicUIC',6)}
@@ -6062,7 +6133,7 @@ const PDFGenerator = (() => {
   const EVAL_P1_WORDS = [
 
     // ── Form title (Times-Bold 14pt) ──────────────────────────────────────────
-    [40.92, 761.0, "EVALUATION REPORT & COUNSELING RECORD (E1-E6)", 14],
+    [40.92, 761.0, "EVALUATION REPORT & COUNSELING RECORD (E1-E6)", 12],
 
     // ── Row 1 — Block 1 Name / Block 2 Rate·Rating / Block 3 Desig / Block 4 SSN ──
     [31.56, 748.0, "1. Name (Last, First MI Suffix)", 8],
@@ -6412,7 +6483,7 @@ const PDFGenerator = (() => {
   const EVAL_P2_WORDS = [
 
     // ── Form title (Times-Bold 14pt) ──────────────────────────────────────────
-    [40.92, 761.0, "EVALUATION REPORT & COUNSELING RECORD (E1-E6) (cont'd)", 14],
+    [40.92, 761.0, "EVALUATION REPORT & COUNSELING RECORD (E1-E6) (cont'd)", 12],
 
     // ── Page 2 header — repeat of Block 1-4 labels ───────────────────────────
     [31.56,  748.0, "1. Name (Last, First MI Suffix)", 8],
@@ -6743,7 +6814,7 @@ const PDFGenerator = (() => {
   const FITREP_P1_WORDS = [
 
     // ── Form title (14pt) ─────────────────────────────────────────────────────
-    [40.92, 761.0, "FITNESS REPORT & COUNSELING RECORD (W2-O6)", 14],
+    [40.92, 761.0, "FITNESS REPORT & COUNSELING RECORD (W2-O6)", 12],
 
     // ── Row 1 — Block 1 Name / Block 2 Rank / Block 3 Desig / Block 4 SSN ────
     [31.56, 748.0, "1. Name (Last, First MI Suffix)", 8],
@@ -7118,7 +7189,7 @@ const PDFGenerator = (() => {
   const FITREP_P2_WORDS = [
 
     // ── Form title (14pt) ─────────────────────────────────────────────────────
-    [32.28, 761.0, "FITNESS REPORT & COUNSELING RECORD (W2-O6) (cont'd)", 14],
+    [32.28, 761.0, "FITNESS REPORT & COUNSELING RECORD (W2-O6) (cont'd)", 12],
 
     // ── Page 2 header — repeat of Block 1-4 labels ───────────────────────────
     [31.56,  746.0, "1. Name (Last, First MI Suffix)", 8],
@@ -7357,7 +7428,7 @@ const PDFGenerator = (() => {
   const CHIEFEVAL_P1_WORDS = [
 
     // ── Form title (14pt) ─────────────────────────────────────────────────────
-    [40.9, 760.6, "EVALUATION & COUNSELING RECORD (E7-E9)", 14],
+    [40.9, 760.6, "EVALUATION & COUNSELING RECORD (E7-E9)", 12],
 
     // ── Row 1 — Block 1 Name / Block 2 Rating / Block 3 Designation / Block 4 SSN ──
     [31.6,  745.6, "1. Name (Last, First MI Suffix)", 8],
@@ -7482,7 +7553,7 @@ const PDFGenerator = (() => {
   const CHIEFEVAL_P2_WORDS = [
 
     // ── Form title (14pt) ─────────────────────────────────────────────────────
-    [32.3, 760.6, "EVALUATION & COUNSELING RECORD (E7-E9) (cont 'd)", 14],
+    [32.3, 760.6, "EVALUATION & COUNSELING RECORD (E7-E9) (cont 'd)", 12],
 
     // ── Page 2 header — repeat of Block 1-4 labels ───────────────────────────
     [31.6,  745.6, "1. Name (Last, First MI Suffix)", 8],
@@ -8929,11 +9000,12 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   }
 
   function cpoOverlayRow3(pdf, pg, bl) {
-    // B10-B13: up 1pt, right 16pt from prior (net: +34x, -2y); B14-B15: down 2pts
-    const occ = [bl.b10, bl.b11, bl.b12, bl.b13];
-    occ.forEach((checked, i) => {
-      if (checked) markX(pdf, pg, X.cbOcc[i] + 34, X.cbOccY - 2, X.cbOccW, X.cbOccH);  // +34x, -2y
-    });
+    // B10-B13: up 1pt, right 16pt from prior (net base: +34x, -2y); individual
+    // per-block x-nudges applied on top of that base per block.
+    if (bl.b10) markX(pdf, pg, X.cbOcc[0] + 34 + 4,  X.cbOccY - 2, X.cbOccW, X.cbOccH);  // +4x
+    if (bl.b11) markX(pdf, pg, X.cbOcc[1] + 34,      X.cbOccY - 2, X.cbOccW, X.cbOccH);
+    if (bl.b12) markX(pdf, pg, X.cbOcc[2] + 34 - 4,  X.cbOccY - 2, X.cbOccW, X.cbOccH);  // -4x
+    if (bl.b13) markX(pdf, pg, X.cbOcc[3] + 34 - 26, X.cbOccY - 2, X.cbOccW, X.cbOccH);  // -26x
     const dateY = 693 - 2;
     if (bl.b14) pdf.text(pg, X.r4phys + 35, dateY - 4, esc(bl.b14), DF, DS);
     if (bl.b15) pdf.text(pg, 503,            dateY - 4, esc(bl.b15), DF, DS);
@@ -8941,13 +9013,14 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
 
   function cpoOverlayRow4(pdf, pg, bl) {
     // B16-B17: down 2pts (dy=-2); CHIEFEVAL has same 4-rect layout as FITREP
-    // B16-B19 type checkboxes: down 2pts (cbTypeY-2)
-    if (bl.b16) markX(pdf, pg, X.cbType[0], X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);
-    if (bl.b17) markX(pdf, pg, X.cbType[1], X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);
-    if (bl.b18) markX(pdf, pg, X.cbType[2], X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);
-    if (bl.b19) markX(pdf, pg, X.cbOcc[3],  X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);
+    // B16-B19 type checkboxes: down 2pts (cbTypeY-2); individual per-block
+    // x-nudges applied on top.
+    if (bl.b16) markX(pdf, pg, X.cbType[0] + 6,  X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);  // +6x
+    if (bl.b17) markX(pdf, pg, X.cbType[1],      X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);
+    if (bl.b18) markX(pdf, pg, X.cbType[2] - 25, X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);  // -25x
+    if (bl.b19) markX(pdf, pg, X.cbOcc[3]  - 36, X.cbTypeY - 2, X.cbTypeW, X.cbTypeH);  // -36x
     const dataY = 666 - 2;
-    if (bl.b20) pdf.text(pg, X.r4phys + 5,   dataY, esc(bl.b20), DF, DS);
+    if (bl.b20) pdf.text(pg, X.r4phys + 5 - 43, dataY, esc(bl.b20), DF, DS);  // -43x
     if (bl.b21) pdf.text(pg, X.r4billet + 4, dataY, esc(bl.b21), DF, DS);
   }
 
