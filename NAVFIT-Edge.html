@@ -2574,12 +2574,16 @@ const DataModel = (() => {
     { key: 'character',   label: 'Tactical Performance',               block: 'B39', abbr: 'TAC PERF' }
   ];
 
-  // Periodic end months by paygrade
-  const PERIODIC_END_MONTHS = {
-    'E-1':'JUL','E-2':'JUL','E-3':'JUL','E-4':'JUN','E-5':'MAR','E-6':'NOV',
-    'E-7':'SEP','E-8':'SEP','E-9':'APR',
-    'O-1':'MAY','O-2':'FEB','O-3':'JAN','O-4':'OCT','O-5':'APR','O-6':'JUL',
-    'W-1':'SEP','W-2':'SEP','W-3':'MAR','W-4':'MAR','W-5':'MAR'
+  // Periodic report "To" date (month+day) by paygrade. E-9/W-5 (any designator)
+  // and O-6 (designator 6000-6999) no longer receive periodic reports at all —
+  // handled as a hard error in Validator, not looked up here.
+  const PERIODIC_END_DATES = {
+    'E-1':{month:'JUL',day:15}, 'E-2':{month:'JUL',day:15}, 'E-3':{month:'JUL',day:15},
+    'E-4':{month:'JUN',day:15}, 'E-5':{month:'MAR',day:15}, 'E-6':{month:'NOV',day:15},
+    'E-7':{month:'SEP',day:15}, 'E-8':{month:'SEP',day:15}, // CMDCS E-8 override handled in Validator
+    'W-1':{month:'SEP',day:30}, 'W-2':{month:'SEP',day:30}, 'W-3':{month:'MAR',day:31}, 'W-4':{month:'MAR',day:31},
+    'O-1':{month:'MAY',day:31}, 'O-2':{month:'FEB',day:28}, // leap-year override handled in Validator
+    'O-3':{month:'JAN',day:31}, 'O-4':{month:'OCT',day:31}, 'O-5':{month:'JUN',day:30}, 'O-6':{month:'MAR',day:31}
   };
 
   function getPromoLimits(paygrade, groupSize) {
@@ -2845,6 +2849,16 @@ const DataModel = (() => {
     return null;
   }
 
+  // Enlisted paygrade from the final character of a rate (EVAL/CHIEFEVAL
+  // only — FITREP ranks use rateToPaygrade instead). Deliberately ignores
+  // the rest of the rate string, so YN2/ET2/YNS2/ETV2 are all E-5.
+  const RATE_SUFFIX_PAYGRADE = {R:'E-1',A:'E-2',N:'E-3','3':'E-4','2':'E-5','1':'E-6',C:'E-7',S:'E-8',M:'E-9'};
+  function rateSuffixToPaygrade(str) {
+    const s=(str||'').trim().toUpperCase();
+    if (!s) return null;
+    return RATE_SUFFIX_PAYGRADE[s.slice(-1)] || null;
+  }
+
   // ── Officer Designator Competitive Categories (FITREP Block 3) ─
   // Source: NAVPERSCOM rejection-reason list. Ranges are checked narrowest
   // first so a sub-range (e.g. a specific LDO community) wins over its
@@ -2939,12 +2953,12 @@ const DataModel = (() => {
   return {
     REPORT_TYPES,PROMOTION_RECS,DUTY_STATUS,PROMOTION_STATUS_TABLE,BILLET_SUBCATEGORIES,
     FITREP_OFFICER_GRADES,
-    CHAR_LIMITS,EVAL_TRAITS,CHIEFEVAL_TRAITS,FITREP_TRAITS,PERIODIC_END_MONTHS,
+    CHAR_LIMITS,EVAL_TRAITS,CHIEFEVAL_TRAITS,FITREP_TRAITS,PERIODIC_END_DATES,
     getPromoLimits,createDefaultGroup,createDefaultReport,generateId,
     getTraitsForType,computeTraitAverage,computeSummaryGroup,normalizePromotionStatus,
     computeRSCA,computeGroupTraitSum,computePSGRSCA,composeConcurrentRS,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
-    designatorCategory,
+    rateSuffixToPaygrade,designatorCategory,
     RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup
   };
 })();
@@ -3004,10 +3018,14 @@ const Validator = (() => {
     // FITREPS ONLY: NAVPERSCOM treats a mismatch as a hard rejection ("Invalid
     // summary group"); other report types keep it as a softer warning.
     if (group && group.reports.length>1) {
-      const grades=group.reports.map(r=>r.blocks?.b2?.trim()||'');
-      if (grades.some(g=>g!==grades[0])) {
-        if (rt==='FITREP') addE('admin','b2','Invalid summary group. Block 2, Grade/Rate, must be the same on all reports.','B2');
-        else addW('admin','b2','Block 2 paygrade does not match across all reports in this group.','B2');
+      if (rt==='FITREP') {
+        const grades=group.reports.map(r=>r.blocks?.b2?.trim()||'');
+        if (grades.some(g=>g!==grades[0])) addE('admin','b2','Invalid summary group. Block 2, Grade/Rate, must be the same on all reports.','B2');
+      } else {
+        // Compare derived paygrade (final rate character), not raw text —
+        // YN2/ET2/YNS2/ETV2 are all E-5 and should not conflict.
+        const grades=group.reports.map(r=>DataModel.rateSuffixToPaygrade(r.blocks?.b2)||'');
+        if (grades.some(g=>g!==grades[0])) addW('admin','b2','Block 2 paygrade does not match across all reports in this group.','B2');
       }
     }
 
@@ -3118,13 +3136,27 @@ const Validator = (() => {
       } catch(e){}
     }
 
-    // B10 periodic → validate B15 month
-    if (bl.b10 && bl.b2?.trim() && DataModel.isValidDate(bl.b15)) {
-      const pgKey=DataModel.rateToPaygrade(bl.b2.trim());
-      const expMonth=DataModel.PERIODIC_END_MONTHS[pgKey];
-      if (expMonth) {
-        const toMonth=bl.b15.trim().toUpperCase().slice(2,5);
-        if (toMonth!==expMonth) addW('admin','b15',`Periodic report for ${pgKey}: end month should be ${expMonth}, found ${toMonth}. Verify current periodic schedule.`,'B15');
+    // B10 periodic → grade eligibility + day-precise B15 end date.
+    if (bl.b10 && bl.b2?.trim()) {
+      const rateRaw = bl.b2.trim().toUpperCase();
+      const pgKey = rt==='FITREP' ? DataModel.rateToPaygrade(rateRaw) : DataModel.rateSuffixToPaygrade(rateRaw);
+      const desigNum = parseInt((bl.b3||'').trim().match(/^(\d{4})/)?.[1]||'0',10);
+      const noPeriodic = pgKey==='E-9' || pgKey==='W-5' || (pgKey==='O-6' && desigNum>=6000 && desigNum<=6999);
+      if (noPeriodic) {
+        addE('admin','b10',`${pgKey}${pgKey==='O-6'?' (designator 6000-6999)':''} personnel no longer receive periodic reports — Block 10 should not be checked.`,'B10');
+      } else if (pgKey && DataModel.isValidDate(bl.b15)) {
+        const toStr = bl.b15.trim().toUpperCase();
+        const toMonth = toStr.slice(2,5), toDay = parseInt(toStr.slice(5,7),10);
+        let exp;
+        if (pgKey==='E-8' && rateRaw==='CMDCS') exp = {month:'NOV',day:15};
+        else if (pgKey==='O-2') {
+          const yy=parseInt(toStr.slice(0,2),10), year=yy>=50?1900+yy:2000+yy;
+          const isLeap=(year%4===0 && (year%100!==0 || year%400===0));
+          exp = {month:'FEB', day:isLeap?29:28};
+        } else exp = DataModel.PERIODIC_END_DATES[pgKey];
+        if (exp && (toMonth!==exp.month || toDay!==exp.day)) {
+          addE('admin','b15',`Periodic report for ${pgKey}: Block 15 should be ${exp.month}${String(exp.day).padStart(2,'0')} (any year), found ${toMonth}${String(toDay).padStart(2,'0')}.`,'B15');
+        }
       }
     }
 
