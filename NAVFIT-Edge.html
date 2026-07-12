@@ -2024,6 +2024,28 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
     </div>
   </div>
 
+  <!-- ── RS Conflict Modal ── -->
+  <div id="modal-rs-conflict" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box narrow">
+      <div class="modal-header">
+        <h2>Reporting Senior Info Conflict</h2>
+        <button id="btn-rs-conflict-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">The file you're importing has different <strong>Reporting Senior</strong> info (name,
+          grade, designator, title, UIC, SSN, mailing address) than this group. Every report in a group must share
+          one consistent Reporting Senior identity.</p>
+        <div id="rs-conflict-detail" style="font-size:12px;color:var(--gray-600);margin-bottom:12px"></div>
+        <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+          <button class="btn-secondary" id="btn-rs-conflict-keep" style="width:100%">Keep this group's Reporting Senior info</button>
+          <button class="btn-primary" id="btn-rs-conflict-overwrite" style="width:100%">Use the imported file's Reporting Senior info</button>
+          <button class="btn-secondary" id="btn-rs-conflict-cancel" style="width:100%">Cancel Import</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
   <input type="file" id="file-input-open" accept=".nfe" style="display:none">
   <input type="file" id="file-input-accdb" accept=".xml,.accdb,.mdb,.json" style="display:none">
@@ -2705,6 +2727,37 @@ const DataModel = (() => {
     return (count>0 && !isNaN(sum)) ? (sum/count).toFixed(2) : null;
   }
 
+  // Reporting Senior identity fields (B22-B27) plus rsAddress — every report
+  // in a group must share one consistent RS identity (see FormRenderer's
+  // setField propagation for b22-b27/rsAddress). These helpers let import
+  // flows detect when a merged-in file's RS identity conflicts with the
+  // destination group's, instead of silently picking one side.
+  const RS_INFO_KEYS = ['b22','b23','b24','b25','b26','b27'];
+
+  function isRsInfoBlank(blocks, rsAddress) {
+    return RS_INFO_KEYS.every(k => !(blocks?.[k]||'').trim()) && !(rsAddress||'').trim();
+  }
+
+  function rsInfoConflict(destBlocks, destRsAddress, srcBlocks, srcRsAddress) {
+    if (isRsInfoBlank(destBlocks, destRsAddress)) return false;
+    if (RS_INFO_KEYS.some(k => (destBlocks?.[k]||'') !== (srcBlocks?.[k]||''))) return true;
+    return (destRsAddress||'') !== (srcRsAddress||'');
+  }
+
+  // Applies a flattened {b22..b27,rsAddress} RS identity to every report in
+  // the group (not just newly-imported ones) and updates the group-level
+  // rsInfo mirror used by the Summary Letter tab.
+  function applyRsInfoToGroup(group, rsInfo) {
+    (group.reports||[]).forEach(r => {
+      RS_INFO_KEYS.forEach(k => { r.blocks[k] = rsInfo?.[k] || ''; });
+      r.rsAddress = rsInfo?.rsAddress || '';
+    });
+    group.rsInfo = {
+      ...RS_INFO_KEYS.reduce((o,k)=>{ o[k] = rsInfo?.[k] || ''; return o; }, {}),
+      rsAddress: rsInfo?.rsAddress || ''
+    };
+  }
+
   // Composes the structured Concurrent RS fields (Name/Grade/Title/UIC) into
   // the single printed line every report type's PDF overlay already reads
   // from blocks.b52 — keeps the PDF-rendering code untouched while the
@@ -2891,7 +2944,8 @@ const DataModel = (() => {
     getTraitsForType,computeTraitAverage,computeSummaryGroup,normalizePromotionStatus,
     computeRSCA,computeGroupTraitSum,computePSGRSCA,composeConcurrentRS,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
-    designatorCategory
+    designatorCategory,
+    RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup
   };
 })();
 
@@ -10201,6 +10255,7 @@ const App = (() => {
     bindThemeToggle();
     bindLandingEvents();
     bindModalEvents();
+    bindRsConflictModalEvents();
     bindEditorEvents();
     bindPrintEvents();
     bindFileInputEvents();
@@ -10226,6 +10281,30 @@ const App = (() => {
 
   function showModal(id)  { document.getElementById(id)?.classList.remove('hidden'); }
   function hideModal(id)  { document.getElementById(id)?.classList.add('hidden'); }
+
+  // #modal-rs-conflict is the one promise-based modal in this app: its
+  // buttons resolve _rsConflictResolve instead of just hiding the modal, so
+  // import flows can `await` the user's keep/overwrite choice mid-merge.
+  let _rsConflictResolve = null;
+
+  function bindRsConflictModalEvents() {
+    const resolveWith = choice => {
+      hideModal('modal-rs-conflict');
+      const r = _rsConflictResolve; _rsConflictResolve = null; r?.(choice);
+    };
+    document.getElementById('btn-rs-conflict-keep')?.addEventListener('click', () => resolveWith('keep'));
+    document.getElementById('btn-rs-conflict-overwrite')?.addEventListener('click', () => resolveWith('overwrite'));
+    document.getElementById('btn-rs-conflict-cancel')?.addEventListener('click', () => resolveWith('cancel'));
+    document.getElementById('btn-rs-conflict-x')?.addEventListener('click', () => resolveWith('cancel'));
+  }
+
+  function askRsConflictChoice(destBlocks, srcBlocks) {
+    const detail = document.getElementById('rs-conflict-detail');
+    if (detail) detail.innerHTML =
+      `Current group: <strong>${escHtml(destBlocks?.b22||'(blank)')}</strong><br>Imported file: <strong>${escHtml(srcBlocks?.b22||'(blank)')}</strong>`;
+    showModal('modal-rs-conflict');
+    return new Promise(resolve => { _rsConflictResolve = resolve; });
+  }
 
   // The #modal-help shell is reused for several unrelated purposes (Help &
   // Reference, accdb/XML import instructions, the XML record picker, the
@@ -10894,7 +10973,7 @@ const App = (() => {
       updateCount();
     });
 
-    document.getElementById('btn-do-import-selected')?.addEventListener('click', () => {
+    document.getElementById('btn-do-import-selected')?.addEventListener('click', async () => {
       const selected = [];
       helpEl.querySelectorAll('.xml-record-cb:checked').forEach(cb => {
         selected.push(allRecords[parseInt(cb.dataset.idx)]);
@@ -10914,18 +10993,22 @@ const App = (() => {
       if (hasActiveGroup && _group && importType === _group.reportType) {
         // Same type as the open group — merge into it.
         hideModal('modal-help');
-        const rsKeys = ['b22','b23','b24','b25','b26','b27'];
-        const rsSource = _group.reports[0]?.blocks || {};
+        const srcFirst = reports[0];
+        const srcBlocks = srcFirst?.blocks || {};
+        const srcRsAddress = srcFirst?.rsAddress || '';
+        const srcRsInfo = { ...DataModel.RS_INFO_KEYS.reduce((o,k)=>{o[k]=srcBlocks[k]||''; return o;},{}), rsAddress: srcRsAddress };
+
+        const destBlocks = _group.reports[0]?.blocks || {};
+        const destRsAddress = _group.reports[0]?.rsAddress || '';
+
+        let choice = DataModel.isRsInfoBlank(destBlocks, destRsAddress) ? 'overwrite' : 'keep';
+        if (DataModel.rsInfoConflict(destBlocks, destRsAddress, srcBlocks, srcRsAddress)) {
+          choice = await askRsConflictChoice(destBlocks, srcBlocks);
+          if (choice === 'cancel') { showToast('Import cancelled.', 'info'); return; }
+        }
+
         const targetRsca = DataModel.computeRSCA(_group) || '';
-        reports.forEach(r => {
-          rsKeys.forEach(k => { r.blocks[k] = rsSource[k] || r.blocks[k] || ''; });
-          r.rsca = targetRsca;
-          r._id = DataModel.generateId();
-        });
-        _group.reports.push(...reports);
-        FormRenderer.init(_group, g => { _group = g; });
-        FormRenderer.switchSection('admin');
-        showToast(`Added ${reports.length} report(s) to current group.`, 'success');
+        finishGroupMerge({ reports, srcRsInfo, choice, targetRsca, doneMessage: `Added ${reports.length} report(s) to current group.` });
       } else {
         // Different type (or nothing open) — start a new, separate group.
         if (hasActiveGroup && _group && FormRenderer.isDirty()) {
@@ -11273,6 +11356,29 @@ const App = (() => {
     showModal('modal-help');
   }
 
+  // Finishes a group-merge import: stamps RS identity onto the incoming
+  // reports (adopting the source's identity onto the whole group first, if
+  // the user chose 'overwrite'), recomputes RSCA for the destination group,
+  // and appends the reports. Shared by importReportsFromNfe and the XML
+  // merge-into-existing-group path so neither duplicates this logic.
+  function finishGroupMerge({ reports, srcRsInfo, choice, targetRsca, doneMessage }) {
+    if (choice === 'overwrite') {
+      DataModel.applyRsInfoToGroup(_group, srcRsInfo);
+    }
+    const destBlocks = _group.reports[0]?.blocks || {};
+    const destRsAddress = _group.reports[0]?.rsAddress || '';
+    reports.forEach(r => {
+      DataModel.RS_INFO_KEYS.forEach(k => { r.blocks[k] = destBlocks[k] || ''; });
+      r.rsAddress = destRsAddress;
+      r.rsca = targetRsca;
+      r._id = DataModel.generateId(); // avoid ID collisions
+    });
+    _group.reports.push(...reports);
+    FormRenderer.init(_group, g => { _group = g; });
+    FormRenderer.switchSection('admin');
+    showToast(doneMessage, 'success');
+  }
+
   async function importReportsFromNfe(file) {
     if (!_group) return;
     try {
@@ -11290,21 +11396,22 @@ const App = (() => {
         showToast(`Cannot import ${file.name}: it contains ${srcGroup.reportType} reports, but the open group is ${_group.reportType}. Reports must be the same type.`, 'error');
         return;
       }
-      // Update RS info (and RSCA) on imported reports to match current group —
-      // group-wide values already established in the open group win, the
-      // incoming file's own values never override them.
-      const rsKeys = ['b22','b23','b24','b25','b26','b27'];
-      const rsSource = _group.reports[0]?.blocks || {};
+      const srcFirst = (srcGroup.reports && srcGroup.reports[0]) || reports[0];
+      const srcBlocks = srcFirst?.blocks || {};
+      const srcRsAddress = srcFirst?.rsAddress || '';
+      const srcRsInfo = { ...DataModel.RS_INFO_KEYS.reduce((o,k)=>{o[k]=srcBlocks[k]||''; return o;},{}), rsAddress: srcRsAddress };
+
+      const destBlocks = _group.reports[0]?.blocks || {};
+      const destRsAddress = _group.reports[0]?.rsAddress || '';
+
+      let choice = DataModel.isRsInfoBlank(destBlocks, destRsAddress) ? 'overwrite' : 'keep';
+      if (DataModel.rsInfoConflict(destBlocks, destRsAddress, srcBlocks, srcRsAddress)) {
+        choice = await askRsConflictChoice(destBlocks, srcBlocks);
+        if (choice === 'cancel') { showToast('Import cancelled.', 'info'); return; }
+      }
+
       const targetRsca = DataModel.computeRSCA(_group) || '';
-      reports.forEach(r => {
-        rsKeys.forEach(k => { r.blocks[k] = rsSource[k] || ''; });
-        r.rsca = targetRsca;
-        r._id = DataModel.generateId(); // avoid ID collisions
-      });
-      _group.reports.push(...reports);
-      FormRenderer.init(_group, g => { _group = g; });
-      FormRenderer.switchSection('admin');
-      showToast(`Imported ${reports.length} report(s) from ${file.name}`, 'success');
+      finishGroupMerge({ reports, srcRsInfo, choice, targetRsca, doneMessage: `Imported ${reports.length} report(s) from ${file.name}` });
     } catch(e) { showToast('Error importing: ' + e.message, 'error'); }
   }
 
