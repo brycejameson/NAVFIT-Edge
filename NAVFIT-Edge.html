@@ -1765,7 +1765,7 @@ input, textarea, select { font-family: inherit; }
 }
 .cpo-trait-row {
   display: grid;
-  grid-template-columns: 220px 180px 1fr;
+  grid-template-columns: 200px 160px 1fr;
   gap: 12px;
   padding: 10px;
   background: var(--surface-card-bg);
@@ -2061,9 +2061,6 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
       </div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
         <div id="print-choice-error-banner"></div>
-        <p class="modal-desc" style="margin-bottom:4px">
-          ⚠ When printing, set the browser's print dialog scale to <strong>Actual Size / 100%.</strong>
-        </p>
         <label class="checkbox-item" style="margin-bottom:4px">
           <input type="checkbox" id="chk-omit-rs-ssn"> Omit Reporting Senior's SSN from PDF (for member copy)
         </label>
@@ -2084,9 +2081,17 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
         </div>
         <div style="border-top:1px solid var(--surface-border);padding-top:10px">
           <div class="section-label" style="margin-bottom:8px">Browser Print Preview (HTML)</div>
-          <button class="btn-secondary" id="btn-print-current" style="width:100%;padding:7px;margin-bottom:6px;font-size:12px">Preview Current Report</button>
-          <button class="btn-secondary" id="btn-print-all" style="width:100%;padding:7px;font-size:12px">Preview All Reports</button>
+          <button class="btn-primary" id="btn-print-current" style="width:100%;padding:7px;margin-bottom:6px;font-size:12px">Preview Current Report</button>
+          <button class="btn-secondary" id="btn-print-all" style="width:100%;padding:7px;margin-bottom:6px;font-size:12px">Preview All Reports</button>
+          <button class="btn-secondary" id="btn-print-all-summary" style="width:100%;padding:7px;margin-bottom:6px;font-size:12px">Preview All Reports + Summary Letter</button>
+          <button class="btn-secondary" id="btn-print-summary" style="width:100%;padding:7px;font-size:12px">Preview Summary Letter</button>
         </div>
+        <p class="modal-desc" style="margin-bottom:4px">
+          ⚠ When printing, set the browser's print dialog scale to <strong>Actual Size/100%.</strong>
+        </p>
+        <p class="modal-desc" style="margin-bottom:4px">
+          ⚠ Creating a PDF on NMCI machines may appear to use incorrect fonts when viewed in MS Edge. Downloaded PDF files will use accurate fonts when viewed/printed in <strong>Adobe Acrobat/Reader.</strong>
+        </p>
       </div>
     </div>
   </div>
@@ -2107,7 +2112,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.4.3';
+const NAVFIT_EDGE_VERSION = '0.4.4';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3769,6 +3774,7 @@ const FormRenderer = (() => {
     // same reject-on-overflow WYSIWYG behavior as the comments textarea
     // above, generalized to support each line having its own max length
     // (e.g. B29's first line is shorter than lines 2-4).
+    bindVariableWrapTextarea('[data-subkey="b28"]','blocks','b28',[90,90,90], ()=>_report.blocks?.b28||'');
     bindVariableWrapTextarea('[data-subkey="b29"]','blocks','b29',[69,90,90,90], ()=>_report.blocks?.b29||'');
     bindVariableWrapTextarea('[data-subkey="b40a"]','blocks','b40a',[14,14], ()=>_report.blocks?.b40a||'');
     bindVariableWrapTextarea('[data-subkey="b40b"]','blocks','b40b',[14,14], ()=>_report.blocks?.b40b||'');
@@ -4135,7 +4141,7 @@ const FormRenderer = (() => {
     b.b6=X(5); b.b7=X(18);
     b.b20=X(rt==='CHIEFEVAL'?18:4);
     b.b22=X(18); b.b23=X(5); b.b24=X(5); b.b25=X(14); b.b26=X(5);
-    b.b28=X(270);
+    b.b28=Xlines(90,90,90);
     b.b29_abbr=X(14);
     b.b29=Xlines(69,90,90,90);
     b.b31=X(18);
@@ -4472,7 +4478,7 @@ const FormRenderer = (() => {
                     <span>Comment ${slot.toUpperCase()}</span>
                     <span class="char-counter" style="color:${vLen>106?'var(--red-500)':vLen>95?'var(--amber-600)':'var(--gray-400)'}">${vLen}/106</span>
                   </div>
-                  <textarea class="field-input" style="font-size:12px;font-family:'Courier New',monospace;padding:3px 4px;resize:none;line-height:1.5;overflow:hidden"
+                  <textarea class="field-input" style="font-size:12px;font-family:'Courier New',monospace;padding:3px 4px;resize:none;line-height:1.5;overflow:hidden;width:55ch"
                     data-trait-comment="${t.key}:${slot}" rows="2"
                     maxlength="106" data-maxchars="106"
                     data-cpo-comment-ta="1"
@@ -5201,13 +5207,17 @@ const PrintRenderer = (() => {
 }
 `;
 
-  async function render(data, opts = {}) {
+  function ensureCss() {
     if (!document.getElementById('nf-css-v3')) {
       const s = document.createElement('style');
       s.id = 'nf-css-v3';
       s.textContent = HTML_PAGE_CSS;
       document.head.appendChild(s);
     }
+  }
+
+  async function render(data, opts = {}) {
+    ensureCss();
     const fontFamilies = await PDFGenerator.registerHtmlFonts();
     const writer = new PDFGenerator.HtmlWriter();
     const pdf = PDFGenerator.build(data, { ...opts, writer });
@@ -5215,7 +5225,16 @@ const PrintRenderer = (() => {
     return PDFGenerator.serializeHtmlPages(pdf, fontFamilies);
   }
 
-  return { render };
+  async function renderSummaryLetter(group, opts = {}) {
+    ensureCss();
+    const fontFamilies = await PDFGenerator.registerHtmlFonts();
+    const writer = new PDFGenerator.HtmlWriter();
+    const pdf = PDFGenerator.buildSummaryLetter(group, { ...opts, writer });
+    if (!pdf) return '<p>Unable to render Summary Letter</p>';
+    return PDFGenerator.serializeHtmlPages(pdf, fontFamilies);
+  }
+
+  return { render, renderSummaryLetter };
 })();
 
 
@@ -8513,10 +8532,10 @@ const PDFGenerator = (() => {
     }
     const text = esc(bl.b29 || '');
     if (text) {
-      const lines = wrapLines(text, 80);
+      const lines = wrapVariableLines(text, 69, 90, 4);
       const startY = 571;
       const leading = 11;
-      lines.slice(0, 4).forEach((line, i) => {
+      lines.forEach((line, i) => {
         // Line 1 starts at the abbreviated duty text column;
         // lines 2-4 extend full-width from the form left border (same x as B28)
         const xPos = i === 0 ? X.trName + 57 : X.formLeft + 4;
@@ -8764,6 +8783,26 @@ const PDFGenerator = (() => {
         out.push(raw.slice(pos, end));
         pos = end + (raw[end] === ' ' ? 1 : 0);
       }
+    }
+    return out;
+  }
+
+  // Wraps text for a field whose first printed line has a different width
+  // than subsequent lines (e.g. B29, which starts mid-row next to the
+  // abbreviation box). Existing '\n' breaks are respected; each resulting
+  // segment is further word-wrapped to fit firstMax (line 1) or restMax
+  // (lines 2+).
+  function wrapVariableLines(text, firstMax, restMax, maxLines) {
+    const out = [];
+    let first = true;
+    for (const raw of text.split('\n')) {
+      if (out.length >= maxLines) break;
+      for (const w of wrapLines(raw || ' ', first ? firstMax : restMax)) {
+        if (out.length >= maxLines) break;
+        out.push(w);
+        first = false;
+      }
+      first = false;
     }
     return out;
   }
@@ -9194,25 +9233,12 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     }
     const text = esc(bl.b29 || '');
     if (text) {
-      const line1X   = X.trName + 57;
-      const line1Max = Math.floor((X.formRight - line1X) / 6);
-      const restMax  = 90;
-      const rawLines = text.split('\n');
-      const out = [];
-      let first = true;
-      for (const raw of rawLines) {
-        if (out.length >= 4) break;
-        const wrapped = wrapLines(raw || ' ', first ? line1Max : restMax);
-        for (const w of wrapped) {
-          if (out.length >= 4) break;
-          out.push({ text: w, x: first ? line1X : X.formLeft + 4 });
-          first = false;
-        }
-        first = false;
-      }
+      const line1X = X.trName + 57;
+      const lines = wrapVariableLines(text, 69, 90, 4);
       const startY = 571 + dy;
       const leading = 11;
-      out.forEach(({ text: line, x: xPos }, i) => {
+      lines.forEach((line, i) => {
+        const xPos = i === 0 ? line1X : X.formLeft + 4;
         pdf.text(pg, xPos, startY - i * leading - 2, line, DF, DS10);
       });
     }
@@ -9236,9 +9262,12 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   }
 
   // Per-slot comment overlay for CHIEFEVAL trait comments
-  // Each trait has 3 slots (a/b/c), each max 2 lines × 53 chars at Courier 12pt.
+  // Each trait has 3 slots (a/b/c), each max 2 lines × 53 chars at Courier
+  // 10pt — 2pt smaller than the standard DS (12pt) so 53 characters stay
+  // within the form's right border.
   // Slot Y offsets (down from commentStartY): adjust CHIEFEVAL_COMMENT_SLOT_DY to tune.
   const CHIEFEVAL_COMMENT_SLOT_DY = [-32, -68, -104]; // slot a, b, c
+  const CHIEFEVAL_COMMENT_SIZE = DS - 2;
 
   function overlayCPOCommentSlots(pdf, pg, tc, commentStartY) {
     ['a','b','c'].forEach((slot, si) => {
@@ -9246,7 +9275,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
       if (!text) return;
       const slotY = commentStartY + CHIEFEVAL_COMMENT_SLOT_DY[si];
       text.split('\n').slice(0, 2).forEach((line, li) => {
-        pdf.text(pg, CHIEFEVAL_COMMENT_X, slotY - li * 14, esc(line), DF, DS);
+        pdf.text(pg, CHIEFEVAL_COMMENT_X, slotY - li * 14, esc(line), DF, CHIEFEVAL_COMMENT_SIZE);
       });
     });
   }
@@ -9423,6 +9452,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   return {
     download, downloadGroup, downloadSummaryLetter,
     build: _build,           // exposes the report-type dispatcher for Print Preview
+    buildSummaryLetter: renderSummaryLetter, // writer-agnostic — usable with HtmlWriter for Print Preview
     HtmlWriter, registerHtmlFonts, serializeHtmlPages,
   };
 })();
@@ -10255,6 +10285,9 @@ const App = (() => {
   const RECENT_KEY = 'navfitedge_recent_v1';
   const MAX_RECENT = 8;
   const THEME_KEY = 'navfit-theme';
+  // Captured once at load, before openPrintPreview() ever mutates document.title
+  // (used to hint a filename to the browser's native Print-to-PDF dialog).
+  const DEFAULT_DOCUMENT_TITLE = document.title;
 
   // ── Theme ──────────────────────────────────────────────────────
 
@@ -10483,7 +10516,10 @@ const App = (() => {
   // ── Print Preview ──────────────────────────────────────────────
 
   function bindPrintEvents() {
-    document.getElementById('btn-back-editor')?.addEventListener('click', () => showScreen('screen-editor'));
+    document.getElementById('btn-back-editor')?.addEventListener('click', () => {
+      document.title = DEFAULT_DOCUMENT_TITLE;
+      showScreen('screen-editor');
+    });
     // Browser print (HTML fallback)
     document.getElementById('btn-print-window')?.addEventListener('click', () => window.print());
 
@@ -10562,31 +10598,51 @@ const App = (() => {
 
     // Print choice modal buttons (HTML preview path)
     document.getElementById('btn-print-current')?.addEventListener('click', async () => {
-      hideModal('modal-print-choice'); await openPrintPreview(false);
+      hideModal('modal-print-choice'); await openPrintPreview('current');
     });
     document.getElementById('btn-print-all')?.addEventListener('click', async () => {
-      hideModal('modal-print-choice'); await openPrintPreview(true);
+      hideModal('modal-print-choice'); await openPrintPreview('all');
+    });
+    document.getElementById('btn-print-all-summary')?.addEventListener('click', async () => {
+      hideModal('modal-print-choice'); await openPrintPreview('all-summary');
+    });
+    document.getElementById('btn-print-summary')?.addEventListener('click', async () => {
+      hideModal('modal-print-choice'); await openPrintPreview('summary');
     });
   }
 
-  async function openPrintPreview(batchMode) {
+  async function openPrintPreview(mode) {
     if (!_group) return;
     const stage = document.getElementById('print-stage');
     if (!stage) return;
-    if (batchMode) {
-      // Print all reports in group
+    const rsLastName = (_group.rsInfo?.b22 || 'Group').split(',')[0].trim() || 'Group';
+    let titleText, filenameBase;
+
+    if (mode === 'all' || mode === 'all-summary') {
       const pages = await Promise.all(_group.reports.map(r => PrintRenderer.render(r)));
+      if (mode === 'all-summary') pages.push(await PrintRenderer.renderSummaryLetter(_group));
       stage.innerHTML = pages.join('');
-      document.getElementById('print-title').textContent =
-        `Print Preview — All ${_group.reports.length} Report${_group.reports.length!==1?'s':''}`;
+      const n = _group.reports.length;
+      titleText = mode === 'all-summary'
+        ? `Print Preview — All ${n} Report${n!==1?'s':''} + Summary Letter`
+        : `Print Preview — All ${n} Report${n!==1?'s':''}`;
+      filenameBase = mode === 'all-summary'
+        ? `${rsLastName}_${_group.reportType}_AllReports_SummaryLetter`
+        : `${rsLastName}_${_group.reportType}_AllReports`;
+    } else if (mode === 'summary') {
+      stage.innerHTML = await PrintRenderer.renderSummaryLetter(_group);
+      titleText = `Print Preview — Summary Letter (${rsLastName})`;
+      filenameBase = `SummaryLetter_${rsLastName}`;
     } else {
-      // Print only active report
       const active = _group.reports[_group.activeIndex||0];
       stage.innerHTML = await PrintRenderer.render(active);
       const name = (active.blocks?.b1||'').split(',')[0].trim()||'Report';
-      document.getElementById('print-title').textContent =
-        `Print Preview — ${name} (${_group.reportType})`;
+      titleText = `Print Preview — ${name} (${_group.reportType})`;
+      filenameBase = `${name}_${active.reportType}_${active.blocks?.b15||''}`;
     }
+
+    document.getElementById('print-title').textContent = titleText;
+    document.title = filenameBase.replace(/[^A-Za-z0-9._-]/g, '_');
     showScreen('screen-print');
   }
 
