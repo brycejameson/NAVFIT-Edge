@@ -21,7 +21,7 @@ _My solution is designed to get around this because:_
 
 _The cost is free.  I did this open-source in my off-duty spare time so that I can strengthen my development resume for my next career and hopefully help my fellow administrators in the fleet.  You're welcome._
 
-_Copies of the .html file and anything they create can be saved virtually anywhere.  It can be opened from a command's shared drive, a CD, from MS Teams, from OneDrive, or from some command's website.  It requires ZERO installation, ZERO internet connectivity and ZERO dependencies to run._
+_Copies of the .html file and anything they create can be saved virtually anywhere.  It can be opened from a command's shared drive, a CD, from OneDrive, or from some command's website.  It requires ZERO installation, ZERO internet connectivity and ZERO dependencies to run._
 
 _Products of this software don't change the existing infrastructure, e.g. physical mail -> examination -> scanning._
 
