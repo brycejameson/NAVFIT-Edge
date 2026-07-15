@@ -1,6 +1,6 @@
 # NAVFIT-Edge
 
-Latest Release (Alpha): [v.0.4.4](https://github.com/brycejameson/NAVFIT-Edge/archive/refs/tags/v0.4.4.zip)
+Latest Release (Alpha): [v.0.4.5](https://github.com/brycejameson/NAVFIT-Edge/archive/refs/tags/v0.4.5.zip)
 
 Introducing NAVFIT-Edge, an open-source alternative to NAVFIT98A.  NAVFIT-Edge is designed to make Sailors' lives easier with user experience (UX) improvements, more powerful validation, and maximum portability.
 
@@ -11,7 +11,7 @@ Windows and the latest version of Microsoft Edge or Google Chrome.  Not tested i
 ## FAQs
 
 ### Why do I need this?
-_NAVFIT98A is almost 30 years old and doesn't install/run in every computer/network configuration the Navy operates.  This software aims to fix that.  There have been several attempts to replace NAVFIT98A, but the  overarching hurdles seem to be:_
+_NAVFIT98A is almost 30 years old and doesn't install/run in every computer/network configuration the Navy operates.  This software aims to fix that.  There have been several attempts to replace NAVFIT98A, but the overarching hurdles seem to be:_
 
 * _Cost_
 * _Navy IT vetting/Network Security_

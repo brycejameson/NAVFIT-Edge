@@ -2112,7 +2112,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.4.4';
+const NAVFIT_EDGE_VERSION = '0.4.5';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -5453,6 +5453,36 @@ const FontLoader = (() => {
 
 const PDFGenerator = (() => {
 
+  // Windows-1252 (WinAnsiEncoding) code points that live in the 0x80-0x9F
+  // byte range — this is where Word's autocorrect "smart" punctuation
+  // (quotes, dashes, ellipsis, bullet, trademark, etc.) actually falls.
+  // 0x20-0x7E is plain ASCII; 0xA0-0xFF matches Unicode byte-for-byte
+  // (Latin-1 supplement — accented letters, degree sign, etc.).
+  const WINANSI_HIGH = {
+    0x20AC:0x80, 0x201A:0x82, 0x0192:0x83, 0x201E:0x84, 0x2026:0x85,
+    0x2020:0x86, 0x2021:0x87, 0x02C6:0x88, 0x2030:0x89, 0x0160:0x8A,
+    0x2039:0x8B, 0x0152:0x8C, 0x017D:0x8E, 0x2018:0x91, 0x2019:0x92,
+    0x201C:0x93, 0x201D:0x94, 0x2022:0x95, 0x2013:0x96, 0x2014:0x97,
+    0x02DC:0x98, 0x2122:0x99, 0x0161:0x9A, 0x203A:0x9B, 0x0153:0x9C,
+    0x017E:0x9E, 0x0178:0x9F,
+  };
+
+  // Maps a string to WinAnsi bytes and escapes PDF string-literal specials
+  // (\, (, )). Unmappable code points (emoji, CJK, etc. — genuinely outside
+  // what these fonts can render) still fall back to '?', same as before.
+  function pdfTextEscape(str) {
+    let out = '';
+    for (const ch of String(str)) {
+      const code = ch.codePointAt(0);
+      let byte;
+      if (code >= 0x20 && code <= 0x7E) byte = code;
+      else if (code >= 0xA0 && code <= 0xFF) byte = code;
+      else byte = WINANSI_HIGH[code] ?? 0x3F;
+      out += (byte === 0x5C || byte === 0x28 || byte === 0x29) ? '\\' + String.fromCharCode(byte) : String.fromCharCode(byte);
+    }
+    return out;
+  }
+
   // ── Minimal PDF 1.4 Writer ────────────────────────────────────────
   class PDFWriter {
     constructor() {
@@ -5503,11 +5533,7 @@ const PDFGenerator = (() => {
       pg.fonts.add(font);
       // Resolve logical name → PDF resource name for content stream
       const pdfName = PDFWriter.FONT_MAP[font]?.pdfName || font;
-      const esc = String(str)
-        .replace(/\\/g, '\\\\')
-        .replace(/\(/g, '\\(')
-        .replace(/\)/g, '\\)')
-        .replace(/[^\x20-\x7E]/g, '?');
+      const esc = pdfTextEscape(str);
       pg.ops.push(`BT /${pdfName} ${PDFWriter.n(size)} Tf ${PDFWriter.n(x)} ${PDFWriter.n(y)} Td (${esc}) Tj ET`);
     }
 
@@ -5517,11 +5543,7 @@ const PDFGenerator = (() => {
       if (!str) return;
       pg.fonts.add(font);
       const pdfName = PDFWriter.FONT_MAP[font]?.pdfName || font;
-      const esc = String(str)
-        .replace(/\\/g, '\\\\')
-        .replace(/\(/g, '\\(')
-        .replace(/\)/g, '\\)')
-        .replace(/[^\x20-\x7E]/g, '?');
+      const esc = pdfTextEscape(str);
       pg.ops.push(`BT /${pdfName} ${PDFWriter.n(size)} Tf 0 -1 1 0 ${PDFWriter.n(tx)} ${PDFWriter.n(ty)} Tm (${esc}) Tj ET`);
     }
 
@@ -5703,6 +5725,36 @@ const PDFGenerator = (() => {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     }
+  }
+
+  // The hmtx-extracted FONT_WIDTHS table above was indexed by raw Unicode
+  // code point, so bytes 0x7F-0x9F all came out 0 (those are control
+  // characters in real Unicode) — but WinAnsiEncoding reassigns most of
+  // that range to real printable glyphs (smart quotes, dashes, ellipsis,
+  // etc. — see pdfTextEscape/WINANSI_HIGH above). A 0-width glyph makes
+  // the PDF viewer draw the next character at the same X position as the
+  // apostrophe/dash itself, so this patches in real widths (standard
+  // Times-Roman/Times-Bold AFM metrics for those glyph names; Courier New
+  // is fixed-pitch so every glyph — including these — is simply 600).
+  {
+    const TIMES_EXTRA = {
+      0x80:500, 0x82:333, 0x83:500, 0x84:444, 0x85:1000, 0x86:500, 0x87:500,
+      0x88:333, 0x89:1000, 0x8A:556, 0x8B:333, 0x8C:889, 0x8E:611,
+      0x91:333, 0x92:333, 0x93:444, 0x94:444, 0x95:350, 0x96:500, 0x97:1000,
+      0x98:333, 0x99:980, 0x9A:389, 0x9B:333, 0x9C:722, 0x9E:444, 0x9F:500,
+    };
+    const TIMES_BOLD_EXTRA = {
+      0x80:500, 0x82:333, 0x83:500, 0x84:500, 0x85:1000, 0x86:500, 0x87:500,
+      0x88:333, 0x89:1000, 0x8A:556, 0x8B:333, 0x8C:1000, 0x8E:667,
+      0x91:333, 0x92:333, 0x93:500, 0x94:500, 0x95:350, 0x96:500, 0x97:1000,
+      0x98:333, 0x99:1000, 0x9A:389, 0x9B:333, 0x9C:722, 0x9E:444, 0x9F:500,
+    };
+    Object.entries(TIMES_EXTRA).forEach(([b,w]) => { PDFWriter.FONT_WIDTHS['TimesNewRomanPSMT'][Number(b)-32] = w; });
+    Object.entries(TIMES_BOLD_EXTRA).forEach(([b,w]) => { PDFWriter.FONT_WIDTHS['TimesNewRomanPS-BoldMT'][Number(b)-32] = w; });
+    Object.values(WINANSI_HIGH).forEach(b => {
+      PDFWriter.FONT_WIDTHS['CourierNewPSMT'][b-32] = 600;
+      PDFWriter.FONT_WIDTHS['CourierNewPS-BoldMT'][b-32] = 600;
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -8572,8 +8624,16 @@ const PDFGenerator = (() => {
       pdf.text(pg, 56.52, 477, avg, DF, DS);  // -32y
     }
     const bl = data.blocks || {};
-    if (bl.b41a) pdf.text(pg, 126.52, 488, esc(bl.b41a), DF, DS10);  // Courier 10pt
-    if (bl.b41b) pdf.text(pg, 232.52, 488, esc(bl.b41b), DF, DS10);  // Courier 10pt
+    if (bl.b41a) {
+      bl.b41a.split('\n').slice(0,2).forEach((line,i) => {
+        if (line) pdf.text(pg, 126.52, 488 - i*11, esc(line), DF, DS10);  // Courier 10pt
+      });
+    }
+    if (bl.b41b) {
+      bl.b41b.split('\n').slice(0,2).forEach((line,i) => {
+        if (line) pdf.text(pg, 232.52, 488 - i*11, esc(line), DF, DS10);  // Courier 10pt
+      });
+    }
     if (bl.b49)  pdf.text(pg, X.formLeft + 3,  98, esc(bl.b49), DF, DS);  // +1x,-24y
     // B42: Rater typed name — +14x from formLeft, -9 from B42 label y≈518
     if (bl.b42)  pdf.text(pg, X.formLeft + 306, 476, esc(bl.b42), DF, DS);  // +290x,-33y
@@ -10384,7 +10444,26 @@ const App = (() => {
 
   function bindLandingEvents() {
     document.getElementById('btn-new-eval')?.addEventListener('click', () => showModal('modal-new-eval'));
-    document.getElementById('btn-open-file')?.addEventListener('click', () => document.getElementById('file-input-open').click());
+    document.getElementById('btn-open-file')?.addEventListener('click', async () => {
+      // Prefer the File System Access picker so we get a reusable, writable
+      // handle back — this is what lets Quicksave activate immediately on
+      // open instead of requiring a Save As first (see loadGroup()/
+      // updateQuicksaveButtonState(), both already handle-aware).
+      if (HandleStore.isAvailable()) {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            types: [{ description: 'NavEval File', accept: { 'application/octet-stream': ['.nfe'] } }]
+          });
+          const file = await handle.getFile();
+          await openNfeFile(file, handle);
+        } catch (e) {
+          if (e.name === 'AbortError') return; // user cancelled the picker
+          showToast('Error opening file: ' + e.message, 'error');
+        }
+        return;
+      }
+      document.getElementById('file-input-open').click();
+    });
     document.getElementById('btn-import-accdb')?.addEventListener('click', showImportAccdbDialog);
     document.getElementById('btn-help')?.addEventListener('click', e => {
       e.preventDefault(); renderHelpContent(); showModal('modal-help');
