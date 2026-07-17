@@ -1490,6 +1490,20 @@ input, textarea, select { font-family: inherit; }
 .toast.info    { background: var(--navy-700); color: white; }
 .toast.warn    { background: var(--amber-600); color: white; }
 
+.toast-close {
+  align-self: flex-start;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.75;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px;
+  cursor: pointer;
+}
+.toast-close:hover { opacity: 1; }
+
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -2112,7 +2126,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.4.5';
+const NAVFIT_EDGE_VERSION = '0.4.6';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -2864,6 +2878,30 @@ const DataModel = (() => {
     return RATE_SUFFIX_PAYGRADE[s.slice(-1)] || null;
   }
 
+  // Wraps text into lines where line i's max length is lineMax[i] (the
+  // last entry is reused for any further lines). Returns {lines, overflowed}
+  // — overflowed=true means content remains after the last allowed line.
+  // Single source of truth for every wrap-enforced multi-line field (editor
+  // live-typing enforcement AND import-time re-wrapping both use this).
+  function wrapToLineLimits(text, lineMax) {
+    const outputLines=[];
+    let overflowed=false;
+    for (const userLine of text.split('\n')) {
+      let remaining=userLine;
+      while (true) {
+        if (outputLines.length>=lineMax.length) { if (remaining.length) overflowed=true; break; }
+        const max=lineMax[outputLines.length];
+        if (remaining.length<=max) { outputLines.push(remaining); break; }
+        let breakAt=remaining.lastIndexOf(' ',max);
+        if (breakAt<=0) breakAt=max;
+        outputLines.push(remaining.slice(0,breakAt));
+        remaining=remaining.slice(breakAt).replace(/^ /,'');
+      }
+      if (overflowed) break;
+    }
+    return {lines:outputLines, overflowed};
+  }
+
   // ── Officer Designator Competitive Categories (FITREP Block 3) ─
   // Source: NAVPERSCOM rejection-reason list. Ranges are checked narrowest
   // first so a sub-range (e.g. a specific LDO community) wins over its
@@ -2963,7 +3001,7 @@ const DataModel = (() => {
     getTraitsForType,computeTraitAverage,computeSummaryGroup,normalizePromotionStatus,
     computeRSCA,computeGroupTraitSum,computePSGRSCA,composeConcurrentRS,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
-    rateSuffixToPaygrade,designatorCategory,
+    rateSuffixToPaygrade,designatorCategory,wrapToLineLimits,
     RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup
   };
 })();
@@ -3514,28 +3552,6 @@ const FormRenderer = (() => {
   // ── Field Binding ──────────────────────────────────────────────
   function bindTopLevelEvents() { bindFields(); }
 
-  // Wraps text into lines where line i's max length is lineMax[i] (the
-  // last entry is reused for any further lines). Returns {lines, overflowed}
-  // — overflowed=true means content remains after the last allowed line.
-  function wrapVariableLines(text, lineMax) {
-    const outputLines=[];
-    let overflowed=false;
-    for (const userLine of text.split('\n')) {
-      let remaining=userLine;
-      while (true) {
-        if (outputLines.length>=lineMax.length) { if (remaining.length) overflowed=true; break; }
-        const max=lineMax[outputLines.length];
-        if (remaining.length<=max) { outputLines.push(remaining); break; }
-        let breakAt=remaining.lastIndexOf(' ',max);
-        if (breakAt<=0) breakAt=max;
-        outputLines.push(remaining.slice(0,breakAt));
-        remaining=remaining.slice(breakAt).replace(/^ /,'');
-      }
-      if (overflowed) break;
-    }
-    return {lines:outputLines, overflowed};
-  }
-
   // Enforces a variable-per-line wrap on a textarea as the user types,
   // rejecting (restoring the previous value) if content would exceed the
   // field's total line budget — mirrors the B43 comments textarea's
@@ -3546,8 +3562,24 @@ const FormRenderer = (() => {
     if (!taEl) return;
     taEl.addEventListener('input', () => {
       const sel=taEl.selectionStart, raw=taEl.value;
-      const {lines, overflowed}=wrapVariableLines(raw, lineMax);
+      const {lines, overflowed}=DataModel.wrapToLineLimits(raw, lineMax);
       if (overflowed) {
+        const prevValue=getCurrent();
+        const prevOverflowed=DataModel.wrapToLineLimits(prevValue, lineMax).overflowed;
+        if (prevOverflowed && raw.length<=prevValue.length) {
+          // Content was already over budget before this edit (e.g. imported
+          // or pasted text) — allow edits that don't grow it (Delete/
+          // Backspace) so the user can dig back out, instead of rejecting
+          // every keystroke and snapping the cursor to the end forever.
+          taEl.value=lines.join('\n');
+          const newSel=Math.min(sel,taEl.value.length);
+          try { taEl.setSelectionRange(newSel,newSel); } catch(e){}
+          taEl.classList.add('field-error');
+          setField(field, taEl.value, subkey);
+          updateCharCount(taEl);
+          validateAndHighlight();
+          return;
+        }
         taEl.value=getCurrent();
         const safePos=taEl.value.length;
         try { taEl.setSelectionRange(safePos,safePos); } catch(e){}
@@ -4848,7 +4880,7 @@ ${rt!=='CHIEFEVAL'?`
       </label>
     </div>
     <div class="field-row field-row-6">
-      ${['sp','prog','p','mp','ep','nob'].map(k=>`
+      ${['nob','sp','prog','p','mp','ep'].map(k=>`
         <div class="field-group">
           <label class="field-label">${k.toUpperCase()}</label>
           <input type="number" class="field-input" min="0" max="999"
@@ -8621,7 +8653,7 @@ const PDFGenerator = (() => {
   function overlayB40_41(pdf, pg, data, avg) {
     if (avg) {
       // Center the average score in the measured box: x=43.2 y=485.28 w=36 h=12.96
-      pdf.text(pg, 56.52, 477, avg, DF, DS);  // -32y
+      pdf.text(pg, 58.52, 476, avg, DF, DS);  // -32y, +2x, -1y
     }
     const bl = data.blocks || {};
     if (bl.b41a) {
@@ -8658,7 +8690,7 @@ const PDFGenerator = (() => {
     const startX       = startXOverride !== undefined ? startXOverride : X.formLeft + 18;
     const startY       = startYOverride !== undefined ? startYOverride : 436;
     const maxLines     = maxLinesOverride !== undefined ? maxLinesOverride : 18;
-    const leading      = 9.5;
+    const leading      = 10.5;  // +1pt line spacing; first line (lineCount=0) stays at startY
     const lines        = comments.split('\n');
     let lineCount = 0;
     for (const line of lines) {
@@ -8714,8 +8746,8 @@ const PDFGenerator = (() => {
       // other cells get the numeric count.
       if (key === 'NOB') {
         // Crossed diagonal lines at exact measured cell corners
-        pdf.line(pg, 92.16, 142.12, 143.5, 168.04, 0.72);  // bottom-left → top-right  (+1 net up)
-        pdf.line(pg, 92.16, 168.04, 143.5, 142.12, 0.72);  // top-left → bottom-right  (+1 net up)
+        pdf.line(pg, 92.16, 141.62, 143.5, 167.54, 0.72);  // bottom-left → top-right  (+1 net up)
+        pdf.line(pg, 92.16, 167.54, 143.5, 141.62, 0.72);  // top-left → bottom-right  (+1 net up)
       } else if (sgVal >= 0) {  // show 0 values too
         // PROG and P columns get +1 extra right per fine-tuning; xOffSum adds per-form shift
         const xOff = (key === 'PROG' || key === 'P') ? 10 : 9;
@@ -8740,7 +8772,7 @@ const PDFGenerator = (() => {
       const lines = data.rsAddress.split('\n');
       const startY = 171;
       lines.slice(0, 4).forEach((line, i) => {
-        pdf.text(pg, X.b48X + 2, startY - i * 9, esc(line), DF, DS - 1);
+        pdf.text(pg, X.b48X + 2, startY - i * 9, esc(line), DF, DS - 2);
       });
     }
   }
@@ -8804,7 +8836,7 @@ const PDFGenerator = (() => {
       const lines = data.rsAddress.split('\n');
       const startY = 193;  // label y=203 - 10
       lines.slice(0, 4).forEach((line, i) => {
-        pdf.text(pg, X.b48X + 4, startY - i * 9, esc(line), DF, DS10);
+        pdf.text(pg, X.b48X + 4, startY - i * 9, esc(line), DF, DS10 - 1);
       });
     }
 
@@ -8918,9 +8950,9 @@ const PDFGenerator = (() => {
 
     overlayP2Header(pdf, p2, bl);
 
-    // Traits 38-39 on page 2
+    // Traits 38-39 on page 2 — both: right 2pts, up 2pts
     [38, 39].forEach((num, i) => {
-      drawTraitGrade(pdf, p2, GRADE_BOX_Y_P2[i], tr[EVAL_TRAIT_KEYS[num]], true);
+      drawTraitGrade(pdf, p2, GRADE_BOX_Y_P2[i], tr[EVAL_TRAIT_KEYS[num]], true, 2, 2);
     });
 
     overlayB40_41(pdf, p2, report, avg);
@@ -9212,7 +9244,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     if (report.rsAddress) {
       const lines = report.rsAddress.split('\n');
       lines.slice(0, 4).forEach((line, i) => {
-        pdf.text(pg, 373.9, 110.4 - i * 14.4, esc(line), DF, 11);  // ← adjust x/y/leading
+        pdf.text(pg, 373.9, 110.4 - i * 14.4, esc(line), DF, 10);  // ← adjust x/y/leading
       });
     }
 
@@ -9683,6 +9715,15 @@ const AccdbBridge = (() => {
     data._created = parsed._export_date || new Date().toISOString();
     data._modified = new Date().toISOString();
 
+    // Re-wrap every field the editor treats as line-wrap-enforced — see
+    // the identical comment in XmlImporter.parseReportElement for why.
+    const rewrap = (text, lineMax) => DataModel.wrapToLineLimits(text || '', lineMax).lines.join('\n');
+    data.blocks.b28 = rewrap(data.blocks.b28, [90,90,90]);
+    data.blocks.b29 = rewrap(data.blocks.b29, [69,90,90,90]);
+    if (data.blocks.b41a) data.blocks.b41a = rewrap(data.blocks.b41a, [16,16]);
+    if (data.blocks.b41b) data.blocks.b41b = rewrap(data.blocks.b41b, [16,16]);
+    data.rsAddress = rewrap(data.rsAddress, [26,26,26,26]);
+
     return { ok: true, data, errors };
   }
 
@@ -10148,6 +10189,26 @@ const XmlImporter = (() => {
         traits.forEach(t => { report.traits[t.key] = 'NOB'; });
       }
       report.promoRec = 'NOB';
+    }
+
+    // Re-wrap every field the editor treats as line-wrap-enforced —
+    // NAVFIT98A has no equivalent per-line character limits, so imported
+    // text routinely arrives longer (or broken at different points) than
+    // this app's editor allows. Without this, the field starts already
+    // over budget and the live wrap-enforcement handler
+    // (bindVariableWrapTextarea) rejects every subsequent keystroke.
+    const rewrap = (text, lineMax) => DataModel.wrapToLineLimits(text || '', lineMax).lines.join('\n');
+    report.blocks.b28 = rewrap(report.blocks.b28, [90,90,90]);
+    report.blocks.b29 = rewrap(report.blocks.b29, [69,90,90,90]);
+    if (report.blocks.b41a) report.blocks.b41a = rewrap(report.blocks.b41a, [16,16]);
+    if (report.blocks.b41b) report.blocks.b41b = rewrap(report.blocks.b41b, [16,16]);
+    report.rsAddress = rewrap(report.rsAddress, [26,26,26,26]);
+    if (rt === 'CHIEFEVAL' && report.traitComments) {
+      Object.keys(report.traitComments).forEach(key => {
+        ['a','b','c'].forEach(slot => {
+          report.traitComments[key][slot] = rewrap(report.traitComments[key][slot], [53,53]);
+        });
+      });
     }
 
     return report;
@@ -11325,10 +11386,11 @@ const App = (() => {
     const icons = { success:'✓', error:'✕', warn:'⚠', info:'ℹ' };
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `<span>${icons[type]||'ℹ'}</span><span>${escHtml(message)}</span>`;
+    toast.innerHTML = `<span>${icons[type]||'ℹ'}</span><span style="flex:1">${escHtml(message)}</span><button class="toast-close" aria-label="Dismiss">✕</button>`;
     container.appendChild(toast);
-    const delay = type==='error' ? 5000 : 3000;
-    setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.3s'; setTimeout(()=>toast.remove(),300); }, delay);
+    const dismiss = () => { toast.style.opacity='0'; toast.style.transition='opacity 0.3s'; setTimeout(()=>toast.remove(),300); };
+    const timer = setTimeout(dismiss, 10000);
+    toast.querySelector('.toast-close')?.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
   }
 
   // ── Keyboard Shortcuts ─────────────────────────────────────────
