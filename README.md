@@ -1,6 +1,6 @@
 # NAVFIT-Edge
 
-Latest Release (Alpha): [v0.4.6](https://github.com/brycejameson/NAVFIT-Edge/archive/refs/tags/v0.4.6.zip)
+Latest Release (Alpha): [v0.5.0](https://github.com/brycejameson/NAVFIT-Edge/archive/refs/tags/v0.5.0.zip)
 
 Introducing NAVFIT-Edge, an open-source alternative to NAVFIT98A.  NAVFIT-Edge is designed to make Sailors' lives easier with user experience (UX) improvements, more powerful validation, and maximum portability.
 

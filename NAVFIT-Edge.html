@@ -170,7 +170,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button { cursor: pointer; font-family: inherit; border: none; background: none; }
+button { cursor: pointer; font-family: inherit; color: inherit; border: none; background: none; }
 a { color: inherit; }
 input, textarea, select { font-family: inherit; }
 
@@ -181,6 +181,7 @@ input, textarea, select { font-family: inherit; }
 #screen-editor.active { display: flex; flex-direction: row; }
 #screen-print.active { display: flex; flex-direction: column; }
 #screen-batch.active { display: flex; flex-direction: column; }
+#screen-rsca.active { display: flex; flex-direction: column; }
 
 /* ── App Header (Landing) ── */
 .app-header {
@@ -215,7 +216,7 @@ input, textarea, select { font-family: inherit; }
 
 .brand-version {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--navy-300);
   margin-left: var(--sp-1);
 }
@@ -225,6 +226,11 @@ input, textarea, select { font-family: inherit; }
   font-size: 11px;
   color: var(--navy-200);
   letter-spacing: 0.08em;
+  margin-left: auto;
+  /* .app-header already has 32px right padding; +22px here clears the
+     fixed .theme-toggle button (34px wide, 12px from the edge) with a
+     few points of space to spare — same 54px total used for .print-actions. */
+  margin-right: 22px;
 }
 
 .header-tag a { color: var(--amber-400); text-decoration: none; }
@@ -1322,6 +1328,12 @@ input, textarea, select { font-family: inherit; }
   flex: 1;
 }
 
+/* Clears the fixed .theme-toggle button (34px wide, 12px from the right
+   edge) with a few points of space to spare. */
+.print-actions {
+  margin-right: 54px;
+}
+
 .print-stage {
   flex: 1;
   overflow-y: auto;
@@ -1329,6 +1341,32 @@ input, textarea, select { font-family: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: var(--sp-8);
+}
+
+/* ── RSCA Management Screen ── */
+.rsca-back { margin-bottom: 0; }
+
+/* Clears the fixed .theme-toggle button, same convention as .print-actions. */
+#btn-rsca-help { margin-right: 54px; }
+
+.rsca-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-6);
+}
+.rsca-actions .btn-primary,
+.rsca-actions .btn-secondary {
+  font-size: 11px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.rsca-main {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--surface-bg);
   padding: var(--sp-8);
 }
 
@@ -1572,6 +1610,7 @@ input, textarea, select { font-family: inherit; }
   body { background: white !important; }
   .print-toolbar { display: none !important; }
   .theme-toggle { display: none !important; }
+  .rsca-actions { display: none !important; }
   /* .screen's on-screen height:100vh + overflow:hidden clips everything
      past the first viewport-height of content when printing — without
      this override, multi-page reports only ever print their first page. */
@@ -1865,7 +1904,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
     <main class="landing-main">
       <div class="landing-hero">
         <h1 class="hero-title">Performance<br>Evaluations<br><em>Hassle-Free.</em></h1>
-        <p class="hero-sub">Introducing NAVFIT-Edge, an open-source alternative to NAVFIT98A.</p>
+        <p class="hero-sub">Welcome to NAVFIT-Edge, an open-source alternative to NAVFIT98A.</p>
       </div>
       <div class="landing-actions">
         <button class="action-card primary" id="btn-new-eval">
@@ -1882,6 +1921,11 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           <span class="action-icon">⬡</span>
           <span class="action-title">Import from NAVFIT98A</span>
           <span class="action-desc">Import from NAVFIT98A .accdb database</span>
+        </button>
+        <button class="action-card" id="btn-rsca-tool">
+          <span class="action-icon">◆</span>
+          <span class="action-title">RSCA Management</span>
+          <span class="action-desc">Track Reporting Senior trait-grade history</span>
         </button>
       </div>
       <div class="recent-files">
@@ -1919,6 +1963,30 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           <span class="type-badge officer">FITREP</span>
           <span class="type-name">Fitness Report</span>
           <span class="type-desc">NAVPERS 1610/2<br>Paygrades W-2 to O-6</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RSCA Create/Open Modal ── -->
+  <div id="modal-rsca-choice" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>RSCA Management</h2>
+        <button class="modal-close" data-modal="modal-rsca-choice">✕</button>
+      </div>
+      <p class="modal-desc" style="padding:var(--sp-5) var(--sp-6) 0;margin-bottom:0">Reporting Senior's Cumulative Average Management&mdash; For Administrative Personnel and Reporting Seniors Only.</p>
+      <div class="eval-type-grid" style="grid-template-columns:1fr 1fr">
+        <button class="eval-type-card" id="btn-rsca-create-new">
+          <span class="type-badge">NEW</span>
+          <span class="type-name">Create New RSCA Profile</span>
+          <span class="type-desc">Start a new encrypted trait-grade history file for a Reporting Senior.</span>
+        </button>
+        <button class="eval-type-card" id="btn-rsca-open-existing">
+          <span class="type-badge chief">OPEN</span>
+          <span class="type-name">Open Existing RSCA Profile</span>
+          <span class="type-desc">Load a previously saved .rsca profile file.</span>
         </button>
       </div>
     </div>
@@ -2014,6 +2082,19 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
     <div class="print-stage" id="print-stage"></div>
   </div>
 
+  <!-- ── RSCA Management Screen ── -->
+  <div id="screen-rsca" class="screen hidden">
+    <div class="print-toolbar">
+      <button class="sidebar-back rsca-back" id="btn-rsca-back">
+        <span class="sidebar-back-arrow">←</span>
+        <span class="sidebar-back-brand">NAVFIT-EDGE</span>
+      </button>
+      <span class="print-title">RSCA Management — <span id="rsca-filename">Untitled</span></span>
+      <button class="print-back" id="btn-rsca-help">Help</button>
+    </div>
+    <main class="rsca-main" id="rsca-main"></main>
+  </div>
+
   <!-- ── Help Modal ── -->
   <div id="modal-help" class="modal hidden">
     <div class="modal-backdrop"></div>
@@ -2060,10 +2141,106 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
     </div>
   </div>
 
+  <!-- ── RSCA: Create New Summary Group confirm ── -->
+  <div id="modal-rsca-create-group" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box narrow">
+      <div class="modal-header">
+        <h2>Create New Summary Group</h2>
+        <button id="btn-rsca-create-group-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc" id="rsca-create-group-detail"></p>
+        <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+          <button class="btn-primary" id="btn-rsca-create-group-continue" style="width:100%">Continue</button>
+          <button class="btn-secondary" id="btn-rsca-create-group-cancel" style="width:100%">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RSCA: SSN mismatch confirm ── -->
+  <div id="modal-rsca-ssn-mismatch" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box narrow">
+      <div class="modal-header">
+        <h2>Reporting Senior Mismatch</h2>
+        <button id="btn-rsca-ssn-mismatch-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">This group's Reporting Senior does not match this RSCA profile's Reporting Senior.</p>
+        <div id="rsca-ssn-mismatch-detail" style="font-size:12px;color:var(--gray-600);margin-bottom:12px"></div>
+        <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+          <button class="btn-primary" id="btn-rsca-ssn-mismatch-overwrite" style="width:100%">Overwrite with this RSCA profile's RS info &amp; Continue</button>
+          <button class="btn-secondary" id="btn-rsca-ssn-mismatch-cancel" style="width:100%">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RSCA: Import preview ── -->
+  <div id="modal-rsca-import-preview" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box wide">
+      <div class="modal-header">
+        <h2>Import Records to RSCA</h2>
+        <button id="btn-rsca-import-preview-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">The following records will be added to this RSCA profile.</p>
+        <div id="rsca-import-preview-table" style="max-height:50vh;overflow-y:auto"></div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-rsca-import-preview-cancel">Cancel</button>
+          <button class="btn-primary" id="btn-rsca-import-preview-continue">Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RSCA: Duplicate record confirm ── -->
+  <div id="modal-rsca-duplicate" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box narrow">
+      <div class="modal-header">
+        <h2>Possible Duplicate Record</h2>
+        <button id="btn-rsca-duplicate-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">This record's Name, SSN, Grade, and End Date all match an existing record in this RSCA profile.</p>
+        <div id="rsca-duplicate-detail" style="font-size:12px;color:var(--gray-600);margin-bottom:12px"></div>
+        <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
+          <button class="btn-secondary" id="btn-rsca-duplicate-accept" style="width:100%">Accept This Duplicate</button>
+          <button class="btn-primary" id="btn-rsca-duplicate-cancel" style="width:100%">Cancel Entire Import</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RSCA: Add Record ── -->
+  <div id="modal-rsca-add-record" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Add Record to RSCA Profile</h2>
+        <button class="modal-close" data-modal="modal-rsca-add-record">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="rsca-add-record-fields"></div>
+        <div class="modal-actions">
+          <button class="btn-secondary" data-modal="modal-rsca-add-record">Cancel</button>
+          <button class="btn-primary" id="btn-rsca-add-record-save">Add Record</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
   <input type="file" id="file-input-open" accept=".nfe" style="display:none">
   <input type="file" id="file-input-accdb" accept=".xml,.accdb,.mdb,.json" style="display:none">
   <input type="file" id="file-input-import-reports" accept=".nfe" multiple style="display:none">
+  <input type="file" id="file-input-rsca-open" accept=".rsca" style="display:none">
+  <input type="file" id="file-input-rsca-nfe-group" accept=".nfe" style="display:none">
+  <input type="file" id="file-input-rsca-nfe-import" accept=".nfe" style="display:none">
 
   <!-- Print/PDF choice modal -->
   <div id="modal-print-choice" class="modal hidden">
@@ -2126,7 +2303,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.4.6';
+const NAVFIT_EDGE_VERSION = '0.5.0';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -2878,6 +3055,50 @@ const DataModel = (() => {
     return RATE_SUFFIX_PAYGRADE[s.slice(-1)] || null;
   }
 
+  // ── RSCA Management Tool ────────────────────────────────────────
+  const PAYGRADES = [
+    'E-1','E-2','E-3','E-4','E-5','E-6','E-7','E-8','E-9',
+    'W-1','W-2','W-3','W-4','W-5',
+    'O-1','O-2','O-3','O-4','O-5','O-6'
+  ];
+
+  // E-1..E-6 -> EVAL, E-7..E-9 -> CHIEFEVAL, W-1..O-6 -> FITREP.
+  function paygradeToReportType(pg) {
+    const i = PAYGRADES.indexOf(pg);
+    if (i < 0) return null;
+    if (i <= 5) return 'EVAL';        // E-1..E-6
+    if (i <= 8) return 'CHIEFEVAL';   // E-7..E-9
+    return 'FITREP';                  // W-1..W-5, O-1..O-6
+  }
+
+  function createDefaultRscaFile() {
+    return { _rsca: true, _version: '1.0.0', rsName: '', rsSSN: '', records: [] };
+  }
+
+  function buildRscaFilename(rscaFile) {
+    const last = (rscaFile?.rsName || '').split(',')[0].trim().toUpperCase().replace(/[^A-Za-z0-9]/g,'') || 'RS';
+    return `${last}_RSCA.rsca`;
+  }
+
+  // Stats for the given grade, filtered from rscaFile.records. histCount/
+  // histSum only count non-blank, non-NOB, numeric b33-b39 values across the
+  // matching records — same "real trait mark" filter computeGroupTraitSum
+  // uses elsewhere.
+  const RSCA_TRAIT_FIELDS = ['b33','b34','b35','b36','b37','b38','b39'];
+  function computeRscaStatsForGrade(rscaFile, grade) {
+    const all = rscaFile?.records || [];
+    const matching = all.filter(r => r.grade === grade);
+    let histCount = 0, histSum = 0;
+    matching.forEach(r => {
+      RSCA_TRAIT_FIELDS.forEach(f => {
+        const g = r[f];
+        if (g && g !== 'NOB' && !isNaN(parseFloat(g))) { histSum += parseFloat(g); histCount++; }
+      });
+    });
+    const historicalRsca = histCount > 0 ? (histSum / histCount).toFixed(2) : null;
+    return { matchCount: matching.length, totalRecords: all.length, histCount, histSum, historicalRsca };
+  }
+
   // Wraps text into lines where line i's max length is lineMax[i] (the
   // last entry is reused for any further lines). Returns {lines, overflowed}
   // — overflowed=true means content remains after the last allowed line.
@@ -3002,7 +3223,8 @@ const DataModel = (() => {
     computeRSCA,computeGroupTraitSum,computePSGRSCA,composeConcurrentRS,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
     rateSuffixToPaygrade,designatorCategory,wrapToLineLimits,
-    RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup
+    RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup,
+    PAYGRADES,paygradeToReportType,createDefaultRscaFile,buildRscaFilename,computeRscaStatsForGrade
   };
 })();
 
@@ -3919,7 +4141,7 @@ const FormRenderer = (() => {
     const el=document.getElementById('rsca-computed-display');
     if (!el) return;
     const val=DataModel.computeRSCA(_group);
-    el.textContent = val ? `Computed RSCA: ${val}` : 'Computed RSCA: — not yet calculated —';
+    el.value = val || '— not yet calculated —';
   }
 
   function updateCharCount(el) {
@@ -4847,7 +5069,7 @@ ${rt!=='CHIEFEVAL'?`
       ${fld('sg-rank','Member Rank','number',sg.memberRank||'','e.g., 1','summaryGroup','memberRank',3,rt==='CHIEFEVAL'?'Printed in Block 42':'Stored for sorting only — not printed')}
       <div class="field-group">
         <label class="field-label">Of (auto)</label>
-        <input class="field-input" data-sg-total style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:16px" readonly value="${auto.total||0}">
+        <input class="field-input" data-sg-total style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:12px" readonly value="${auto.total||0}">
       </div>
     </div>`;
 
@@ -4918,7 +5140,10 @@ ${rt!=='CHIEFEVAL'?`
 
     ${divider('RSCA Calculation')}
     ${infoCard('For Administration and Reporting Senior Use only.','red')}
-    <div class="field-group" id="rsca-computed-display">${DataModel.computeRSCA(group)?`Computed Historical RSCA: ${DataModel.computeRSCA(group)}`:'Computed RSCA: — not yet calculated —'}</div>
+    <div class="field-group">
+      <label class="field-label">Computed RSCA</label>
+      <input class="field-input" id="rsca-computed-display" style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:16px" readonly value="${DataModel.computeRSCA(group)||'— not yet calculated —'}">
+    </div>
     <div class="field-row field-row-2">
       <div class="field-group">
         <label class="field-label">Historical Trait Grade Count</label>
@@ -4986,7 +5211,7 @@ ${rt!=='CHIEFEVAL'?`
         </div>
         <div class="rsca-banner-item">
           <div class="rsca-banner-label">POST-SUMMARY GROUP RSCA (PSG RSCA)</div>
-          <div class="rsca-banner-value ${psgRsca?'':'missing'}">${psgRsca||psgMissingMsg}</div>
+          <div class="rsca-banner-value ${psgRsca?'':'missing'}" id="gr-psg-rsca">${psgRsca||psgMissingMsg}</div>
         </div>
       </div>`;
 
@@ -5116,7 +5341,7 @@ ${rt!=='CHIEFEVAL'?`
         const ri=parseInt(sel.dataset.ri), tk=sel.dataset.trait;
         if (isCPO) { if(!group.reports[ri].traitGrades) group.reports[ri].traitGrades={}; group.reports[ri].traitGrades[tk]=sel.value||null; }
         else { group.reports[ri].traits[tk]=sel.value||null; }
-        updateGRRow(ri,group); updateGRTotals(group); if(cb) cb(group);
+        updateGRRow(ri,group); updateGRTotals(group); updateGRPsgRsca(group); if(cb) cb(group);
       });
     });
     document.querySelectorAll('.grade-review-promo').forEach(sel=>{
@@ -5170,6 +5395,165 @@ ${rt!=='CHIEFEVAL'?`
     const el=document.getElementById('gr-total-avg');
     if(el) el.textContent=avgs.length?(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(2):'—';
   }
+  function updateGRPsgRsca(group) {
+    const el=document.getElementById('gr-psg-rsca');
+    if (!el) return;
+    const psgRsca=DataModel.computePSGRSCA(group);
+    const missingMsg=group.rscaUseManual?'Unable to calculate PSG RSCA with Manual RSCA entry.':'Not yet calculated';
+    el.textContent=psgRsca||missingMsg;
+    el.classList.toggle('missing',!psgRsca);
+  }
+
+  // ── RSCA Management Screen ───────────────────────────────────────
+  // Bears a stylistic resemblance to the Summary Group Review screen above
+  // (same .rsca-banner / .summary-table classes) per design intent.
+  function rscaRecordAvg(r) {
+    const vals=['b33','b34','b35','b36','b37','b38','b39'].map(k=>r[k]).filter(g=>g&&g!=='NOB'&&!isNaN(parseFloat(g))).map(parseFloat);
+    return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2) : '—';
+  }
+  function rscaSortBtn(sort,label,title) {
+    return `<button class="gr-sort-btn" data-sort="${sort}" title="${title}" style="font-size:9px;padding:1px 4px;cursor:pointer;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:2px">${label}</button>`;
+  }
+  function renderRscaScreen(rscaFile, selectedGrade) {
+    const stats=DataModel.computeRscaStatsForGrade(rscaFile, selectedGrade);
+    const traitCols=['b33','b34','b35','b36','b37','b38','b39'];
+    let records=(rscaFile.records||[]).filter(r=>r.grade===selectedGrade);
+    const sortOrder=rscaFile.sortOrder;
+    if (sortOrder) {
+      records=records.slice().sort((a,b)=>{
+        if (sortOrder==='enddate-asc'||sortOrder==='enddate-desc') {
+          const da=(a.endDate||''), db=(b.endDate||'');
+          return sortOrder==='enddate-asc'?da.localeCompare(db):db.localeCompare(da);
+        }
+        const na=(a.name||'').toLowerCase(), nb=(b.name||'').toLowerCase();
+        return sortOrder==='name-asc'?na.localeCompare(nb):nb.localeCompare(na);
+      });
+    }
+
+    const statsBanner=`
+      <div class="rsca-banner">
+        <div class="rsca-banner-item">
+          <div class="rsca-banner-label">HISTORICAL RSCA</div>
+          <div class="rsca-banner-value ${stats.historicalRsca?'':'missing'}">${stats.historicalRsca||'Not yet calculated'}</div>
+        </div>
+        <div class="rsca-banner-item">
+          <div class="rsca-banner-label">RECORDS IN ${escHtml(selectedGrade)}</div>
+          <div class="rsca-banner-value">${stats.matchCount}</div>
+        </div>
+        <div class="rsca-banner-item">
+          <div class="rsca-banner-label">TOTAL RECORDS IN FILE</div>
+          <div class="rsca-banner-value">${stats.totalRecords}</div>
+        </div>
+        <div class="rsca-banner-item">
+          <div class="rsca-banner-label">HISTORICAL TRAIT GRADE COUNT</div>
+          <div class="rsca-banner-value">${stats.histCount}</div>
+        </div>
+        <div class="rsca-banner-item">
+          <div class="rsca-banner-label">HISTORICAL TRAIT GRADE SUM</div>
+          <div class="rsca-banner-value">${stats.histSum}</div>
+        </div>
+      </div>`;
+
+    const table=`
+      <div class="summary-table-wrap">
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>Name
+                <span style="display:inline-flex;gap:2px;margin-left:4px">
+                  ${rscaSortBtn('name-asc','A↑','A→Z')}${rscaSortBtn('name-desc','Z↓','Z→A')}
+                </span>
+              </th>
+              <th>SSN</th><th>Grade</th>
+              <th>End Date
+                <span style="display:inline-flex;gap:2px;margin-left:4px">
+                  ${rscaSortBtn('enddate-asc','↑','Oldest first')}${rscaSortBtn('enddate-desc','↓','Newest first')}
+                </span>
+              </th>
+              ${traitCols.map(c=>`<th style="text-align:center">${c.toUpperCase()}</th>`).join('')}
+              <th style="text-align:center">Ind. Trt Avg</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${records.length ? records.map(r=>{
+              const idx=rscaFile.records.indexOf(r);
+              return `
+              <tr>
+                <td>${escHtml(r.name||'')}</td>
+                <td>${escHtml(DataModel.formatSSN(r.ssn||''))}</td>
+                <td>${escHtml(r.grade||'')}</td>
+                <td>${escHtml(r.endDate||'')}</td>
+                ${traitCols.map(c=>`<td style="text-align:center">${escHtml(r[c]||'')||'—'}</td>`).join('')}
+                <td style="text-align:center;font-family:var(--font-mono);font-weight:600">${rscaRecordAvg(r)}</td>
+                <td style="text-align:center">
+                  <button class="rsca-delete-btn" data-idx="${idx}" title="Delete this record" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;font-size:13px;padding:2px 6px">✕</button>
+                </td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="${6+traitCols.length}" style="text-align:center;color:var(--gray-400)">No records for this grade.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-secondary" id="btn-rsca-add-record" style="margin-top:var(--sp-3)">+ Add Record</button>`;
+
+    return `
+    <div style="max-width:1500px">
+      <div class="section-title">RSCA Management</div>
+      <div class="section-subtitle">Historical trait-grade records by paygrade</div>
+      <div class="rsca-actions">
+        <button class="btn-secondary" id="btn-rsca-save-as">Save RSCA As…</button>
+        <button class="btn-secondary" id="btn-rsca-import-nfe">Import .NFE file data to this RSCA</button>
+        <button class="btn-secondary" id="btn-rsca-open-group">Save RSCA, Open Existing Summary Group</button>
+        <button class="btn-primary" id="btn-rsca-new-group">Save RSCA, Create New Summary Group</button>
+      </div>
+      <div class="field-row field-row-3">
+        ${fld('rsca-rsname','RS Name','text',rscaFile.rsName||'','LNAME, F M','rsca','rsName',27)}
+        ${fld('rsca-rsssn','RS SSN','text',DataModel.formatSSN(rscaFile.rsSSN||''),'XXXXXXXXX','rsca','rsSSN',11)}
+        <div class="field-group">
+          <label class="field-label" for="f-rsca-grade">Grade (filter)</label>
+          <select id="f-rsca-grade" class="field-input field-select" data-field="rsca" data-subkey="grade">
+            ${DataModel.PAYGRADES.map(g=>`<option value="${g}" ${g===selectedGrade?'selected':''}>${g}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      ${statsBanner}
+      ${table}
+    </div>`;
+  }
+
+  function bindRscaScreen(rscaFile, selectedGrade, onGradeChange, cb) {
+    const main=document.getElementById('rsca-main');
+    if (!main) return;
+    main.querySelectorAll('[data-field="rsca"]').forEach(el=>{
+      const evt=el.tagName==='SELECT'?'change':'input';
+      el.addEventListener(evt,()=>{
+        const sk=el.dataset.subkey;
+        if (sk==='grade') { if (onGradeChange) onGradeChange(el.value); return; }
+        let v=el.value;
+        if (sk==='rsSSN') v=DataModel.cleanSSN(v);
+        rscaFile[sk]=v;
+        if (cb) cb(rscaFile);
+      });
+    });
+    main.querySelectorAll('.gr-sort-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        rscaFile.sortOrder=btn.dataset.sort;
+        if (cb) cb(rscaFile);
+        if (onGradeChange) onGradeChange(selectedGrade);
+      });
+    });
+    main.querySelectorAll('.rsca-delete-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const idx=parseInt(btn.dataset.idx);
+        const rec=rscaFile.records[idx];
+        if (!rec) return;
+        if (!confirm(`Delete this record for "${rec.name||'this member'}"?`)) return;
+        rscaFile.records.splice(idx,1);
+        if (cb) cb(rscaFile);
+        if (onGradeChange) onGradeChange(selectedGrade);
+      });
+    });
+  }
 
   // ── Trait Descriptions ─────────────────────────────────────────
   function getTraitDescs(rt) {
@@ -5199,7 +5583,8 @@ ${rt!=='CHIEFEVAL'?`
   return {
     init, setActiveReport, isDirty, markClean, switchSection,
     validateAndHighlight, updateSummaryAuto, renderGradeReviewScreen, bindGradeReview,
-    openValidationModal, computeGroupTotals
+    openValidationModal, computeGroupTotals,
+    renderRscaScreen, bindRscaScreen
   };
 })();
 
@@ -8558,15 +8943,16 @@ const PDFGenerator = (() => {
 
   // Row 4: NOB + Type of Report + Physical Readiness + Billet
   function overlayRow4(pdf, pg, bl, isEval) {
-    // EVAL: B17→cbType[0], B18→cbType[1] (3 rects: B17,B18 only; B16 is text X)
+    // EVAL: B16→cbType[0], B17→cbType[1], B18→cbOcc[2] (same X as Block 12)
     // FITREP: 4 rects at cbTypeY — B16(x=84.96), B17(164.88), B18(259.20), B19(337.68)
     //         B19 x = cbOcc[3] = 337.68 (same as B13 occasion checkbox)
     if (isEval) {
-      // EVAL: B17→cbType[0], B18→cbType[1]
-      if (bl.b17) markX(pdf, pg, X.cbType[0], X.cbTypeY, X.cbTypeW, X.cbTypeH);
-      if (bl.b18) markX(pdf, pg, X.cbType[1], X.cbTypeY, X.cbTypeW, X.cbTypeH);
-      // EVAL B16 NOB: text mark (no rect on EVAL form at this position)
-      if (bl.b16) pdf.text(pg, X.formLeft + 35, 666, 'X', DF, 8);
+      // NOB (B16) now uses Block 17's former checkbox position/style
+      if (bl.b16) markX(pdf, pg, X.cbType[0], X.cbTypeY, X.cbTypeW, X.cbTypeH);
+      // B17 now uses Block 18's former checkbox position
+      if (bl.b17) markX(pdf, pg, X.cbType[1], X.cbTypeY, X.cbTypeW, X.cbTypeH);
+      // B18 moves right to align with Block 12's X mark X-position
+      if (bl.b18) markX(pdf, pg, X.cbOcc[2], X.cbTypeY, X.cbTypeW, X.cbTypeH);
     } else {
       // FITREP: all four have rects at cbTypeY; positions match form measurements
       if (bl.b16) markX(pdf, pg, X.cbType[0],     X.cbTypeY, X.cbTypeW, X.cbTypeH);  // 84.96
@@ -10403,6 +10789,21 @@ const App = (() => {
     _currentFile = null; _currentFileHandle = null; _currentHandleId = null; _sessionPassphrase = null;
   }
 
+  // ── RSCA Management Tool state ──────────────────────────────────
+  let _rscaFile              = null;  // current .rsca data object
+  let _currentRscaFile       = null;  // current filename (display string)
+  let _rscaSessionPassphrase = null;
+  let _rscaSelectedGrade     = DataModel.PAYGRADES[0];
+  let _rscaDirty             = false;
+  // Set by "Save RSCA, Create/Open Summary Group" before triggering a save;
+  // consumed once that save actually completes (see doSaveRscaFile), so those
+  // two buttons work whether the user saves the RSCA file first or already had.
+  let _rscaSaveThenAction    = null; // null | 'create-group' | 'open-group'
+
+  function resetRscaFileState() {
+    _currentRscaFile = null; _rscaSessionPassphrase = null;
+  }
+
   const RECENT_KEY = 'navfitedge_recent_v1';
   const MAX_RECENT = 8;
   const THEME_KEY = 'navfit-theme';
@@ -10442,8 +10843,12 @@ const App = (() => {
     bindLandingEvents();
     bindModalEvents();
     bindRsConflictModalEvents();
+    bindRscaSsnMismatchModalEvents();
+    bindRscaImportPreviewModalEvents();
+    bindRscaDuplicateModalEvents();
     bindEditorEvents();
     bindPrintEvents();
+    bindRscaEvents();
     bindFileInputEvents();
     loadRecentFiles();
     // Quicksave can truly never work without the File System Access API —
@@ -10492,6 +10897,74 @@ const App = (() => {
     return new Promise(resolve => { _rsConflictResolve = resolve; });
   }
 
+  // Three more promise-based modals for the RSCA Management Tool, same
+  // shape as #modal-rs-conflict above — each pauses an async import/open
+  // flow until the user picks a button.
+  let _rscaSsnMismatchResolve = null;
+  function bindRscaSsnMismatchModalEvents() {
+    const resolveWith = choice => {
+      hideModal('modal-rsca-ssn-mismatch');
+      const r = _rscaSsnMismatchResolve; _rscaSsnMismatchResolve = null; r?.(choice);
+    };
+    document.getElementById('btn-rsca-ssn-mismatch-overwrite')?.addEventListener('click', () => resolveWith('overwrite'));
+    document.getElementById('btn-rsca-ssn-mismatch-cancel')?.addEventListener('click', () => resolveWith('cancel'));
+    document.getElementById('btn-rsca-ssn-mismatch-x')?.addEventListener('click', () => resolveWith('cancel'));
+  }
+  function askRscaSsnMismatchChoice(groupRsName, rscaRsName) {
+    const detail = document.getElementById('rsca-ssn-mismatch-detail');
+    if (detail) detail.innerHTML =
+      `Group's Reporting Senior: <strong>${escHtml(groupRsName||'(blank)')}</strong><br>RSCA profile's Reporting Senior: <strong>${escHtml(rscaRsName||'(blank)')}</strong>`;
+    showModal('modal-rsca-ssn-mismatch');
+    return new Promise(resolve => { _rscaSsnMismatchResolve = resolve; });
+  }
+
+  let _rscaImportPreviewResolve = null;
+  function bindRscaImportPreviewModalEvents() {
+    const resolveWith = choice => {
+      hideModal('modal-rsca-import-preview');
+      const r = _rscaImportPreviewResolve; _rscaImportPreviewResolve = null; r?.(choice);
+    };
+    document.getElementById('btn-rsca-import-preview-continue')?.addEventListener('click', () => resolveWith('continue'));
+    document.getElementById('btn-rsca-import-preview-cancel')?.addEventListener('click', () => resolveWith('cancel'));
+    document.getElementById('btn-rsca-import-preview-x')?.addEventListener('click', () => resolveWith('cancel'));
+  }
+  function askRscaImportPreviewChoice(candidates) {
+    const traitCols = ['b33','b34','b35','b36','b37','b38','b39'];
+    const table = document.getElementById('rsca-import-preview-table');
+    if (table) {
+      table.innerHTML = `<table class="summary-table">
+        <thead><tr><th>Name</th><th>SSN</th><th>Grade</th><th>End Date</th>${traitCols.map(c=>`<th style="text-align:center">${c.toUpperCase()}</th>`).join('')}</tr></thead>
+        <tbody>${candidates.map(r=>`<tr>
+          <td>${escHtml(r.name||'')}</td>
+          <td>${escHtml(DataModel.formatSSN(r.ssn||''))}</td>
+          <td>${escHtml(r.grade||'—')}</td>
+          <td>${escHtml(r.endDate||'')}</td>
+          ${traitCols.map(c=>`<td style="text-align:center">${escHtml(r[c]||'')||'—'}</td>`).join('')}
+        </tr>`).join('')}</tbody>
+      </table>`;
+    }
+    showModal('modal-rsca-import-preview');
+    return new Promise(resolve => { _rscaImportPreviewResolve = resolve; });
+  }
+
+  let _rscaDuplicateResolve = null;
+  function bindRscaDuplicateModalEvents() {
+    const resolveWith = choice => {
+      hideModal('modal-rsca-duplicate');
+      const r = _rscaDuplicateResolve; _rscaDuplicateResolve = null; r?.(choice);
+    };
+    document.getElementById('btn-rsca-duplicate-accept')?.addEventListener('click', () => resolveWith('accept'));
+    document.getElementById('btn-rsca-duplicate-cancel')?.addEventListener('click', () => resolveWith('cancel'));
+    document.getElementById('btn-rsca-duplicate-x')?.addEventListener('click', () => resolveWith('cancel'));
+  }
+  function askRscaDuplicateChoice(record) {
+    const detail = document.getElementById('rsca-duplicate-detail');
+    if (detail) detail.innerHTML =
+      `${escHtml(record.name||'')} · ${escHtml(DataModel.formatSSN(record.ssn||''))} · ${escHtml(record.grade||'')} · ${escHtml(record.endDate||'')}`;
+    showModal('modal-rsca-duplicate');
+    return new Promise(resolve => { _rscaDuplicateResolve = resolve; });
+  }
+
   // The #modal-help shell is reused for several unrelated purposes (Help &
   // Reference, accdb/XML import instructions, the XML record picker, the
   // multi-group selector) — each sets its own title here rather than always
@@ -10531,7 +11004,9 @@ const App = (() => {
     });
 
     // Item #1: Flag FITREP card removed from HTML modal — only 3 types
-    document.querySelectorAll('.eval-type-card').forEach(card => {
+    // Scoped to #modal-new-eval — the RSCA choice modal reuses the .eval-type-card
+    // class for its own sub-tiles but wires its own click handlers separately.
+    document.querySelectorAll('#modal-new-eval .eval-type-card').forEach(card => {
       card.addEventListener('click', () => {
         const type = card.dataset.type;
         hideModal('modal-new-eval');
@@ -10807,22 +11282,27 @@ const App = (() => {
     const errEl   = document.getElementById('passphrase-error');
     errEl.classList.add('hidden');
 
-    if (_passphraseMode === 'save') {
+    if (_passphraseMode === 'save' || _passphraseMode === 'rsca-save') {
       if (pass && pass !== confirm) {
         errEl.textContent = 'Passphrases do not match.';
         errEl.classList.remove('hidden');
         return;
       }
       hideModal('modal-passphrase');
-      doSaveFile(pass || null);
-    } else if (_passphraseMode === 'open') {
+      if (_passphraseMode === 'rsca-save') doSaveRscaFile(pass || null);
+      else doSaveFile(pass || null);
+    } else {
+      // 'open'-shaped modes: 'open', 'rsca-open', 'rsca-nfe-group', 'rsca-nfe-import'
       if (!pass) {
         errEl.textContent = 'A passphrase is required to open this file.';
         errEl.classList.remove('hidden');
         return;
       }
       hideModal('modal-passphrase');
-      doOpenFileWithPassphrase(pass);
+      if (_passphraseMode === 'rsca-open') doOpenRscaFileWithPassphrase(pass);
+      else if (_passphraseMode === 'rsca-nfe-group') doOpenRscaNfeGroupWithPassphrase(pass);
+      else if (_passphraseMode === 'rsca-nfe-import') doOpenRscaNfeImportWithPassphrase(pass);
+      else doOpenFileWithPassphrase(pass);
     }
   }
 
@@ -10909,6 +11389,451 @@ const App = (() => {
     if (btn) btn.disabled = !_currentFileHandle;
   }
 
+  // ── RSCA Management Tool ─────────────────────────────────────────
+
+  function bindRscaEvents() {
+    document.getElementById('btn-rsca-tool')?.addEventListener('click', () => showModal('modal-rsca-choice'));
+
+    document.getElementById('btn-rsca-create-new')?.addEventListener('click', () => {
+      hideModal('modal-rsca-choice');
+      _rscaFile = DataModel.createDefaultRscaFile();
+      resetRscaFileState();
+      _rscaDirty = false;
+      _rscaSelectedGrade = DataModel.PAYGRADES[0];
+      openRscaScreen();
+    });
+
+    document.getElementById('btn-rsca-open-existing')?.addEventListener('click', async () => {
+      hideModal('modal-rsca-choice');
+      if (HandleStore.isAvailable()) {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            types: [{ description: 'RSCA File', accept: { 'application/octet-stream': ['.rsca'] } }]
+          });
+          const file = await handle.getFile();
+          await openRscaFile(file, handle);
+        } catch (e) {
+          if (e.name === 'AbortError') return;
+          showToast('Error opening file: ' + e.message, 'error');
+        }
+        return;
+      }
+      document.getElementById('file-input-rsca-open').click();
+    });
+
+    document.getElementById('btn-rsca-back')?.addEventListener('click', () => {
+      if (_rscaDirty && !confirm('You have unsaved changes in this RSCA profile. Discard them and go back?')) return;
+      showScreen('screen-landing');
+    });
+
+    document.getElementById('btn-rsca-help')?.addEventListener('click', () => showRscaHelpDialog());
+
+    document.getElementById('btn-rsca-create-group-continue')?.addEventListener('click', () => {
+      hideModal('modal-rsca-create-group');
+      finishRscaCreateGroup();
+    });
+    document.getElementById('btn-rsca-create-group-cancel')?.addEventListener('click', () => hideModal('modal-rsca-create-group'));
+    document.getElementById('btn-rsca-create-group-x')?.addEventListener('click', () => hideModal('modal-rsca-create-group'));
+
+    document.getElementById('btn-rsca-add-record-save')?.addEventListener('click', () => {
+      const name = document.getElementById('rsca-add-name').value.trim();
+      const ssn = DataModel.cleanSSN(document.getElementById('rsca-add-ssn').value);
+      const grade = document.getElementById('rsca-add-grade').value;
+      const endDate = document.getElementById('rsca-add-enddate').value.trim();
+      if (!name || !ssn) { showToast('Name and SSN are required.', 'error'); return; }
+      const record = { name, ssn, grade, endDate };
+      ['b33','b34','b35','b36','b37','b38','b39'].forEach(f => {
+        record[f] = document.getElementById(`rsca-add-${f}`).value || '';
+      });
+      _rscaFile.records.push(record);
+      _rscaDirty = true;
+      hideModal('modal-rsca-add-record');
+      renderRscaMain();
+    });
+  }
+
+  // Buttons live inside the re-rendered RSCA content (not the static toolbar),
+  // so they're wired fresh on every renderRscaMain() call rather than once from init().
+  function bindRscaActionButtons() {
+    document.getElementById('btn-rsca-save-as')?.addEventListener('click', () => promptSaveRscaFile());
+
+    document.getElementById('btn-rsca-new-group')?.addEventListener('click', () => {
+      _rscaSaveThenAction = 'create-group';
+      promptSaveRscaFile();
+    });
+    document.getElementById('btn-rsca-open-group')?.addEventListener('click', () => {
+      _rscaSaveThenAction = 'open-group';
+      promptSaveRscaFile();
+    });
+
+    document.getElementById('btn-rsca-import-nfe')?.addEventListener('click', () => {
+      document.getElementById('file-input-rsca-nfe-import').click();
+    });
+
+    document.getElementById('btn-rsca-add-record')?.addEventListener('click', () => {
+      renderRscaAddRecordFields();
+      showModal('modal-rsca-add-record');
+    });
+  }
+
+  function renderRscaAddRecordFields() {
+    const el = document.getElementById('rsca-add-record-fields');
+    if (!el) return;
+    const traitFields = ['b33','b34','b35','b36','b37','b38','b39'];
+    const gradeOpts = ['NOB','1.0','2.0','3.0','4.0','5.0'];
+    el.innerHTML = `
+      <div class="field-row field-row-3">
+        <div class="field-group">
+          <label class="field-label">Name</label>
+          <input type="text" class="field-input" id="rsca-add-name" placeholder="LNAME, F M" maxlength="27">
+        </div>
+        <div class="field-group">
+          <label class="field-label">SSN</label>
+          <input type="text" class="field-input" id="rsca-add-ssn" placeholder="XXXXXXXXX" maxlength="11">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Grade</label>
+          <select class="field-input field-select" id="rsca-add-grade">
+            ${DataModel.PAYGRADES.map(g => `<option value="${g}" ${g===_rscaSelectedGrade?'selected':''}>${g}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field-row field-row-3">
+        <div class="field-group">
+          <label class="field-label">End Date</label>
+          <input type="text" class="field-input" id="rsca-add-enddate" placeholder="YYMMMDD">
+        </div>
+      </div>
+      <div class="section-label" style="margin:16px 0 8px">Trait Grades (B33–B39)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        ${traitFields.map(f => `
+          <div class="field-group" style="width:70px">
+            <label class="field-label" style="font-size:10px">${f.toUpperCase()}</label>
+            <select class="field-input field-select" id="rsca-add-${f}" style="padding:4px">
+              <option value="">—</option>
+              ${gradeOpts.map(g => `<option value="${g}">${g}</option>`).join('')}
+            </select>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function openRscaScreen() {
+    if (!_rscaFile) return;
+    renderRscaMain();
+    const fnEl = document.getElementById('rsca-filename');
+    if (fnEl) fnEl.textContent = (_currentRscaFile || 'Untitled').replace(/\.rsca$/i,'');
+    showScreen('screen-rsca');
+  }
+
+  function renderRscaMain() {
+    const main = document.getElementById('rsca-main');
+    if (!main) return;
+    main.innerHTML = FormRenderer.renderRscaScreen(_rscaFile, _rscaSelectedGrade);
+    FormRenderer.bindRscaScreen(_rscaFile, _rscaSelectedGrade,
+      grade => { _rscaSelectedGrade = grade; _rscaDirty = true; renderRscaMain(); },
+      () => { _rscaDirty = true; }
+    );
+    bindRscaActionButtons();
+  }
+
+  async function openRscaFile(file, handle = null) {
+    try {
+      const content = await NavEvalCrypto.readFile(file);
+      const result = NavEvalCrypto.decrypt(content, null);
+      if (result.error === 'PASSPHRASE_REQUIRED') {
+        _pendingFile = { content, filename: file.name };
+        _pendingFileHandle = handle;
+        _passphraseMode = 'rsca-open';
+        document.getElementById('passphrase-title').textContent = 'RSCA File is Passphrase Protected';
+        document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
+        document.getElementById('passphrase-confirm-group').style.display = 'none';
+        document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-input').value = '';
+        showModal('modal-passphrase');
+        return;
+      }
+      if (!result.ok) { showToast('Cannot open: ' + result.error, 'error'); return; }
+      loadRscaFile(result.data, file.name, handle, null);
+    } catch(e) { showToast('Error reading RSCA file: ' + e.message, 'error'); }
+  }
+
+  function doOpenRscaFileWithPassphrase(passphrase) {
+    if (!_pendingFile) return;
+    const result = NavEvalCrypto.decrypt(_pendingFile.content, passphrase);
+    if (!result.ok) { showToast('Incorrect passphrase.', 'error'); _pendingFile = null; _pendingFileHandle = null; return; }
+    loadRscaFile(result.data, _pendingFile.filename, _pendingFileHandle, passphrase);
+    _pendingFile = null; _pendingFileHandle = null;
+  }
+
+  function loadRscaFile(data, filename, handle, passphrase) {
+    if (!data || !data._rsca) { showToast('Unrecognized RSCA file format.', 'error'); return; }
+    _rscaFile = data;
+    _currentRscaFile = filename;
+    _rscaSessionPassphrase = passphrase;
+    _rscaDirty = false;
+    _rscaSelectedGrade = DataModel.PAYGRADES[0];
+    openRscaScreen();
+    showToast(`Opened: ${filename}`, 'success');
+  }
+
+  function promptSaveRscaFile() {
+    if (!_rscaFile) return;
+    if (!(_rscaFile.rsName || '').trim() || !(_rscaFile.rsSSN || '').trim()) {
+      showToast('RS Name and RS SSN are required before saving an RSCA profile.', 'error');
+      return;
+    }
+    _passphraseMode = 'rsca-save';
+    document.getElementById('passphrase-title').textContent = 'Save & Encrypt RSCA File';
+    document.getElementById('passphrase-desc').textContent =
+      'Your file will be AES-256 encrypted. Add an optional passphrase for additional protection, or leave blank for standard encryption.';
+    document.getElementById('passphrase-confirm-group').style.display = '';
+    document.getElementById('passphrase-error').classList.add('hidden');
+    document.getElementById('passphrase-input').value = '';
+    document.getElementById('passphrase-confirm').value = '';
+    showModal('modal-passphrase');
+    setTimeout(() => document.getElementById('passphrase-input').focus(), 100);
+  }
+
+  async function doSaveRscaFile(passphrase) {
+    if (!_rscaFile) return;
+    const suggested = _currentRscaFile || DataModel.buildRscaFilename(_rscaFile);
+    let saved = false;
+
+    if (HandleStore.isAvailable()) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested,
+          types: [{ description: 'RSCA File', accept: { 'application/octet-stream': ['.rsca'] } }]
+        });
+        const content  = NavEvalCrypto.encrypt(_rscaFile, passphrase);
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+
+        _currentRscaFile = handle.name;
+        _rscaSessionPassphrase = passphrase;
+        _rscaDirty = false;
+        const fnEl = document.getElementById('rsca-filename');
+        if (fnEl) fnEl.textContent = handle.name.replace(/\.rsca$/i,'');
+        showToast('RSCA file saved.', 'success');
+        saved = true;
+      } catch (e) {
+        if (e.name !== 'AbortError') showToast('Error saving: ' + e.message, 'error');
+      }
+    } else {
+      // Fallback: classic blob download (non-Chromium) — no reusable handle
+      try {
+        const content = NavEvalCrypto.encrypt(_rscaFile, passphrase);
+        const blob = new Blob([content], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement('a'), { href: url, download: suggested });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        _currentRscaFile = suggested; _rscaSessionPassphrase = null;
+        _rscaDirty = false;
+        const fnEl = document.getElementById('rsca-filename');
+        if (fnEl) fnEl.textContent = suggested.replace(/\.rsca$/i,'');
+        showToast('RSCA file saved.', 'success');
+        saved = true;
+      } catch(e) {
+        showToast('Error saving: ' + e.message, 'error');
+      }
+    }
+
+    if (saved && _rscaSaveThenAction) { const a = _rscaSaveThenAction; _rscaSaveThenAction = null; proceedRscaSaveThenAction(a); }
+    else if (!saved) _rscaSaveThenAction = null;
+  }
+
+  function proceedRscaSaveThenAction(action) {
+    if (action === 'create-group') startRscaCreateGroupFlow();
+    else if (action === 'open-group') startRscaOpenGroupFlow();
+  }
+
+  function startRscaCreateGroupFlow() {
+    const detail = document.getElementById('rsca-create-group-detail');
+    if (detail) detail.textContent = `A new summary group will be created with the currently shown grade (${_rscaSelectedGrade}).`;
+    showModal('modal-rsca-create-group');
+  }
+
+  function finishRscaCreateGroup() {
+    const reportType = DataModel.paygradeToReportType(_rscaSelectedGrade);
+    if (!reportType) { showToast(`No report type mapping for grade ${_rscaSelectedGrade}.`, 'error'); return; }
+    const stats = DataModel.computeRscaStatsForGrade(_rscaFile, _rscaSelectedGrade);
+
+    _group = DataModel.createDefaultGroup(reportType);
+    _group.rscaHistCount = stats.histCount;
+    _group.rscaHistSum = stats.histSum;
+    _group.rsInfo.b22 = _rscaFile.rsName || '';
+    _group.rsInfo.b27 = _rscaFile.rsSSN || '';
+    _group.reports[0].blocks.b22 = _rscaFile.rsName || '';
+    _group.reports[0].blocks.b27 = _rscaFile.rsSSN || '';
+
+    resetFileState();
+    openEditor();
+    showToast(`New ${reportType} group created from RSCA profile (${_rscaSelectedGrade}).`, 'success');
+  }
+
+  // Pulls Name/SSN/Grade/EndDate/B33-39 out of every report in a decrypted
+  // .nfe group, for the "Import .NFE file data to this RSCA" flow. Grade is
+  // derived the same report-type-aware way as periodic-date validation:
+  // FITREP uses rank abbreviations (rateToPaygrade); EVAL/CHIEFEVAL use the
+  // rate's final-character suffix (rateSuffixToPaygrade). Reports whose
+  // grade can't be determined are skipped (can't be filtered/found later).
+  function extractRscaCandidatesFromGroup(group) {
+    const candidates = [];
+    let skipped = 0;
+    (group.reports || []).forEach(r => {
+      const rt = r.reportType;
+      const bl = r.blocks || {};
+      const grade = rt === 'FITREP' ? DataModel.rateToPaygrade(bl.b2) : DataModel.rateSuffixToPaygrade(bl.b2);
+      if (!grade) { skipped++; return; }
+      const record = { name: bl.b1 || '', ssn: DataModel.cleanSSN(bl.b4 || ''), grade, endDate: bl.b15 || '' };
+      const traits = DataModel.getTraitsForType(rt);
+      const store = rt === 'CHIEFEVAL' ? r.traitGrades : r.traits;
+      traits.forEach(t => { record[t.block.toLowerCase()] = store?.[t.key] || ''; });
+      candidates.push(record);
+    });
+    return { candidates, skipped };
+  }
+
+  async function openRscaNfeImport(file) {
+    try {
+      const content = await NavEvalCrypto.readFile(file);
+      const result = NavEvalCrypto.decrypt(content, null);
+      if (result.error === 'PASSPHRASE_REQUIRED') {
+        _pendingFile = { content, filename: file.name };
+        _pendingFileHandle = null;
+        _passphraseMode = 'rsca-nfe-import';
+        document.getElementById('passphrase-title').textContent = 'File is Passphrase Protected';
+        document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
+        document.getElementById('passphrase-confirm-group').style.display = 'none';
+        document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-input').value = '';
+        showModal('modal-passphrase');
+        return;
+      }
+      if (!result.ok) { showToast('Cannot open: ' + result.error, 'error'); return; }
+      await startRscaImportFromGroup(result.data);
+    } catch(e) { showToast('Error reading file: ' + e.message, 'error'); }
+  }
+
+  async function doOpenRscaNfeImportWithPassphrase(passphrase) {
+    if (!_pendingFile) return;
+    const result = NavEvalCrypto.decrypt(_pendingFile.content, passphrase);
+    if (!result.ok) { showToast('Incorrect passphrase.', 'error'); _pendingFile = null; _pendingFileHandle = null; return; }
+    const data = result.data;
+    _pendingFile = null; _pendingFileHandle = null;
+    await startRscaImportFromGroup(data);
+  }
+
+  async function startRscaImportFromGroup(data) {
+    if (!data || !data.reports) { showToast('Unrecognized group file format.', 'error'); return; }
+    const { candidates, skipped } = extractRscaCandidatesFromGroup(data);
+    if (!candidates.length) { showToast('No importable records found in this file.', 'warn'); return; }
+    if (skipped) showToast(`${skipped} report(s) skipped — could not determine paygrade from Block 2.`, 'warn');
+
+    const choice = await askRscaImportPreviewChoice(candidates);
+    if (choice !== 'continue') return;
+
+    // Sequential, one duplicate prompt at a time — cancelling any one aborts
+    // the whole batch (no partial commit), per spec.
+    const staged = [];
+    for (const candidate of candidates) {
+      const isDup = (_rscaFile.records || []).some(r =>
+        r.name === candidate.name && r.ssn === candidate.ssn && r.grade === candidate.grade && r.endDate === candidate.endDate
+      );
+      if (isDup) {
+        const dupChoice = await askRscaDuplicateChoice(candidate);
+        if (dupChoice !== 'accept') { showToast('Import cancelled.', 'info'); return; }
+      }
+      staged.push(candidate);
+    }
+
+    _rscaFile.records.push(...staged);
+    _rscaDirty = true;
+    renderRscaMain();
+    showToast(`Added ${staged.length} record(s) to this RSCA profile.`, 'success');
+  }
+
+  function startRscaOpenGroupFlow() {
+    document.getElementById('file-input-rsca-nfe-group').click();
+  }
+
+  async function openRscaNfeGroup(file) {
+    try {
+      const content = await NavEvalCrypto.readFile(file);
+      const result = NavEvalCrypto.decrypt(content, null);
+      if (result.error === 'PASSPHRASE_REQUIRED') {
+        _pendingFile = { content, filename: file.name };
+        _pendingFileHandle = null;
+        _passphraseMode = 'rsca-nfe-group';
+        document.getElementById('passphrase-title').textContent = 'File is Passphrase Protected';
+        document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
+        document.getElementById('passphrase-confirm-group').style.display = 'none';
+        document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-input').value = '';
+        showModal('modal-passphrase');
+        return;
+      }
+      if (!result.ok) { showToast('Cannot open: ' + result.error, 'error'); return; }
+      await finishRscaOpenGroup(result.data, file.name);
+    } catch(e) { showToast('Error reading file: ' + e.message, 'error'); }
+  }
+
+  async function doOpenRscaNfeGroupWithPassphrase(passphrase) {
+    if (!_pendingFile) return;
+    const result = NavEvalCrypto.decrypt(_pendingFile.content, passphrase);
+    if (!result.ok) { showToast('Incorrect passphrase.', 'error'); _pendingFile = null; _pendingFileHandle = null; return; }
+    const filename = _pendingFile.filename;
+    _pendingFile = null; _pendingFileHandle = null;
+    await finishRscaOpenGroup(result.data, filename);
+  }
+
+  // Opens an .nfe group for "Save RSCA, Open Existing Summary Group" —
+  // compares the group's Reporting Senior SSN against this RSCA profile's;
+  // on mismatch, asks whether to overwrite the group's RS identity with the
+  // RSCA profile's before continuing (or cancel and return, group unopened).
+  // Either way, populates Historical Trait Grade Count/Sum for the
+  // currently-selected grade, then hands off to the editor like normal.
+  async function finishRscaOpenGroup(data, filename) {
+    let group;
+    if (data && data._naveval && data.reports) {
+      group = data;
+    } else if (data && data.reportType) {
+      group = DataModel.createDefaultGroup(data.reportType);
+      group.reports = [{ ...DataModel.createDefaultReport(data.reportType), ...data }];
+    } else {
+      showToast('Unrecognized file format.', 'error');
+      return;
+    }
+
+    const groupSsn = DataModel.cleanSSN(group.rsInfo?.b27 || group.reports[0]?.blocks?.b27 || '');
+    const rscaSsn = DataModel.cleanSSN(_rscaFile.rsSSN || '');
+
+    if (groupSsn !== rscaSsn) {
+      const groupRsName = group.rsInfo?.b22 || group.reports[0]?.blocks?.b22 || '';
+      const choice = await askRscaSsnMismatchChoice(groupRsName, _rscaFile.rsName);
+      if (choice !== 'overwrite') { showToast('Returned to RSCA screen — group not opened.', 'info'); return; }
+      if (!group.rsInfo) group.rsInfo = {};
+      group.rsInfo.b22 = _rscaFile.rsName || '';
+      group.rsInfo.b27 = _rscaFile.rsSSN || '';
+      group.reports.forEach(r => { r.blocks.b22 = _rscaFile.rsName || ''; r.blocks.b27 = _rscaFile.rsSSN || ''; });
+    }
+
+    const stats = DataModel.computeRscaStatsForGrade(_rscaFile, _rscaSelectedGrade);
+    group.rscaHistCount = stats.histCount;
+    group.rscaHistSum = stats.histSum;
+
+    _group = group;
+    _currentFile = filename;
+    _currentFileHandle = null;
+    _sessionPassphrase = null;
+    _currentHandleId = null;
+    DataModel.normalizePromotionStatus(_group);
+    openEditor();
+    showToast(`Opened: ${filename}`, 'success');
+  }
+
   function bindFileInputEvents() {
     document.getElementById('file-input-open')?.addEventListener('change', async e => {
       const file = e.target.files[0]; if (!file) return; e.target.value = '';
@@ -10927,6 +11852,21 @@ const App = (() => {
     document.getElementById('file-input-xml')?.addEventListener('change', async e => {
       const file = e.target.files[0]; if (!file) return; e.target.value = '';
       await importNavfitXML(file);
+    });
+    // RSCA: Open Existing RSCA Profile (non-Chromium fallback)
+    document.getElementById('file-input-rsca-open')?.addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return; e.target.value = '';
+      await openRscaFile(file);
+    });
+    // RSCA: Save RSCA, Open Existing Summary Group
+    document.getElementById('file-input-rsca-nfe-group')?.addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return; e.target.value = '';
+      await openRscaNfeGroup(file);
+    });
+    // RSCA: Import .NFE file data to this RSCA
+    document.getElementById('file-input-rsca-nfe-import')?.addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return; e.target.value = '';
+      await openRscaNfeImport(file);
     });
   }
 
@@ -11288,6 +12228,17 @@ const App = (() => {
       document.getElementById('file-input-accdb').click();
     });
 
+    showModal('modal-help');
+  }
+
+  function showRscaHelpDialog() {
+    const helpEl = document.getElementById('help-content');
+    if (!helpEl) return;
+    setModalHelpTitle('Reporting Senior’s Cumulative Average (RSCA)');
+    helpEl.innerHTML = `
+      <p>In the Navy performance evaluation system, Sailors typically compete against their immediate peers, usually those in the same grade and competitive category in a single command. By expanding the scope of comparison to ALL reports signed by a particular Reporting Senior, Navy selection boards and enlisted advancement processes gain an additional data point in the pursuit of identifying and promoting the top-performers to the next paygrade. The Navy accomplishes this expanded comparison through Reporting Senior's Cumulative Average, or RSCA.</p>
+      <p>RSCA is an average of all trait scores that a Reporting Senior has ever given. A separate RSCA is calculated for each paygrade, continuing for as long as that reporting senior signs reports.</p>
+      <p>Reporting Seniors are responsible for properly managing their RSCA. Reporting Seniors and properly designated administrative staff can obtain official NAVPERSCOM-tracked RSCAs at <a href="https://www.bol.navy.mil" target="_blank" rel="noopener noreferrer" style="color:var(--amber-600)">https://www.bol.navy.mil</a>.</p>`;
     showModal('modal-help');
   }
 
