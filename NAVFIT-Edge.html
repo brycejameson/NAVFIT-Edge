@@ -10220,17 +10220,31 @@ const XmlImporter = (() => {
     } catch { return ''; }
   }
 
-  // ── Trait grade: int → "X.0" string, or null ──────────────────
+  // ── Trait grade: int → "X.0" string, 'NOB', or null ────────────
+  // NAVFIT98A stores "Not Observed" trait grades as 0, distinct from a
+  // blank/missing field (empty string parses to NaN). Collapsing both to
+  // null here would silently drop NOB marks on import.
   function mapGrade(intVal) {
-    const n = parseInt(intVal);
-    if (!n || n < 1 || n > 5) return null;
+    const n = parseInt(intVal, 10);
+    if (isNaN(n)) return null;
+    if (n === 0) return 'NOB';
+    if (n < 1 || n > 5) return null;
     return `${n}.0`;
   }
 
   // ── Helper: get text content of first matching element ─────────
+  // Access/NAVFIT98A XML exports sometimes encode embedded line breaks in
+  // memo fields as numeric character references (&#13; / &#13;&#10;) rather
+  // than literal CR/LF bytes. Per the XML spec, the parser's line-ending
+  // normalization (CRLF/lone-CR → LF) only applies to literal bytes in the
+  // raw source, not to characters produced by expanding character
+  // references — so a &#13;-encoded break survives parsing as a bare \r,
+  // which every downstream line-wrap function (which only splits on '\n')
+  // is blind to. Normalize here, once, so '\n' is the only line-break byte
+  // from this point on.
   function txt(el, tagName) {
     const node = el.querySelector(tagName);
-    return node ? (node.textContent || '').trim() : '';
+    return node ? (node.textContent || '').replace(/\r\n?/g, '\n').trim() : '';
   }
 
   function bool(el, tagName) {
