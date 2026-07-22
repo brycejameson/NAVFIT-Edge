@@ -2303,7 +2303,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.5.0';
+const NAVFIT_EDGE_VERSION = '0.5.1';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -4504,7 +4504,7 @@ const FormRenderer = (() => {
       <div class="checkbox-group">
         ${cb('b10','10. Periodic',b.b10,'blocks','b10')}
         ${cb('b11','11. Detachment of Individual',b.b11,'blocks','b11')}
-        ${cb('b12',rt==='FITREP'?'12. Detachment of RS':'12. Frocking',b.b12,'blocks','b12')}
+        ${cb('b12',rt==='EVAL'?'12. Frocking':'12. Detachment of Reporting Senior',b.b12,'blocks','b12')}
         ${cb('b13','13. Special',b.b13,'blocks','b13')}
       </div>
     </div>
@@ -7475,10 +7475,10 @@ const PDFGenerator = (() => {
     [31.56,  703.0, "Occasion for Report", 8],
     [370.68, 703.0, "Period of Report", 8],
     [119.4,  699.0, "Detachment", 8],                   // "Detachment of Individual" sub-label
-    [215.88, 699.0, "Promotion/", 8],                   // "Promotion/Frocking" sub-label
+    [201,    699.0, "Detachment of", 8],            // "Detachment of Reporting Senior" (CHIEFEVAL shares this wording)
     [31.56,  689.0, "10. Periodic", 8],
     [106,  689.0, "11. of Individual", 8],
-    [201,  689.0, "12. Frocking", 8],
+    [190,  689.0, "12. Reporting Senior", 8],
     [299,  689.0, "13. Special", 8],
     [370.68,  689.0, "14. From:", 8],
     [477.18, 689.0, "15. To:", 8],
