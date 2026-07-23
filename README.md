@@ -56,7 +56,7 @@ _HTML5/CSS/Javascript._
 _Yes.  A copy of NAVFIT-Edge requires no internet connection.  Just Windows and a browser like Microsoft Edge or Google Chrome._ 
 
 ### Is it safe to type CUI into this?
-_Yes.  NAVFIT-Edge opens and runs in your browser and saves summary groups wherever you tell Windows to save them, such as My Documents, your OneDrive, your shared drive, or whatever you want.  The saved files (not the PDFs) are SHA-256 encrypted (DOW standard) and only readable using NAVFIT-Edge.  You can also add protection using an optional encrypted passphrase, similar to the way SAFE works for file dropoffs._
+_Yes.  NAVFIT-Edge opens and runs in your browser and saves summary groups wherever you tell Windows to save them, such as My Documents, your OneDrive, your shared drive, or whatever you want.  The saved files (not the PDFs) are SHA-512 encrypted and only readable using NAVFIT-Edge.  You can also add protection using an optional encrypted passphrase, similar to the way SAFE works for file dropoffs._
 
 ### I can't remember my passphrase!  Is there a backdoor to get my file open?
 _Nope, sorry about that._
