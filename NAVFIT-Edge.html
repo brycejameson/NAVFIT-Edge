@@ -355,6 +355,31 @@ input, textarea, select { font-family: inherit; }
   margin-bottom: var(--sp-4);
 }
 
+.section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-label-row .section-label { margin-bottom: var(--sp-4); }
+
+.btn-clear-recent {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: var(--sp-4);
+  transition: color 0.1s;
+}
+
+.btn-clear-recent:hover { color: var(--amber-600); }
+.btn-clear-recent.hidden { display: none; }
+
 .recent-list {
   display: flex;
   flex-direction: column;
@@ -1938,7 +1963,10 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
         </button>
       </div>
       <div class="recent-files">
-        <h3 class="section-label">Recent Files</h3>
+        <div class="section-label-row">
+          <h3 class="section-label">Recent Files</h3>
+          <button type="button" class="btn-clear-recent" id="btn-clear-recent">Clear</button>
+        </div>
         <div class="recent-list" id="recent-list"><p class="no-recent">No recent files.</p></div>
       </div>
     </main>
@@ -11022,6 +11050,7 @@ const App = (() => {
       document.getElementById('file-input-open').click();
     });
     document.getElementById('btn-import-accdb')?.addEventListener('click', showImportAccdbDialog);
+    document.getElementById('btn-clear-recent')?.addEventListener('click', clearRecentFiles);
     document.getElementById('btn-help')?.addEventListener('click', e => {
       e.preventDefault(); renderHelpContent(); showModal('modal-help');
     });
@@ -12279,10 +12308,23 @@ const App = (() => {
     try { return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]'); } catch { return []; }
   }
 
+  function clearRecentFiles() {
+    const recent = getRecentFiles();
+    if (!recent.length) return;
+    if (!confirm('Clear the list of recent files? This does not delete the files themselves.')) return;
+    if (HandleStore.isAvailable()) {
+      recent.forEach(r => { if (r.handleId) HandleStore.delete(r.handleId).catch(()=>{}); });
+    }
+    try { localStorage.removeItem(RECENT_KEY); } catch{}
+    loadRecentFiles();
+  }
+
   function loadRecentFiles() {
     const list = document.getElementById('recent-list');
     if (!list) return;
     const recent = getRecentFiles();
+    const clearBtn = document.getElementById('btn-clear-recent');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !recent.length);
     if (!recent.length) {
       list.innerHTML = '<p class="no-recent">No recent files.</p>';
       return;
