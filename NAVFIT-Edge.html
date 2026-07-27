@@ -1616,7 +1616,7 @@ input, textarea, select { font-family: inherit; }
   padding-bottom: var(--sp-2);
 }
 
-.help-content p { margin-bottom: var(--sp-3); color: var(--gray-700); }
+.help-content p { margin-bottom: var(--sp-3); color: var(--surface-text); }
 
 .help-content code {
   font-family: var(--font-mono);
@@ -12254,11 +12254,11 @@ const App = (() => {
     if (!helpEl) return;
     setModalHelpTitle('Importing from NAVFIT98A');
     helpEl.innerHTML = `
-      <p style="margin-bottom:16px;color:var(--gray-700);line-height:1.6">
+      <p style="margin-bottom:16px;color:var(--surface-text);line-height:1.6">
         NAVFIT-Edge imports from the XML export format produced by Microsoft Access .accdb files, the NAVFIT98A storage format.
         Follow these steps to export that data:
       </p>
-      <ol style="margin:0 0 20px 20px;color:var(--gray-700);line-height:2;font-size:13px">
+      <ol style="margin:0 0 20px 20px;color:var(--surface-text);line-height:2;font-size:13px">
         <li>Open the .accdb file containing NAVFIT98A data using Microsoft Access and select \"Reports\"</li>
         <li>From the menu, select <strong>External Data → More (in the Export section) → XML File</strong>.</li>
         <li>Accept the default filename or choose a path for (<code>Reports.xml</code>) and click <strong>OK</strong>.</li>
@@ -12569,7 +12569,7 @@ const App = (() => {
     }).join('');
 
     helpEl.innerHTML = `
-      <p style="margin-bottom:16px;color:var(--gray-600);font-size:13px">
+      <p style="margin-bottom:16px;color:var(--surface-text-muted);font-size:13px">
         ${groups.length} folder group(s) found. Select a group to open:
       </p>
       ${warnings.length ? `<div class="info-card" style="margin-bottom:12px">⚠ ${warnings.length} import warning(s). Check console for details.</div>` : ''}
