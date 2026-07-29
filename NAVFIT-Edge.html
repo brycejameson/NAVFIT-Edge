@@ -441,6 +441,24 @@ input, textarea, select { font-family: inherit; }
 .app-footer a:hover { text-decoration: underline; }
 .app-footer span:first-child { margin-right: auto; }
 
+/* ── Update Banner ── */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-8);
+  background: var(--amber-500);
+  color: var(--navy-900);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+.update-banner a { color: var(--navy-900); font-weight: 700; text-decoration: underline; }
+.update-banner.hidden { display: none; }
+
 /* ── Modals ── */
 .modal {
   position: fixed;
@@ -1776,6 +1794,13 @@ input, textarea, select { font-family: inherit; }
   overflow-y: auto;
   padding: var(--sp-3);
 }
+.rlist-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
 .rlist-label {
   font-family: var(--font-mono);
   font-size: 9px;
@@ -1783,8 +1808,20 @@ input, textarea, select { font-family: inherit; }
   text-transform: uppercase;
   color: var(--navy-400);
   padding: 0 var(--sp-2);
-  margin-bottom: var(--sp-2);
 }
+.rlist-header-row .rlist-label { margin-bottom: 0; }
+.rlist-sort-select {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--navy-200);
+  background: var(--navy-700);
+  border: 1px solid var(--navy-500);
+  border-radius: var(--radius-sm);
+  padding: 2px 3px;
+  cursor: pointer;
+  max-width: 88px;
+}
+.rlist-sort-select:hover { border-color: var(--amber-400); }
 .rlist-item {
   display: flex;
   flex-direction: column;
@@ -1927,6 +1964,10 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 
   <!-- ── Landing ── -->
   <div id="screen-landing" class="screen active">
+    <div id="update-banner" class="update-banner hidden">
+      <span>↑ A new version of NAVFIT-Edge is available.</span>
+      <a href="#" id="update-banner-link" target="_blank" rel="noopener">View update →</a>
+    </div>
     <header class="app-header">
       <div class="header-brand">
         <span class="brand-mark">▮</span>
@@ -1971,7 +2012,6 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
       </div>
     </main>
     <footer class="app-footer">
-      <span>Verify this app is up to date <a href="https://github.com/brycejameson/NAVFIT-Edge" target="_blank" rel="noopener">here</a>.</span>
       <span>Data never leaves your machine</span>
       <a href="#" id="btn-help">Help &amp; Reference</a>
     </footer>
@@ -2340,7 +2380,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.5.2';
+const NAVFIT_EDGE_VERSION = '0.5.3';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3701,8 +3741,17 @@ const FormRenderer = (() => {
   function renderReportList() {
     const sidebar=document.getElementById('report-list-sidebar');
     if (!sidebar) return;
+    const sortOrder=_group.sortOrder||'rank-asc';
     sidebar.innerHTML=`
-      <div class="rlist-label">Reports in Group</div>
+      <div class="rlist-header-row">
+        <div class="rlist-label">Reports in Group</div>
+        <select class="rlist-sort-select" id="rlist-sort-select" title="Sort reports">
+          <option value="rank-asc"${sortOrder==='rank-asc'?' selected':''}>Rank ↑</option>
+          <option value="rank-desc"${sortOrder==='rank-desc'?' selected':''}>Rank ↓</option>
+          <option value="alpha-asc"${sortOrder==='alpha-asc'?' selected':''}>Name A→Z</option>
+          <option value="alpha-desc"${sortOrder==='alpha-desc'?' selected':''}>Name Z→A</option>
+        </select>
+      </div>
       ${(_group.reports||[]).map((r,i)=>{
         const lastName=(r.blocks?.b1||'').split(',')[0].trim()||`Report ${i+1}`;
         const active=i===(_group.activeIndex||0);
@@ -3717,6 +3766,27 @@ const FormRenderer = (() => {
 
     sidebar.querySelectorAll('.rlist-item[data-idx]').forEach(el=>{
       el.addEventListener('click', e=>{ if(!e.target.classList.contains('rlist-delete')) setActiveReport(parseInt(el.dataset.idx)); });
+    });
+    // Sort control — re-orders _group.reports in place while keeping the
+    // currently-open report active (unlike Grade Review's sort, which
+    // resets to index 0 since it isn't mid-edit on a specific report).
+    document.getElementById('rlist-sort-select')?.addEventListener('change', e=>{
+      const order=e.target.value;
+      const current=_group.reports[_group.activeIndex||0];
+      _group.sortOrder=order;
+      _group.reports.sort((a,b)=>{
+        if (order==='rank-asc'||order==='rank-desc') {
+          const ra=parseInt(a.summaryGroup?.memberRank)||9999;
+          const rb=parseInt(b.summaryGroup?.memberRank)||9999;
+          return order==='rank-asc'?ra-rb:rb-ra;
+        }
+        const na=(a.blocks?.b1||'').toLowerCase();
+        const nb=(b.blocks?.b1||'').toLowerCase();
+        return order==='alpha-asc'?na.localeCompare(nb):nb.localeCompare(na);
+      });
+      _group.activeIndex=Math.max(0,_group.reports.indexOf(current));
+      renderReportList();
+      notifyChange();
     });
     // #3: Delete report
     sidebar.querySelectorAll('.rlist-delete').forEach(btn=>{
@@ -4500,8 +4570,9 @@ const FormRenderer = (() => {
 
     return `
     <div class="section-title">Administrative Blocks</div>
-    <!-- TEMPORARY — remove before v1.0 -->
+    <!-- TEMPORARY — remove before v1.0. Commented out for release builds; re-enable by removing this comment wrapper until v1.0.0 ships.
     <button type="button" id="btn-fill-test-data" class="btn-secondary" style="margin-bottom:16px">${report._testDataFilled?'Restore Original Data':'Fill Test Data'}</button>
+    -->
     ${divider('Member Information')}
     <div class="field-row field-row-3">
       ${fld('b1','B1 · Member Name','text',b.b1,'LAST, FIRST MI SUFFIX','blocks','b1',27)}
@@ -10902,6 +10973,7 @@ const App = (() => {
     bindRscaEvents();
     bindFileInputEvents();
     loadRecentFiles();
+    checkForUpdate();
     // Quicksave can truly never work without the File System Access API —
     // hide it entirely rather than leave a permanently-greyed-out button.
     if (!HandleStore.isAvailable()) {
@@ -12368,18 +12440,64 @@ const App = (() => {
     });
   }
 
+  // ── Update Check ───────────────────────────────────────────────
+
+  const UPDATE_CHECK_KEY = 'navfitedge_update_check_v1';
+  const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+  async function checkForUpdate() {
+    let cache = null;
+    try { cache = JSON.parse(localStorage.getItem(UPDATE_CHECK_KEY) || 'null'); } catch {}
+    if (cache?.checkedAt && (Date.now() - new Date(cache.checkedAt).getTime()) < UPDATE_CHECK_INTERVAL_MS) {
+      renderUpdateBanner(cache.latestVersion);
+      return;
+    }
+    let latestVersion = null;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('https://api.github.com/repos/brycejameson/NAVFIT-Edge/tags', { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) return;
+      const tags = await res.json();
+      for (const t of tags) {
+        const m = /^v?(\d+\.\d+\.\d+)$/.exec(t.name || '');
+        if (m && (!latestVersion || compareVersions(m[1], latestVersion) > 0)) latestVersion = m[1];
+      }
+    } catch { return; } // offline / network error / aborted — do nothing, retry next load
+    if (!latestVersion) return;
+    try { localStorage.setItem(UPDATE_CHECK_KEY, JSON.stringify({ checkedAt: new Date().toISOString(), latestVersion })); } catch{}
+    renderUpdateBanner(latestVersion);
+  }
+
+  function renderUpdateBanner(latestVersion) {
+    const banner = document.getElementById('update-banner');
+    if (!banner) return;
+    if (latestVersion && compareVersions(latestVersion, NAVFIT_EDGE_VERSION) > 0) {
+      const link = document.getElementById('update-banner-link');
+      if (link) {
+        link.href = `https://github.com/brycejameson/NAVFIT-Edge/releases/tag/v${latestVersion}`;
+        link.textContent = `Get v${latestVersion} →`;
+      }
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+
   // ── Help ───────────────────────────────────────────────────────
 
   function renderHelpContent() {
     const el = document.getElementById('help-content');
     if (!el) return;
-    setModalHelpTitle('NAVFIT-Edge Reference');
+    setModalHelpTitle('NAVFIT-Edge Help');
     el.innerHTML = `
+    <h2><a href="https://github.com/brycejameson/NAVFIT-Edge" target="_blank" rel="noopener">Official NAVFIT-Edge Github Repository</a></h2>
     <h2><a href="https://github.com/brycejameson/NAVFIT-Edge/wiki" target="_blank" rel="noopener">Official NAVFIT-Edge Github Wiki</a></h2>
     <h3>About NAVFIT-Edge</h3>
     <p>NAVFIT-Edge is a browser-based, open-source alternative to NAVFIT98A. It implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-1 (16 Dec 2025). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
-    <h3>File Format (.nfe)</h3>
-    <p>A <code>.nfe</code> file contains a <strong>single summary group of reports</strong>. Files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the file, a user saves it to locations only they have access to or sets an optional passphrase which can be given to other users.</p>
+    <h3>File Formats (.nfe and .rsca)</h3>
+    <p>A <code>.nfe</code> file contains a <strong>single summary group of reports</strong>. A <code>.rsca</code> file contains a <strong>reporting senior's Reporting Senior's Cumulative Average data for all paygrades</strong>.  Both files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the files, a user saves it to locations only they have access to or sets an optional passphrase which can be given to other users.</p>
     <h3>Report Navigation</h3>
     <p>Use the report tabs at the top of the editor to switch between reports in a group. Use the <strong>＋</strong> tab to add a new report. The Summary Group Review screen shows RSCA, group-consistent fields, and all reports' grades on one screen for group-level adjustment.</p>
     <h3>Filename Convention</h3>
@@ -12391,7 +12509,9 @@ const App = (() => {
     <h3>Print Instructions</h3>
     <p>Print at 100% scale on 8.5×11 paper. You may need to manually select this in your print dialogue, or disable browser headers/footers.</p>
     <h3>Keyboard Shortcuts</h3>
-    <p><code>Ctrl+S</code> — Save &nbsp;|&nbsp; <code>Ctrl+P</code> — Print preview &nbsp;|&nbsp; <code>Esc</code> — Close modal</p>`;
+    <p><code>Ctrl+S</code> — Save &nbsp;|&nbsp; <code>Ctrl+P</code> — Print preview &nbsp;|&nbsp; <code>Esc</code> — Close modal</p>
+    <h3>Need more help?</h3>
+    <p>NAVFIT-Edge was built for Sailors... BY a Sailor.  Send me an email at <a href="mailto:bryce.r.jameson.mil@us.navy.mil">bryce.r.jameson.mil@us.navy.mil</a>.</p>`;
   }
 
   // ── Toast ──────────────────────────────────────────────────────
