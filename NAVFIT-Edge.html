@@ -2118,7 +2118,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
         <div id="report-list-sidebar" class="report-list-sidebar"></div>
 
         <!-- Validation panel -->
-        <div class="sidebar-validation" id="sidebar-validation">
+        <div title="Opens a list of validation issues in the current report." class="sidebar-validation" id="sidebar-validation">
           <div class="val-header">
             <span class="val-icon" id="val-icon">✓</span>
             <span class="val-label" id="val-label">Valid</span>
@@ -2128,11 +2128,11 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 
         <!-- Actions -->
         <div class="sidebar-actions">
-          <button class="sidebar-btn" id="btn-save-as">Save As…</button>
-          <button class="sidebar-btn" id="btn-quicksave" disabled>Quicksave</button>
-          <button class="sidebar-btn" id="btn-grade-review">Summary Group Review</button>
-          <button class="sidebar-btn primary" id="btn-print-preview">Print</button>
-          <button class="sidebar-btn" id="btn-import-reports">Import Reports</button>
+          <button title="Saves this summary group with a new filename." class="sidebar-btn" id="btn-save-as">Save As…</button>
+          <button title="Saves this summary group with current filename and encryption passphrase (if any)." class="sidebar-btn" id="btn-quicksave" disabled>Quicksave</button>
+          <button title="Opens a screen presenting a holistic overview of the entire summary group." class="sidebar-btn" id="btn-grade-review">Summary Group Review</button>
+          <button title="" class="sidebar-btn primary" id="btn-print-preview">Print</button>
+          <button title="Imports reports from another .nfe file into this summary group." class="sidebar-btn" id="btn-import-reports">Import Reports</button>
         </div>
       </aside>
 
@@ -2288,24 +2288,6 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
         <div class="modal-actions" style="flex-direction:column;gap:8px;align-items:stretch">
           <button class="btn-secondary" id="btn-rsca-duplicate-accept" style="width:100%">Accept This Duplicate</button>
           <button class="btn-primary" id="btn-rsca-duplicate-cancel" style="width:100%">Cancel Entire Import</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── RSCA: Add Record ── -->
-  <div id="modal-rsca-add-record" class="modal hidden">
-    <div class="modal-backdrop"></div>
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2>Add Record to RSCA Profile</h2>
-        <button class="modal-close" data-modal="modal-rsca-add-record">✕</button>
-      </div>
-      <div class="modal-body">
-        <div id="rsca-add-record-fields"></div>
-        <div class="modal-actions">
-          <button class="btn-secondary" data-modal="modal-rsca-add-record">Cancel</button>
-          <button class="btn-primary" id="btn-rsca-add-record-save">Add Record</button>
         </div>
       </div>
     </div>
@@ -5586,14 +5568,26 @@ ${rt!=='CHIEFEVAL'?`
           <tbody>
             ${records.length ? records.map(r=>{
               const idx=rscaFile.records.indexOf(r);
+              const traitGradeOpts=['5.0','4.0','3.0','2.0','1.0','NOB'];
+              const cellInputStyle='font-size:11px;padding:3px 4px;border:1px solid var(--surface-border);border-radius:2px;width:100%';
+              const cellSelectStyle='font-size:10px;padding:2px;border:1px solid var(--surface-border);border-radius:2px;width:46px';
               return `
               <tr>
-                <td>${escHtml(r.name||'')}</td>
-                <td>${escHtml(DataModel.formatSSN(r.ssn||''))}</td>
-                <td>${escHtml(r.grade||'')}</td>
-                <td>${escHtml(r.endDate||'')}</td>
-                ${traitCols.map(c=>`<td style="text-align:center">${escHtml(r[c]||'')||'—'}</td>`).join('')}
-                <td style="text-align:center;font-family:var(--font-mono);font-weight:600">${rscaRecordAvg(r)}</td>
+                <td><input type="text" class="field-input rsca-cell-input" data-ridx="${idx}" data-rfield="name" value="${escHtml(r.name||'')}" maxlength="27" style="${cellInputStyle}"></td>
+                <td><input type="text" class="field-input rsca-cell-input" data-ridx="${idx}" data-rfield="ssn" value="${escHtml(DataModel.formatSSN(r.ssn||''))}" maxlength="11" style="${cellInputStyle}"></td>
+                <td>
+                  <select class="field-input rsca-cell-grade" data-ridx="${idx}" data-rfield="grade" style="${cellSelectStyle}">
+                    ${DataModel.PAYGRADES.map(g=>`<option value="${g}" ${g===r.grade?'selected':''}>${g}</option>`).join('')}
+                  </select>
+                </td>
+                <td><input type="text" class="field-input rsca-cell-input rsca-cell-date" data-ridx="${idx}" data-rfield="endDate" value="${escHtml(r.endDate||'')}" placeholder="YYMMMDD" maxlength="7" style="${cellInputStyle}"></td>
+                ${traitCols.map(c=>`<td style="text-align:center">
+                  <select class="field-input rsca-cell-trait" data-ridx="${idx}" data-rfield="${c}" style="${cellSelectStyle}">
+                    <option value="" ${!r[c]?'selected':''}>—</option>
+                    ${traitGradeOpts.map(g=>`<option value="${g}" ${r[c]===g?'selected':''}>${g}</option>`).join('')}
+                  </select>
+                </td>`).join('')}
+                <td style="text-align:center;font-family:var(--font-mono);font-weight:600" id="rsca-avg-${idx}">${rscaRecordAvg(r)}</td>
                 <td style="text-align:center">
                   <button class="rsca-delete-btn" data-idx="${idx}" title="Delete this record" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;font-size:13px;padding:2px 6px">✕</button>
                 </td>
@@ -5639,8 +5633,47 @@ ${rt!=='CHIEFEVAL'?`
         if (sk==='grade') { if (onGradeChange) onGradeChange(el.value); return; }
         let v=el.value;
         if (sk==='rsSSN') v=DataModel.cleanSSN(v);
+        if (el.tagName!=='SELECT') {
+          const pos=el.selectionStart;
+          el.value=v.toUpperCase();
+          try { el.setSelectionRange(pos,pos); } catch(e){}
+          v=el.value;
+        }
         rscaFile[sk]=v;
         if (cb) cb(rscaFile);
+      });
+    });
+    // Inline table — text cells (Name/SSN/End Date): live-format in place,
+    // no re-render (would blow away cursor position mid-keystroke). These
+    // fields don't feed computeRscaStatsForGrade, so no recalc is needed.
+    main.querySelectorAll('.rsca-cell-input').forEach(el=>{
+      el.addEventListener('input',()=>{
+        const ridx=parseInt(el.dataset.ridx), field=el.dataset.rfield;
+        const rec=rscaFile.records[ridx];
+        if (!rec) return;
+        let v=el.value;
+        if (field==='ssn') v=DataModel.cleanSSN(v);
+        const pos=el.selectionStart;
+        el.value=v.toUpperCase();
+        try { el.setSelectionRange(pos,pos); } catch(e){}
+        rec[field]=el.value;
+        if (field==='endDate') {
+          const complete=rec.endDate.length>=7;
+          el.classList.toggle('error', complete && !DataModel.isValidDate(rec.endDate));
+        }
+        if (cb) cb(rscaFile);
+      });
+    });
+    // Inline table — Grade/trait selects: these DO feed the RSCA math, so
+    // reuse the same full-refresh path sort/delete already use below.
+    main.querySelectorAll('.rsca-cell-grade,.rsca-cell-trait').forEach(el=>{
+      el.addEventListener('change',()=>{
+        const ridx=parseInt(el.dataset.ridx), field=el.dataset.rfield;
+        const rec=rscaFile.records[ridx];
+        if (!rec) return;
+        rec[field]=el.value;
+        if (cb) cb(rscaFile);
+        if (onGradeChange) onGradeChange(selectedGrade);
       });
     });
     main.querySelectorAll('.gr-sort-btn').forEach(btn=>{
@@ -11559,21 +11592,6 @@ const App = (() => {
     document.getElementById('btn-rsca-create-group-cancel')?.addEventListener('click', () => hideModal('modal-rsca-create-group'));
     document.getElementById('btn-rsca-create-group-x')?.addEventListener('click', () => hideModal('modal-rsca-create-group'));
 
-    document.getElementById('btn-rsca-add-record-save')?.addEventListener('click', () => {
-      const name = document.getElementById('rsca-add-name').value.trim();
-      const ssn = DataModel.cleanSSN(document.getElementById('rsca-add-ssn').value);
-      const grade = document.getElementById('rsca-add-grade').value;
-      const endDate = document.getElementById('rsca-add-enddate').value.trim();
-      if (!name || !ssn) { showToast('Name and SSN are required.', 'error'); return; }
-      const record = { name, ssn, grade, endDate };
-      ['b33','b34','b35','b36','b37','b38','b39'].forEach(f => {
-        record[f] = document.getElementById(`rsca-add-${f}`).value || '';
-      });
-      _rscaFile.records.push(record);
-      _rscaDirty = true;
-      hideModal('modal-rsca-add-record');
-      renderRscaMain();
-    });
   }
 
   // Buttons live inside the re-rendered RSCA content (not the static toolbar),
@@ -11595,50 +11613,14 @@ const App = (() => {
     });
 
     document.getElementById('btn-rsca-add-record')?.addEventListener('click', () => {
-      renderRscaAddRecordFields();
-      showModal('modal-rsca-add-record');
+      const blank = { name:'', ssn:'', grade:_rscaSelectedGrade, endDate:'', b33:'', b34:'', b35:'', b36:'', b37:'', b38:'', b39:'' };
+      _rscaFile.records.push(blank);
+      _rscaDirty = true;
+      renderRscaMain();
+      const newIdx = _rscaFile.records.length - 1;
+      const nameEl = document.querySelector(`.rsca-cell-input[data-ridx="${newIdx}"][data-rfield="name"]`);
+      if (nameEl) nameEl.focus();
     });
-  }
-
-  function renderRscaAddRecordFields() {
-    const el = document.getElementById('rsca-add-record-fields');
-    if (!el) return;
-    const traitFields = ['b33','b34','b35','b36','b37','b38','b39'];
-    const gradeOpts = ['NOB','1.0','2.0','3.0','4.0','5.0'];
-    el.innerHTML = `
-      <div class="field-row field-row-3">
-        <div class="field-group">
-          <label class="field-label">Name</label>
-          <input type="text" class="field-input" id="rsca-add-name" placeholder="LNAME, F M" maxlength="27">
-        </div>
-        <div class="field-group">
-          <label class="field-label">SSN</label>
-          <input type="text" class="field-input" id="rsca-add-ssn" placeholder="XXXXXXXXX" maxlength="11">
-        </div>
-        <div class="field-group">
-          <label class="field-label">Grade</label>
-          <select class="field-input field-select" id="rsca-add-grade">
-            ${DataModel.PAYGRADES.map(g => `<option value="${g}" ${g===_rscaSelectedGrade?'selected':''}>${g}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="field-row field-row-3">
-        <div class="field-group">
-          <label class="field-label">End Date</label>
-          <input type="text" class="field-input" id="rsca-add-enddate" placeholder="YYMMMDD">
-        </div>
-      </div>
-      <div class="section-label" style="margin:16px 0 8px">Trait Grades (B33–B39)</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px">
-        ${traitFields.map(f => `
-          <div class="field-group" style="width:70px">
-            <label class="field-label" style="font-size:10px">${f.toUpperCase()}</label>
-            <select class="field-input field-select" id="rsca-add-${f}" style="padding:4px">
-              <option value="">—</option>
-              ${gradeOpts.map(g => `<option value="${g}">${g}</option>`).join('')}
-            </select>
-          </div>`).join('')}
-      </div>`;
   }
 
   function openRscaScreen() {
