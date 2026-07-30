@@ -3534,6 +3534,9 @@ const Validator = (() => {
         if (!(bl.b29||'').toLowerCase().match(/prt|pfa|physical/)) addW('duties','b29_pfa','PFA code "B" requires PRT non-participation explanation in Block 29.','B20/B29');
       }
     }
+    if (rt==='CHIEFEVAL' && bl.b20?.trim() && !/^(0[1-9]|1[0-2])\/\d{2} (EXCELLENT|GOOD|SATISFACTORY|PROBATIONARY|FAILURE|MED WAIVER|DEP\/OP|OTHER)$/.test(bl.b20.trim())) {
+      addW('duties','b20_format','Block 20 should be MM/YY followed by one of: EXCELLENT, GOOD, SATISFACTORY, PROBATIONARY, FAILURE, MED WAIVER, DEP/OP, OTHER.','B20');
+    }
     if (!bl.b21?.trim()) addE('duties','b21','Billet Subcategory (Block 21) is required. Use "NA" if not applicable.','B21');
     if (/^SPECIAL\d{2}$/.test(bl.b21||'')) addW('duties','b21_special','Unauthorized use of Special billet subcategory in Block 21 unless approved in advance by CHNAVPERS.','B21');
 
@@ -4154,6 +4157,25 @@ const FormRenderer = (() => {
     bindVariableWrapTextarea('[data-subkey="b41b"]','blocks','b41b',[16,16], ()=>_report.blocks?.b41b||'');
     bindVariableWrapTextarea('[data-subkey="rsAddress"]','rsAddressGroup','rsAddress',[26,26,26,26], ()=>_report.rsAddress||'');
 
+    // CHIEFEVAL-only structured B20 (MM/YY + status) — composes into the
+    // same flat blocks.b20 string every report type uses. Deliberately not
+    // tagged with data-field/data-subkey so the generic [data-field] loop
+    // above never touches these three controls directly (same reasoning as
+    // the Comments textarea fix: a control double-bound to both the generic
+    // loop and its own dedicated handler races on setField()).
+    const b20mm=document.getElementById('b20-mm'), b20yy=document.getElementById('b20-yy'), b20status=document.getElementById('b20-status');
+    if (b20mm && b20yy && b20status) {
+      const composeB20 = () => {
+        const mm=b20mm.value.replace(/\D/g,'').slice(0,2);
+        const yy=b20yy.value.replace(/\D/g,'').slice(0,2);
+        const mmyy=(mm||yy) ? `${mm}/${yy}` : '';
+        setField('blocks', [mmyy, b20status.value].filter(Boolean).join(' '), 'b20');
+      };
+      b20mm.addEventListener('input', () => { b20mm.value=b20mm.value.replace(/\D/g,'').slice(0,2); composeB20(); });
+      b20yy.addEventListener('input', () => { b20yy.value=b20yy.value.replace(/\D/g,'').slice(0,2); composeB20(); });
+      b20status.addEventListener('change', composeB20);
+    }
+
     // Override checkbox
     const ocb=document.getElementById('sg-override-cb');
     if (ocb) {
@@ -4574,6 +4596,39 @@ const FormRenderer = (() => {
 
   // ── Section Renderers ─────────────────────────────────────────
 
+  const B20_CPO_STATUS_OPTIONS = ['EXCELLENT','GOOD','SATISFACTORY','PROBATIONARY','FAILURE','MED WAIVER','DEP/OP','OTHER'];
+
+  // CHIEFEVAL-only structured B20 entry: MM/YY + a closed status list,
+  // composed into the same flat blocks.b20 string every other report type
+  // uses (see the dedicated compose-on-change listener in bindFields()).
+  // Parsing only ever informs the initial render — it never writes back to
+  // blocks.b20 itself, so a non-conforming legacy/imported value is left
+  // untouched (status shows the blank placeholder) until the user actively
+  // edits via these controls.
+  function renderB20Cpo(b20) {
+    const m = /^(\d{2})\/(\d{2})\s+(.+)$/.exec((b20||'').trim());
+    let mm='', yy='', status='';
+    if (m) {
+      mm = m[1]; yy = m[2];
+      const matched = B20_CPO_STATUS_OPTIONS.find(o => o.toLowerCase()===m[3].trim().toLowerCase());
+      if (matched) status = matched;
+    }
+    return `
+    <div class="field-group">
+      <label class="field-label">B20 · Physical Readiness</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="b20-mm" class="field-input" maxlength="2" placeholder="MM" value="${escHtml(mm)}" style="width:48px;text-align:center;flex:none">
+        <span style="color:var(--gray-400)">/</span>
+        <input type="text" id="b20-yy" class="field-input" maxlength="2" placeholder="YY" value="${escHtml(yy)}" style="width:48px;text-align:center;flex:none">
+        <select id="b20-status" class="field-input field-select" style="flex:1">
+          <option value=""${status?'':' selected'}>— Select —</option>
+          ${B20_CPO_STATUS_OPTIONS.map(o=>`<option value="${o}"${status===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-hint">¹ MM/YY, then Physical Readiness category</div>
+    </div>`;
+  }
+
   function renderAdmin(report,group) {
     const b=report.blocks||{}, rt=report.reportType;
     const ssnDisplay=b.b4?DataModel.formatSSN(b.b4):'';
@@ -4613,8 +4668,10 @@ const FormRenderer = (() => {
 
     ${divider('Physical Readiness &amp; Billet (Blocks 20–21)')}
     <div class="field-row field-row-2">
-      ${fld('b20','B20 · Physical Readiness','text',b.b20,'',  'blocks','b20',rt==='CHIEFEVAL'?18:4,
-        rt==='CHIEFEVAL'?'e.g., 05/26 SATISFACTORY':'P=Pass; F=Fail; B=BCA, no PRT; M=Med Waiver; W=Partial Med; N=No PFA')}
+      ${rt==='CHIEFEVAL'
+        ? renderB20Cpo(b.b20)
+        : fld('b20','B20 · Physical Readiness','text',b.b20,'','blocks','b20',4,
+            'P=Pass; F=Fail; B=BCA, no PRT; M=Med Waiver; W=Partial Med; N=No PFA')}
       ${sel('b21','B21 · Billet Subcategory',b.b21,DataModel.BILLET_SUBCATEGORIES.map(s=>({v:s,l:s})),'blocks','b21')}
     </div>
 
