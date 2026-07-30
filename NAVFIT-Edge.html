@@ -1974,7 +1974,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
         <span class="brand-name">NAVFIT-Edge</span>
         <span class="brand-version" id="brand-version">v0.1</span>
       </div>
-      <div class="header-tag">Navy Performance Evaluation System · Current EVALMAN: <a href="https://www.mynavyhr.navy.mil/Portals/55/Reference/Instructions/BUPERS/BUPERSINST%201610.10%20CH-1%20_SIGNED.pdf?ver=5VehxXbIT915wFJLloe3Hw%3d%3d" target="_blank" rel="noopener">BUPERSINST 1610.10H CH-1</a> · 16 Dec 2025</div>
+      <div class="header-tag">Navy Performance Evaluation System · Current EVALMAN: <a href="https://www.mynavyhr.navy.mil/Portals/55/Reference/Instructions/BUPERS/BUPERSINST%201610.10H%20CH-2.pdf?ver=RxGDl7U00wFsKklIhUBpBA%3d%3d" target="_blank" rel="noopener">BUPERSINST 1610.10H CH-2</a> · 26 May 2026</div>
     </header>
     <main class="landing-main">
       <div class="landing-hero">
@@ -1984,18 +1984,18 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
       <div class="landing-actions">
         <button class="action-card primary" id="btn-new-eval">
           <span class="action-icon">✦</span>
-          <span class="action-title">New File</span>
+          <span class="action-title">New Group File</span>
           <span class="action-desc">Create EVAL, CHIEFEVAL, or FITREP group</span>
         </button>
         <button class="action-card" id="btn-open-file">
           <span class="action-icon">◈</span>
-          <span class="action-title">Open File</span>
-          <span class="action-desc">Load .nfe encrypted group file</span>
+          <span class="action-title">Open Group File</span>
+          <span class="action-desc">Load encrypted group from .nfe file</span>
         </button>
         <button class="action-card" id="btn-import-accdb">
           <span class="action-icon">⬡</span>
           <span class="action-title">Import from NAVFIT98A</span>
-          <span class="action-desc">Import from NAVFIT98A .accdb database</span>
+          <span class="action-desc">Import from NAVFIT98A database (.accdb file)</span>
         </button>
         <button class="action-card" id="btn-rsca-tool">
           <span class="action-icon">◆</span>
@@ -2012,7 +2012,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
       </div>
     </main>
     <footer class="app-footer">
-      <span>Data never leaves your machine</span>
+      <span>Software <i>FOR</i> Sailors--<i>BY</i> Sailors</span>
       <a href="#" id="btn-help">Help &amp; Reference</a>
     </footer>
   </div>
@@ -2362,7 +2362,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.5.4';
+const NAVFIT_EDGE_VERSION = '0.5.5';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3978,6 +3978,7 @@ const FormRenderer = (() => {
         const f=el.dataset.field, sk=el.dataset.subkey||'';
         let v=el.value;
         if (['b4','b27'].includes(sk)) v=DataModel.cleanSSN(v);
+        if (sk==='b23') v=v.replace(/-/g,'');
         // Auto-uppercase: skip radios, SELECTs, and free-text narrative blocks
         if (!isRadio && el.tagName!=='SELECT' && !LOWERCASE_OK_FIELDS.includes(sk) && !LOWERCASE_OK_FIELDS.includes(f)) {
           const pos=el.selectionStart;
@@ -12582,9 +12583,9 @@ const App = (() => {
     <h2><a href="https://github.com/brycejameson/NAVFIT-Edge" target="_blank" rel="noopener">Official NAVFIT-Edge Github Repository</a></h2>
     <h2><a href="https://github.com/brycejameson/NAVFIT-Edge/wiki" target="_blank" rel="noopener">Official NAVFIT-Edge Github Wiki</a></h2>
     <h3>About NAVFIT-Edge</h3>
-    <p>NAVFIT-Edge is a browser-based, open-source alternative to NAVFIT98A. It implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-1 (16 Dec 2025). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
+    <p>NAVFIT-Edge is a browser-based, open-source alternative to NAVFIT98A. It implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-2 (26 May 2026). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
     <h3>File Formats (.nfe and .rsca)</h3>
-    <p>A <code>.nfe</code> file contains a <strong>single summary group of reports</strong>. A <code>.rsca</code> file contains a <strong>reporting senior's Reporting Senior's Cumulative Average data for all paygrades</strong>.  Both files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control. For actual protection against other people opening the files, a user saves it to locations only they have access to or sets an optional passphrase which can be given to other users.</p>
+    <p>A <code>.nfe</code> file contains a <strong>single summary group of reports</strong>. A <code>.rsca</code> file contains a <strong>reporting senior's Reporting Senior's Cumulative Average data for all paygrades</strong>.  Both files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control, since anyone with NAVFIT-Edge can open them.  For <strong>true</strong> protection from unauthorized persons or apps opening an <code>.nfe</code> file, a user should save it to locations only they have access to, or set an optional passphrase which can be given to other users.</p>
     <h3>Report Navigation</h3>
     <p>Use the report tabs at the top of the editor to switch between reports in a group. Use the <strong>＋</strong> tab to add a new report. The Summary Group Review screen shows RSCA, group-consistent fields, and all reports' grades on one screen for group-level adjustment.</p>
     <h3>Filename Convention</h3>
