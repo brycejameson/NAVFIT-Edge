@@ -2727,6 +2727,16 @@ const DataModel = (() => {
     'SPECIAL16','SPECIAL17','SPECIAL18','SPECIAL19','SPECIAL20'
   ];
 
+  // CHIEFEVAL B20 (Physical Readiness) status list — title case to mirror
+  // the printed NAVFIT98A form. normalizeCpoReadinessStatus() is used both
+  // by the editor (matching an existing value to a dropdown option on
+  // render) and by XML import (normalizing whatever casing NAVFIT98A used).
+  const CPO_READINESS_STATUS = ['Excellent','Good','Satisfactory','Probationary','Failure','Med Waiver','Dep/Op','Other'];
+  function normalizeCpoReadinessStatus(raw) {
+    const trimmed=(raw||'').trim();
+    return CPO_READINESS_STATUS.find(o=>o.toLowerCase()===trimmed.toLowerCase()) || null;
+  }
+
   // ── Character Limits ──────────────────────────────────────────
   // Source: instructions table, verified against char-count form images
   const CHAR_LIMITS = {
@@ -3313,7 +3323,8 @@ const DataModel = (() => {
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
     rateSuffixToPaygrade,designatorCategory,wrapToLineLimits,wrapTextUniform,getCommentsLimits,
     RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup,
-    PAYGRADES,paygradeToReportType,createDefaultRscaFile,buildRscaFilename,computeRscaStatsForGrade
+    PAYGRADES,paygradeToReportType,createDefaultRscaFile,buildRscaFilename,computeRscaStatsForGrade,
+    CPO_READINESS_STATUS,normalizeCpoReadinessStatus
   };
 })();
 
@@ -3534,8 +3545,8 @@ const Validator = (() => {
         if (!(bl.b29||'').toLowerCase().match(/prt|pfa|physical/)) addW('duties','b29_pfa','PFA code "B" requires PRT non-participation explanation in Block 29.','B20/B29');
       }
     }
-    if (rt==='CHIEFEVAL' && bl.b20?.trim() && !/^(0[1-9]|1[0-2])\/\d{2} (EXCELLENT|GOOD|SATISFACTORY|PROBATIONARY|FAILURE|MED WAIVER|DEP\/OP|OTHER)$/.test(bl.b20.trim())) {
-      addW('duties','b20_format','Block 20 should be MM/YY followed by one of: EXCELLENT, GOOD, SATISFACTORY, PROBATIONARY, FAILURE, MED WAIVER, DEP/OP, OTHER.','B20');
+    if (rt==='CHIEFEVAL' && bl.b20?.trim() && !/^(0[1-9]|1[0-2])\/\d{2} (Excellent|Good|Satisfactory|Probationary|Failure|Med Waiver|Dep\/Op|Other)$/.test(bl.b20.trim())) {
+      addW('duties','b20_format','Block 20 should be MM/YY followed by one of: Excellent, Good, Satisfactory, Probationary, Failure, Med Waiver, Dep/Op, Other.','B20');
     }
     if (!bl.b21?.trim()) addE('duties','b21','Billet Subcategory (Block 21) is required. Use "NA" if not applicable.','B21');
     if (/^SPECIAL\d{2}$/.test(bl.b21||'')) addW('duties','b21_special','Unauthorized use of Special billet subcategory in Block 21 unless approved in advance by CHNAVPERS.','B21');
@@ -4596,8 +4607,6 @@ const FormRenderer = (() => {
 
   // ── Section Renderers ─────────────────────────────────────────
 
-  const B20_CPO_STATUS_OPTIONS = ['EXCELLENT','GOOD','SATISFACTORY','PROBATIONARY','FAILURE','MED WAIVER','DEP/OP','OTHER'];
-
   // CHIEFEVAL-only structured B20 entry: MM/YY + a closed status list,
   // composed into the same flat blocks.b20 string every other report type
   // uses (see the dedicated compose-on-change listener in bindFields()).
@@ -4610,8 +4619,7 @@ const FormRenderer = (() => {
     let mm='', yy='', status='';
     if (m) {
       mm = m[1]; yy = m[2];
-      const matched = B20_CPO_STATUS_OPTIONS.find(o => o.toLowerCase()===m[3].trim().toLowerCase());
-      if (matched) status = matched;
+      status = DataModel.normalizeCpoReadinessStatus(m[3]) || '';
     }
     return `
     <div class="field-group">
@@ -4622,7 +4630,7 @@ const FormRenderer = (() => {
         <input type="text" id="b20-yy" class="field-input" maxlength="2" placeholder="YY" value="${escHtml(yy)}" style="width:48px;text-align:center;flex:none">
         <select id="b20-status" class="field-input field-select" style="flex:1">
           <option value=""${status?'':' selected'}>— Select —</option>
-          ${B20_CPO_STATUS_OPTIONS.map(o=>`<option value="${o}"${status===o?' selected':''}>${o}</option>`).join('')}
+          ${DataModel.CPO_READINESS_STATUS.map(o=>`<option value="${o}"${status===o?' selected':''}>${o}</option>`).join('')}
         </select>
       </div>
       <div class="field-hint">¹ MM/YY, then Physical Readiness category</div>
@@ -10577,7 +10585,11 @@ const XmlImporter = (() => {
   // ── CHIEFEVAL B20: combine date + readiness text ──────────────
   function buildCPOPhysical(el) {
     const dt  = txt(el, 'PhysicalReadinessDt');
-    const rdy = txt(el, 'PhysicalReadiness2');
+    // NAVFIT98A exports this in whatever casing its own form used (usually
+    // ALL CAPS) — normalize to the editor's title-case canonical form when
+    // recognized; preserve unrecognized text as-is rather than discarding it.
+    const rdyRaw = txt(el, 'PhysicalReadiness2');
+    const rdy = DataModel.normalizeCpoReadinessStatus(rdyRaw) || rdyRaw;
     const mmyy = dt ? isoToMMYY(dt) : '';
     if (mmyy && rdy) return `${mmyy} ${rdy}`;
     if (rdy)         return rdy;
