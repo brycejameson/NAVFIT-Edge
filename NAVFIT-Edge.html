@@ -2402,6 +2402,11 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           <input type="text" id="sigblocks-3" class="field-input">
         </div>
         <div id="sigblocks-error" class="field-error hidden"></div>
+        <p class="modal-desc" style="margin-bottom:4px">
+          This feature will add printed text to the signature blocks of a signed report.<br>
+          <br>
+          ⚠ Before printing on a signed report, it is strongly recommended to print a test page on blank paper to ensure the original will feed correctly.  Not all printers and copies are exactly alike.
+        </p>
         <div class="modal-actions" style="justify-content:space-between">
           <button type="button" class="btn-secondary" id="btn-sigblocks-clear" style="font-size:11px;padding:4px 8px;">Clear Saved Values</button>
           <div style="display:flex;gap:8px">
@@ -2452,6 +2457,11 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           <input type="text" id="rsinfo-5" class="field-input">
         </div>
         <div id="rsinfo-error" class="field-error hidden"></div>
+        <p class="modal-desc" style="margin-bottom:4px">
+          This feature will add an "X" mark to Block 17 and the following Regular Reporting Senior data.<br>
+          <br>
+          ⚠ Before printing on a signed report, it is strongly recommended to print a test page on blank paper to ensure the original will feed correctly.  Not all printers and copies are exactly alike.
+        </p>
         <div class="modal-actions" style="justify-content:space-between">
           <button type="button" class="btn-secondary" id="btn-rsinfo-clear" style="font-size:11px;padding:4px 8px;">Clear Saved Values</button>
           <div style="display:flex;gap:8px">
@@ -10222,7 +10232,9 @@ const PDFGenerator = (() => {
       if (v2) pdf.text(p1, 31.8, 112, v2, F, S);     // Senior Rater — 14pt above b49
       if (v3) pdf.text(p1, 334.8, 490, v3, F, S);    // Rater — 14pt above b42
     } else if (reportType === 'CHIEFEVAL') {
-      if (v1) pdf.text(p1, 365.0, 132.1, v1, F, S);  // Individual — 48pt below Summary Group Breakdown row
+      // Individual — 48pt below Summary Group Breakdown row, then nudged
+      // 15pt up / 15pt left and reduced to 10pt per request.
+      if (v1) pdf.text(p1, 350.0, 147.1, v1, F, 10);
     } else if (reportType === 'FITREP') {
       if (v1) pdf.text(p1, 331.72, 87, v1, F, S);    // Individual — Summary Group Average's y, 15pt right of Must Promote
     }
@@ -10237,15 +10249,30 @@ const PDFGenerator = (() => {
 
   function renderRsInfoLetter(reportType, varInputs, opts = {}) {
     const pdf = opts.writer || new PDFWriter();
+    // Block 17 (page 1) and Block 52/47 (page 2) are on two different
+    // physical sheets of the real form, so this overlay is two pages —
+    // page 1 to feed through the printer over the report's page 1, page 2
+    // over the report's page 2.
     const p1 = pdf.addPage();
+    const p2 = pdf.addPage();
     const [name, grade, desig, title, uic] = varInputs;
-    const y = reportType === 'CHIEFEVAL' ? 640 : 642;
-    const F = 'Arial', S = 12;
-    if (name)  pdf.text(p1, 32.8,   y, name,  F, S);
-    if (grade) pdf.text(p1, 183.84, y, grade, F, S);
-    if (desig) pdf.text(p1, 232.42, y, desig, F, S);
-    if (title) pdf.text(p1, 283.8,  y, title, F, S);
-    if (uic)   pdf.text(p1, 415.56, y, uic,   F, S);
+    // Block 52 (EVAL/CHIEFEVAL) / Block 47 (FITREP) — Concurrent RS — is a
+    // single typed line on the real form (same field the editor's b52
+    // composes from concurrentRS.{name,grade,title,uic}), not the 5-column
+    // layout Row 5 (b22-26, Regular RS) uses. So the 5 inputs are joined
+    // onto one line and printed at the real per-report B52/B47 coordinates.
+    const line = [name, grade, desig, title, uic].filter(Boolean).join(', ');
+    const F = 'Arial', S = 10;
+    if (line) {
+      if (reportType === 'EVAL') pdf.text(p2, X.sigMid + 2, 38, line, F, S);
+      else if (reportType === 'FITREP') pdf.text(p2, X.formLeft + 4, 62, line, F, S);
+      else if (reportType === 'CHIEFEVAL') pdf.text(p2, X.formLeft + 4, 67.2, line, F, S);
+    }
+    // Block 17 "Regular" reporting-senior-type checkbox — always stamped,
+    // using the exact same box coords/font markX uses in the real overlay
+    // (overlayRow4/cpoOverlayRow4) so it lands on the real X mark.
+    const b17Y = reportType === 'CHIEFEVAL' ? X.cbTypeY - 2 : X.cbTypeY;
+    markX(pdf, p1, X.cbType[1], b17Y, X.cbTypeW, X.cbTypeH);
     return pdf;
   }
 
