@@ -2770,7 +2770,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.6.0';
+const NAVFIT_EDGE_VERSION = '0.6.1';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -14148,9 +14148,9 @@ const App = (() => {
       return `
       <div class="recent-item">
         <span class="recent-item-badge">${r.reportType||'EVAL'}</span>
-        <span class="recent-item-name">${escHtml(r.rsName||r.filename)}</span>
-        <span class="recent-item-meta">${escHtml(r.paygrade||'')}</span>
-        <span class="recent-item-meta">${escHtml(r.endDate||'')}</span>
+        <span class="recent-item-name">${escHtml(r.paygrade||'')}</span>
+        <span class="recent-item-name">${escHtml(r.endDate||'')}</span>
+        <span class="recent-item-meta">${escHtml(r.rsName||r.filename)}</span>
         <span class="recent-item-meta">${escHtml(fn)}</span>
         <span class="recent-item-meta">${formatDateShort(r.date)}</span>
       </div>`;
