@@ -152,6 +152,13 @@ SOFTWARE.
   --surface-disabled-bg: var(--gray-100);
   --placeholder-color:   #9ca3af;
   --field-error-bg:      var(--red-100);
+  /* Validation modal / print-choice error banner sit on the theme-aware
+     --surface-card-bg, unlike the sidebar's fixed-dark validation panel
+     (which keeps its own pale-on-navy colors below) — these need to flip
+     with the theme instead of reusing the sidebar's fixed pale colors. */
+  --val-text-error:      var(--red-600);
+  --val-text-warn:       #92650a;
+  --val-hover-bg:        var(--gray-100);
 }
 
 :root[data-theme="dark"] {
@@ -165,6 +172,9 @@ SOFTWARE.
   --surface-disabled-bg: #1a2029;
   --placeholder-color:   #5b6879;
   --field-error-bg:      #3a1a1a;
+  --val-text-error:      #fca5a5;
+  --val-text-warn:       #fcd34d;
+  --val-hover-bg:        var(--navy-700);
 }
 
 /* ── Reset & Base ── */
@@ -771,25 +781,25 @@ input, textarea, select { font-family: inherit; }
 .val-modal-group-total {
   padding: var(--sp-2) var(--sp-3);
   margin-bottom: var(--sp-3);
-  border: 1px solid var(--navy-600);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   font-size: 12px;
-  color: var(--navy-200);
+  color: var(--surface-text-muted);
 }
-.val-modal-group-total strong { color: #fca5a5; }
+.val-modal-group-total strong { color: var(--val-text-error); }
 
 .val-modal-list { list-style: none; }
 .val-modal-list .val-list-item {
   display: flex;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-1);
-  border-bottom: 1px solid var(--navy-700);
+  border-bottom: 1px solid var(--surface-border);
   cursor: pointer;
-  color: #fca5a5;
+  color: var(--val-text-error);
   font-size: 12px;
 }
-.val-modal-list .val-list-item.warn { color: #fcd34d; }
-.val-modal-list .val-list-item:hover { background: var(--navy-700); }
+.val-modal-list .val-list-item.warn { color: var(--val-text-warn); }
+.val-modal-list .val-list-item:hover { background: var(--val-hover-bg); }
 .val-modal-ref { font-family: var(--font-mono); font-size: 10px; flex: 0 0 auto; opacity: 0.8; white-space: nowrap; }
 .val-modal-msg { flex: 1 1 auto; }
 
@@ -1028,6 +1038,71 @@ input, textarea, select { font-family: inherit; }
 
 .field-error.hidden { display: none; }
 
+/* ── Date Picker ── */
+.date-field-wrap { position: relative; display: flex; }
+.date-field-wrap .field-input { padding-right: 30px; width: 100%; }
+.date-picker-btn {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: var(--radius-sm);
+  cursor: pointer; font-size: 13px; line-height: 1; color: var(--surface-text-muted); padding: 0;
+}
+.date-picker-btn:hover { background: var(--surface-hover); color: var(--surface-text); }
+
+.date-field-wrap-inline { position: relative; display: inline-flex; width: 100%; }
+.date-field-wrap-inline .rsca-cell-date { padding-right: 20px; width: 100%; }
+.date-picker-btn-inline {
+  position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer; font-size: 9px; line-height: 1; padding: 0;
+  color: var(--surface-text-muted);
+}
+.date-picker-btn-inline:hover { color: var(--surface-text); }
+
+.date-picker-popup {
+  position: absolute; z-index: 2000; width: 260px; display: none;
+  background: var(--surface-card-bg); border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+  padding: var(--sp-3); font-family: var(--font-sans);
+}
+.date-picker-popup.open { display: block; }
+.date-picker-literals { display: none; gap: 6px; margin-bottom: var(--sp-2); }
+.date-picker-literal-btn {
+  flex: 1; font-size: 10px; background: var(--surface-hover); border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm); padding: 5px 4px; cursor: pointer; color: var(--surface-text);
+}
+.date-picker-literal-btn:hover { background: var(--navy-050); color: var(--navy-800); }
+.date-picker-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-2); }
+.date-picker-nav-btn {
+  background: none; border: none; cursor: pointer; font-size: 12px; padding: 4px 8px;
+  border-radius: var(--radius-sm); color: var(--surface-text);
+}
+.date-picker-nav-btn:hover { background: var(--surface-hover); }
+.date-picker-title { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12.5px; color: var(--surface-heading); }
+.date-picker-year-input {
+  width: 52px; font-family: var(--font-mono); font-size: 12.5px; text-align: center;
+  border: 1px solid var(--surface-border); border-radius: var(--radius-sm);
+  background: var(--surface-bg); color: var(--surface-text); padding: 2px 4px;
+}
+.date-picker-dow-row { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 2px; }
+.date-picker-dow { font-size: 9px; font-weight: 600; text-align: center; color: var(--surface-text-muted); padding: 2px 0; }
+.date-picker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.date-picker-day {
+  font-size: 11px; text-align: center; padding: 5px 0; border-radius: var(--radius-sm);
+  cursor: pointer; background: none; border: none; color: var(--surface-text); font-family: var(--font-mono);
+}
+.date-picker-day:hover { background: var(--surface-hover); }
+.date-picker-day.other-month { color: var(--surface-text-muted); opacity: 0.5; cursor: default; }
+.date-picker-day.other-month:hover { background: none; }
+.date-picker-day.today { border: 1px solid var(--amber-500); }
+.date-picker-day.selected { background: var(--amber-500); color: #1a1200; font-weight: 700; }
+.date-picker-footer { display: flex; justify-content: center; margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px solid var(--surface-border); }
+.date-picker-today-btn {
+  font-size: 11px; background: none; border: 1px solid var(--surface-border); border-radius: var(--radius-sm);
+  padding: 4px 10px; cursor: pointer; color: var(--surface-text);
+}
+.date-picker-today-btn:hover { background: var(--surface-hover); }
+
 /* ── Section Divider ── */
 .form-divider {
   height: 1px;
@@ -1110,7 +1185,8 @@ input, textarea, select { font-family: inherit; }
 }
 
 .trait-row:hover { border-color: var(--navy-200); }
-.trait-row.error { border-color: var(--red-300); background: var(--red-100); }
+.trait-row.error { border-color: var(--red-300); background: var(--red-100); color: var(--navy-800); }
+.trait-row.error .trait-name { color: var(--navy-800); }
 
 .trait-name {
   flex: 0 0 200px;
@@ -1270,6 +1346,11 @@ input, textarea, select { font-family: inherit; }
 }
 
 .summary-table tr:hover td { background: var(--surface-hover); }
+/* GROUP AVG row: fixed navy-050 bg + fixed navy-800 text (both themes, see
+   the tfoot row above) — pin hover to the same fixed bg too, rather than
+   letting the theme-aware --surface-hover (dark in dark mode) fight the
+   fixed dark text. */
+.summary-table tr.sgr-group-avg-row:hover td { background: var(--navy-050); }
 
 .rank-input {
   width: 50px;
@@ -2189,7 +2270,10 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
         </div>
         <div class="field-group">
           <label class="field-label">New Block 15 Date (YYMMMDD)</label>
-          <input type="text" id="extvar-2" class="field-input" placeholder="26SEP25" maxlength="7" style="text-transform:uppercase">
+          <div class="date-field-wrap">
+            <input type="text" id="extvar-2" class="field-input" placeholder="26SEP25" maxlength="7" style="text-transform:uppercase" data-datepicker>
+            <button type="button" class="date-picker-btn" data-datepicker-trigger tabindex="-1" aria-label="Open date picker">&#128197;</button>
+          </div>
         </div>
         <div class="field-group">
           <label class="field-label">Block 29 Additions (optional)</label>
@@ -2437,23 +2521,23 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           </div>
         </div>
         <div class="field-group">
-          <label class="field-label">RS Name</label>
+          <label class="field-label">Regular RS Name</label>
           <input type="text" id="rsinfo-1" class="field-input" placeholder="LAST, F M">
         </div>
         <div class="field-group">
-          <label class="field-label">RS Grade</label>
+          <label class="field-label">Regular RS Grade</label>
           <input type="text" id="rsinfo-2" class="field-input">
         </div>
         <div class="field-group">
-          <label class="field-label">RS Designator</label>
+          <label class="field-label">Regular RS Designator</label>
           <input type="text" id="rsinfo-3" class="field-input">
         </div>
         <div class="field-group">
-          <label class="field-label">RS Title</label>
+          <label class="field-label">Regular RS Title</label>
           <input type="text" id="rsinfo-4" class="field-input">
         </div>
         <div class="field-group">
-          <label class="field-label">RS UIC</label>
+          <label class="field-label">Regular RS Command</label>
           <input type="text" id="rsinfo-5" class="field-input">
         </div>
         <div id="rsinfo-error" class="field-error hidden"></div>
@@ -2539,7 +2623,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           </div>
           <button title="Opens a screen presenting a holistic overview of the entire summary group." class="sidebar-btn" id="btn-grade-review">Summary Group Review</button>
           <button title="" class="sidebar-btn primary" id="btn-print-preview">Print</button>
-          <button title="Imports reports from another .nfe file into this summary group." class="sidebar-btn" id="btn-import-reports">Import Reports</button>
+          <button title="Imports reports from another .nfe file into this summary group. You can also drag and drop one or more .nfe files into this window to import!" class="sidebar-btn" id="btn-import-reports">Import Reports</button>
           <button title="Generate special administrative letters (Extension, Admin Change, Supplement)." class="sidebar-btn" id="btn-special-letters">Special Letters</button>
         </div>
       </aside>
@@ -2770,7 +2854,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.6.1';
+const NAVFIT_EDGE_VERSION = '0.6.2';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3291,7 +3375,11 @@ const DataModel = (() => {
       isicUIC:'', isicAddress:'', email:'', phone:'', onTimeSubmission:null,
       // RSCA belongs to the Reporting Senior, shared by every report in the
       // group (like rsInfo above) — see computeRSCA/computeGroupTraitSum/computePSGRSCA.
-      rscaManual:'', rscaHistCount:'', rscaHistSum:'', rscaUseManual:false
+      rscaManual:'', rscaHistCount:'', rscaHistSum:'', rscaUseManual:false,
+      // CHIEFEVAL Block 42 "Summary Ranking" prints "Rank X of N" — N is the
+      // group's total headcount (computeSummaryGroup(group).total). Override
+      // for when the true group includes members outside this file.
+      rankTotalManual:'', rankTotalOverride:false
     };
   }
 
@@ -4163,6 +4251,196 @@ const Validator = (() => {
 return {validate,getSectionStatus,checkDuplicateRanks,checkPFA};
 })();
 
+// ═══════════════════════════════════════════════════════════════════
+// DatePicker — reusable calendar popup for date-shaped <input> fields.
+// Fully decoupled from _report/_group/setField/SPECIAL_LETTER_STORAGE:
+// it only ever writes a value into the target <input> and dispatches
+// real input/change events, so every field's own existing persistence
+// path fires unmodified — this module has zero knowledge of how any
+// field is actually saved.
+//
+// Fields opt in via markup alone (see fld()'s isDate param, and the two
+// bespoke sites that wire this by hand — the RSCA end-date cell and the
+// Extension Letter's date field):
+//   - `data-datepicker` on the <input>
+//   - a sibling trigger button `<button data-datepicker-trigger>`, both
+//     wrapped in `.date-field-wrap` (or `.date-field-wrap-inline` for
+//     the RSCA table-cell context)
+//   - optional `data-date-literals="NOT REQ|NOT PERF"` (pipe-delimited)
+//     adds quick-select buttons for fields that accept a literal string
+//     instead of a real date (B30 only, today)
+//
+// Uses event delegation (not per-field wiring), so dynamically-added
+// rows (e.g. new RSCA history records) work automatically with no
+// re-attachment step needed anywhere else in the codebase.
+// ═══════════════════════════════════════════════════════════════════
+const DatePicker = (() => {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const MONTH_ABBR = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const DOW = ['S','M','T','W','T','F','S'];
+
+  let popup = null, activeInput = null, viewYear = 0, viewMonth = 0;
+
+  function formatYYMMMDD(date) {
+    const yy = String(date.getFullYear()).slice(-2);
+    const mmm = MONTH_ABBR[date.getMonth()];
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yy}${mmm}${dd}`;
+  }
+
+  function ensurePopup() {
+    if (popup) return popup;
+    popup = document.createElement('div');
+    popup.className = 'date-picker-popup';
+    popup.innerHTML = `
+      <div class="date-picker-literals"></div>
+      <div class="date-picker-header">
+        <button type="button" class="date-picker-nav-btn" data-nav="-1" aria-label="Previous month">&#9664;</button>
+        <span class="date-picker-title">
+          <span class="date-picker-month-label"></span>
+          <input type="text" class="date-picker-year-input" inputmode="numeric" maxlength="4">
+        </span>
+        <button type="button" class="date-picker-nav-btn" data-nav="1" aria-label="Next month">&#9654;</button>
+      </div>
+      <div class="date-picker-dow-row">${DOW.map(d => `<div class="date-picker-dow">${d}</div>`).join('')}</div>
+      <div class="date-picker-grid"></div>
+      <div class="date-picker-footer">
+        <button type="button" class="date-picker-today-btn">Today</button>
+      </div>`;
+    document.body.appendChild(popup);
+
+    // Everything inside the popup stops propagation once, at the popup
+    // root, so the document-level outside-click-close listener below
+    // never fires for clicks that landed inside it.
+    popup.addEventListener('click', e => e.stopPropagation());
+
+    popup.querySelectorAll('.date-picker-nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        viewMonth += parseInt(btn.dataset.nav, 10);
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        render();
+      });
+    });
+    popup.querySelector('.date-picker-year-input').addEventListener('change', function () {
+      const y = parseInt(this.value, 10);
+      if (y >= 1000 && y <= 9999) { viewYear = y; render(); }
+    });
+    popup.querySelector('.date-picker-today-btn').addEventListener('click', () => {
+      const now = new Date();
+      selectDay(now.getFullYear(), now.getMonth(), now.getDate());
+    });
+    // Day cells are regenerated every render() — delegate instead of
+    // re-attaching a listener per cell.
+    popup.querySelector('.date-picker-grid').addEventListener('click', e => {
+      const cell = e.target.closest('.date-picker-day');
+      if (!cell || cell.classList.contains('other-month')) return;
+      selectDay(viewYear, viewMonth, parseInt(cell.textContent, 10));
+    });
+    popup.querySelector('.date-picker-literals').addEventListener('click', e => {
+      const btn = e.target.closest('.date-picker-literal-btn');
+      if (btn) selectLiteral(btn.dataset.literal);
+    });
+    return popup;
+  }
+
+  function render() {
+    popup.querySelector('.date-picker-month-label').textContent = MONTHS[viewMonth];
+    popup.querySelector('.date-picker-year-input').value = viewYear;
+
+    const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+    const today = new Date();
+    let selected = null;
+    const rawVal = (activeInput?.value || '').trim().toUpperCase();
+    if (DataModel.isValidDate(rawVal)) selected = DataModel.parseDateYYMMMDD(rawVal);
+
+    let cells = '';
+    for (let i = 0; i < firstDow; i++) {
+      cells += `<button type="button" class="date-picker-day other-month" tabindex="-1">${daysInPrevMonth - firstDow + i + 1}</button>`;
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const isToday = today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === d;
+      const isSelected = selected && selected.getFullYear() === viewYear && selected.getMonth() === viewMonth && selected.getDate() === d;
+      cells += `<button type="button" class="date-picker-day${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}">${d}</button>`;
+    }
+    const trailing = (7 - ((firstDow + daysInMonth) % 7)) % 7;
+    for (let i = 1; i <= trailing; i++) {
+      cells += `<button type="button" class="date-picker-day other-month" tabindex="-1">${i}</button>`;
+    }
+    popup.querySelector('.date-picker-grid').innerHTML = cells;
+  }
+
+  function position() {
+    const rect = activeInput.getBoundingClientRect();
+    const pw = 260, ph = popup.offsetHeight || 280;
+    let top = rect.bottom + window.scrollY + 4;
+    let left = rect.left + window.scrollX;
+    if (rect.bottom + ph > window.innerHeight) top = rect.top + window.scrollY - ph - 4;
+    if (left + pw > window.innerWidth) left = window.innerWidth - pw - 8 + window.scrollX;
+    popup.style.top = `${top}px`;
+    popup.style.left = `${left}px`;
+  }
+
+  function open(inputEl) {
+    ensurePopup();
+    activeInput = inputEl;
+    const literalsAttr = inputEl.dataset.dateLiterals;
+    const literalsBox = popup.querySelector('.date-picker-literals');
+    if (literalsAttr) {
+      literalsBox.style.display = 'flex';
+      literalsBox.innerHTML = literalsAttr.split('|').map(l =>
+        `<button type="button" class="date-picker-literal-btn" data-literal="${l}">${l}</button>`).join('');
+    } else {
+      literalsBox.style.display = 'none';
+      literalsBox.innerHTML = '';
+    }
+    const rawVal = inputEl.value.trim().toUpperCase();
+    const base = DataModel.isValidDate(rawVal) ? DataModel.parseDateYYMMMDD(rawVal) : new Date();
+    viewYear = base.getFullYear();
+    viewMonth = base.getMonth();
+    render();
+    popup.classList.add('open');
+    position();
+  }
+
+  function close() {
+    if (popup) popup.classList.remove('open');
+    activeInput = null;
+  }
+
+  function commit(value) {
+    if (!activeInput) return;
+    activeInput.value = value;
+    activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    activeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    close();
+  }
+
+  function selectDay(y, m, d) { commit(formatYYMMMDD(new Date(y, m, d))); }
+  function selectLiteral(str) { commit(str); }
+
+  document.addEventListener('click', e => {
+    const trigger = e.target.closest('[data-datepicker-trigger]');
+    if (trigger) {
+      const wrap = trigger.closest('.date-field-wrap, .date-field-wrap-inline');
+      const input = wrap && wrap.querySelector('[data-datepicker]');
+      if (input) {
+        if (popup && popup.classList.contains('open') && activeInput === input) close();
+        else open(input);
+      }
+      return;
+    }
+    if (popup && popup.classList.contains('open')) close();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && popup && popup.classList.contains('open')) close();
+  });
+
+  return {};
+})();
+
 
 
 
@@ -4499,13 +4777,11 @@ const FormRenderer = (() => {
         if (!_report.traitGrades) _report.traitGrades={};
         const key=sel.dataset.traitGrade, grade=sel.value||null;
         _report.traitGrades[key]=grade;
-        // Update grade display number
+        // Update grade text
         const row=sel.closest('.cpo-trait-row');
         if (row) {
           const numEl=row.querySelector('.cpo-grade-text');
           if (numEl) numEl.textContent=getCPOGradeText(key, grade);
-          const bigNum=row.querySelector('[data-grade-display]');
-          if (bigNum) bigNum.textContent=grade&&grade!=='NOB'?grade:'';
         }
         updateCPOAvg(); notifyChange();
       });
@@ -4691,6 +4967,18 @@ const FormRenderer = (() => {
         const computed=DataModel.computeRSCA(_group);
         _group.reports.forEach(r => { r.rsca=computed||''; });
         updateRSCADisplay();
+        notifyChange();
+      });
+    }
+
+    // Summary Ranking "Of N" manual override checkbox (CHIEFEVAL Block 42 only)
+    const rtcb=document.getElementById('rank-total-override-cb');
+    if (rtcb) {
+      rtcb.addEventListener('change',()=>{
+        _group.rankTotalOverride=rtcb.checked;
+        const manualInput=document.getElementById('f-rank-total-manual');
+        if (!rtcb.checked) { _group.rankTotalManual=''; if (manualInput) manualInput.value=''; }
+        if (manualInput) manualInput.disabled=!rtcb.checked;
         notifyChange();
       });
     }
@@ -4934,14 +5222,22 @@ const FormRenderer = (() => {
   }
 
   // ── Field Helpers ─────────────────────────────────────────────
-  function fld(id,label,type,val,ph,df,sk,maxchars,hint) {
+  function fld(id,label,type,val,ph,df,sk,maxchars,hint,isDate) {
     const mxattr=maxchars?` maxlength="${maxchars}" data-maxchars="${maxchars}"`:'';
     const counter=maxchars?`<span class="char-counter" style="float:right;font-size:10px;color:var(--gray-400);font-family:var(--font-mono)">${(val||'').toString().length}/${maxchars}</span>`:'';
+    // isDate: true -> attach the calendar-icon datepicker; an array of
+    // strings (e.g. ['NOT REQ','NOT PERF']) -> datepicker + quick-select
+    // literal buttons for fields that accept text instead of a date (B30).
+    const dateAttrs = isDate ? ` data-datepicker${Array.isArray(isDate)?` data-date-literals="${isDate.join('|')}"`:''}` : '';
+    const inputEl = `<input type="${type}" id="f-${id}" class="field-input"
+        value="${escHtml(val||'')}" placeholder="${escHtml(ph||'')}"
+        data-field="${df}" data-subkey="${sk}"${mxattr}${dateAttrs}>`;
+    const inputMarkup = isDate
+      ? `<div class="date-field-wrap">${inputEl}<button type="button" class="date-picker-btn" data-datepicker-trigger tabindex="-1" aria-label="Open date picker">&#128197;</button></div>`
+      : inputEl;
     return `<div class="field-group">
       <label class="field-label" for="f-${id}">${label}${counter}</label>
-      <input type="${type}" id="f-${id}" class="field-input"
-        value="${escHtml(val||'')}" placeholder="${escHtml(ph||'')}"
-        data-field="${df}" data-subkey="${sk}"${mxattr}>
+      ${inputMarkup}
       ${hint?`<div class="field-hint">¹ ${hint}</div>`:''}
     </div>`;
   }
@@ -5149,7 +5445,7 @@ const FormRenderer = (() => {
       ${sel('b8','B8 · Promotion Status',b.b8,DataModel.PROMOTION_STATUS_TABLE.map(p=>({v:p,l:p})),'blocks','b8')}
     </div>
     <div class="field-row field-row-3">
-      ${fld('b9','B9 · Date Reported','text',b.b9,'YYMMMDD','blocks','b9',7)}
+      ${fld('b9','B9 · Date Reported','text',b.b9,'YYMMMDD','blocks','b9',7,undefined,true)}
     </div>
 
     ${divider('Physical Readiness &amp; Billet (Blocks 20–21)')}
@@ -5173,8 +5469,8 @@ const FormRenderer = (() => {
 
     ${divider('Period of Report')}
     <div class="field-row field-row-3">
-      ${fld('b14','B14 · From','text',b.b14,'YYMMMDD','blocks','b14',7)}
-      ${fld('b15','B15 · To','text',b.b15,'YYMMMDD','blocks','b15',7,'Must match across group')}
+      ${fld('b14','B14 · From','text',b.b14,'YYMMMDD','blocks','b14',7,undefined,true)}
+      ${fld('b15','B15 · To','text',b.b15,'YYMMMDD','blocks','b15',7,'Must match across group',true)}
       <div class="field-group">
         <label class="field-label">B16 · Not Observed</label>
         <div class="checkbox-group" style="margin-top:8px">
@@ -5263,7 +5559,7 @@ const FormRenderer = (() => {
     <div class="section-title">Counseling</div>
     ${infoCard('Counseling is mandatory for all Periodic reports. Enter <strong>YYMMMDD</strong>, <strong>NOT REQ</strong>, or <strong>NOT PERF</strong> (NOT PERF requires explanation in comments).')}
     <div class="field-row field-row-2">
-      ${fld('b30','B30 · Date Counseled','text',b.b30,'YYMMMDD, NOT REQ, or NOT PERF','blocks','b30',7)}
+      ${fld('b30','B30 · Date Counseled','text',b.b30,'YYMMMDD, NOT REQ, or NOT PERF','blocks','b30',7,undefined,['NOT REQ','NOT PERF'])}
       ${fld('b31','B31 · Counselor Name','text',b.b31,'LNAME, F M','blocks','b31',18)}
     </div>
     <div class="field-hint" style="margin-top:-8px">¹ Block 32 (member signature) is completed on the paper form at time of review.</div>
@@ -5323,13 +5619,13 @@ const FormRenderer = (() => {
         return `
         <div class="trait-row" data-trait-row="${t.key}">
           <div class="trait-name">${t.label}<span class="trait-block-num">${t.block}</span>
-            <button class="trait-expand-btn" data-tkey="${t.key}" style="font-size:10px;color:var(--navy-400);background:none;border:none;cursor:pointer;padding:0;display:block;margin-top:2px">▸ Show criteria</button>
+            <button class="trait-expand-btn" data-tkey="${t.key}" style="font-size:10px;color:var(--surface-text-muted);background:none;border:none;cursor:pointer;padding:0;display:block;margin-top:2px">▸ Show criteria</button>
           </div>
           <div class="trait-grade-buttons">
             ${gradeOpts.map(g=>`<button class="grade-btn ${g.cls}${grade===g.v?' selected':''}" data-trait="${t.key}" data-grade="${g.v}">${g.label}</button>`).join('')}
           </div>
         </div>
-        <div class="trait-desc-panel" data-tkey="${t.key}" style="display:none;padding:8px 12px;background:var(--navy-050);border:1px solid var(--navy-100);border-radius:4px;margin-bottom:8px;font-size:11px">
+        <div class="trait-desc-panel" data-tkey="${t.key}" style="display:none;padding:8px 12px;background:var(--navy-050);color:var(--navy-800);border:1px solid var(--navy-100);border-radius:4px;margin-bottom:8px;font-size:11px">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
             <div><strong style="color:var(--red-600)">1.0 — Below</strong><div style="white-space:pre-wrap;margin-top:4px;line-height:1.5">${escHtml(d.t1||'')}</div></div>
             <div><strong style="color:var(--navy-600)">3.0 — Meets</strong><div style="white-space:pre-wrap;margin-top:4px;line-height:1.5">${escHtml(d.t3||'')}</div></div>
@@ -5380,7 +5676,6 @@ const FormRenderer = (() => {
                 <option value="">—</option>
                 ${gradeOpts.map(g=>`<option value="${g.v}" ${grade===g.v?'selected':''}>${g.l}</option>`).join('')}
               </select>
-              ${grade&&grade!=='NOB'?`<div style="font-size:28px;font-weight:700;font-family:'Courier New',monospace;text-align:center;color:var(--surface-heading);padding:4px 0">${grade}</div>`:''}
               <div class="cpo-grade-text" data-trait-key="${t.key}" style="font-size:9px;color:var(--gray-600);margin-top:4px;white-space:pre-wrap;line-height:1.5">${escHtml(getCPOGradeText(t.key, grade))}</div>
             </div>
             <div class="cpo-trait-right">
@@ -5735,7 +6030,21 @@ ${rt!=='CHIEFEVAL'?`
         <label class="field-label">Of (auto)</label>
         <input class="field-input" data-sg-total style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:12px" readonly value="${auto.total||0}">
       </div>
-    </div>`;
+    </div>
+    ${rt==='CHIEFEVAL' ? `
+    <div class="field-group" style="margin:8px 0">
+      <label class="checkbox-item">
+        <input type="checkbox" id="rank-total-override-cb" ${group.rankTotalOverride?'checked':''}>
+        <span>Override total group size for ranking (Of N)</span>
+      </label>
+    </div>
+    <div class="field-group" style="max-width:160px">
+      <label class="field-label">Manual Total (Of N)</label>
+      <input type="number" class="field-input" id="f-rank-total-manual" min="0" max="999" data-field="group" data-subkey="rankTotalManual"
+        value="${escHtml(group.rankTotalManual||'')}" placeholder="e.g., 25" ${group.rankTotalOverride?'':'disabled'}
+        style="font-family:var(--font-mono)">
+      <div class="field-hint">For when the true group includes members outside this file — replaces the auto-computed total printed as "Of N" in Block 42.</div>
+    </div>` : ''}`;
 
 
     return `
@@ -5967,7 +6276,7 @@ ${rt!=='CHIEFEVAL'?`
                     min="1" max="${reports.length}">
                 </td>
                 <td style="text-align:center">
-                  <select class="grade-review-promo" data-ri="${ri}" style="font-size:10px;padding:2px;border:1px solid var(--surface-border);border-radius:2px">
+                  <select class="grade-review-promo" data-ri="${ri}" style="font-size:11px;padding:2px;border:1px solid var(--surface-border);border-radius:2px">
                     <option value="">—</option>
                     ${DataModel.PROMOTION_RECS.map(p=>`<option value="${p.value}" ${r.promoRec===p.value?'selected':''}>${p.value}</option>`).join('')}
                   </select>
@@ -5975,7 +6284,7 @@ ${rt!=='CHIEFEVAL'?`
                 ${traits.map(t=>`
                   <td style="text-align:center">
                     <select class="grade-review-sel" data-ri="${ri}" data-trait="${t.key}" data-iscpo="${isCPO?1:0}"
-                      style="font-size:10px;padding:2px;border:1px solid var(--surface-border);border-radius:2px;width:46px">
+                      style="font-size:11px;padding:2px;border:1px solid var(--surface-border);border-radius:2px;width:46px">
                       <option value="">—</option>
                       ${gradeOpts.map(g=>`<option value="${g}" ${(isCPO?r.traitGrades?.[t.key]:r.traits?.[t.key])===g?'selected':''}>${g}</option>`).join('')}
                     </select>
@@ -5986,7 +6295,7 @@ ${rt!=='CHIEFEVAL'?`
             }).join('')}
           </tbody>
           <tfoot>
-            <tr style="background:var(--navy-050);font-weight:600">
+            <tr class="sgr-group-avg-row" style="background:var(--navy-050);color:var(--navy-800);font-weight:600">
               <td class="sgr-sticky" style="background:var(--navy-050);font-family:var(--font-mono);font-size:10px" colspan="3">GROUP AVG</td>
               ${traits.map(t=>`<td style="text-align:center;font-family:var(--font-mono);font-size:10px" id="gr-col-${t.key}">—</td>`).join('')}
               <td style="text-align:center;font-family:var(--font-mono);font-weight:700" id="gr-total-avg">—</td>
@@ -6154,7 +6463,7 @@ ${rt!=='CHIEFEVAL'?`
                     ${DataModel.PAYGRADES.map(g=>`<option value="${g}" ${g===r.grade?'selected':''}>${g}</option>`).join('')}
                   </select>
                 </td>
-                <td><input type="text" class="field-input rsca-cell-input rsca-cell-date" data-ridx="${idx}" data-rfield="endDate" value="${escHtml(r.endDate||'')}" placeholder="YYMMMDD" maxlength="7" style="${cellInputStyle}"></td>
+                <td><span class="date-field-wrap-inline"><input type="text" class="field-input rsca-cell-input rsca-cell-date" data-ridx="${idx}" data-rfield="endDate" value="${escHtml(r.endDate||'')}" placeholder="YYMMMDD" maxlength="7" style="${cellInputStyle}" data-datepicker><button type="button" class="date-picker-btn-inline" data-datepicker-trigger tabindex="-1" aria-label="Open date picker">&#128197;</button></span></td>
                 ${traitCols.map(c=>`<td style="text-align:center">
                   <select class="field-input rsca-cell-trait" data-ridx="${idx}" data-rfield="${c}" style="${cellSelectStyle}">
                     <option value="" ${!r[c]?'selected':''}>—</option>
@@ -9606,14 +9915,25 @@ const PDFGenerator = (() => {
     if (rs.b26) pdf.text(pg, 463.56+dx, 725.29+dy, esc(rs.b26), DF, DS);
 
     // Blocks 5-8 (paygrade/promo status/desig/duty status) — from representative report
+    // Field 7 "Desig (Off Only)" — the form itself restricts this to
+    // officers, so only FITREP groups print the designator; EVAL/CHIEFEVAL
+    // (enlisted) print "NA".
     if (bl0.b2) pdf.text(pg, 22.92+dx, 701.53+dy, esc(bl0.b2), DF, DS);
     if (bl0.b8) pdf.text(pg, 188.57+dx, 701.53+dy, esc(bl0.b8), DF, DS);
-    if (bl0.b3) pdf.text(pg, 367.75+dx, 701.53+dy, esc(bl0.b3), DF, DS);
+    if (group.reportType === 'FITREP') {
+      if (bl0.b3) pdf.text(pg, 367.75+dx, 701.53+dy, esc(bl0.b3), DF, DS);
+    } else {
+      pdf.text(pg, 367.75+dx, 701.53+dy, 'NA', DF, DS);
+    }
     if (bl0.b5) pdf.text(pg, 463.56+dx, 701.53+dy, esc(bl0.b5), DF, DS);
 
     // Blocks 9-12 (billet subcat/report type/MBR UIC/period end date)
+    // Field 10 "Report Type (Blk17-19)" — reflects the underlying reports'
+    // Type of Report checkboxes (Regular/Concurrent/OpsCdr), not the
+    // EVAL/CHIEFEVAL/FITREP report type.
     if (bl0.b21) pdf.text(pg, 22.92+dx, 676.33+dy, esc(bl0.b21), DF, DS);
-    if (group.reportType) pdf.text(pg, 188.57+dx, 676.33+dy, esc(group.reportType), DF, DS);
+    const typeOfReportText = bl0.b19 ? 'OPSCDR' : bl0.b18 ? 'CONCURRENT' : 'REGULAR';
+    pdf.text(pg, 188.57+dx, 676.33+dy, typeOfReportText, DF, DS);
     if (bl0.b6) pdf.text(pg, 367.75+dx, 676.33+dy, esc(bl0.b6), DF, DS);
     if (bl0.b15) pdf.text(pg, 463.56+dx, 676.33+dy, esc(bl0.b15), DF, DS);
 
@@ -9649,6 +9969,10 @@ const PDFGenerator = (() => {
     if (pageNum === 1) {
       if (group.onTimeSubmission === 'yes') markX(pdf, pg, 186.0+dx, 329.72+dy, 21.6, 14.4);
       else if (group.onTimeSubmission === 'no') markX(pdf, pg, 232.8+dx, 329.72+dy, 21.6, 14.4);
+
+      // Continuation Sheet — marked whenever the roster spills onto page 2
+      // Nudged 8pt right / 5pt up from the box's default centered position.
+      if (totalPages >= 2) markX(pdf, pg, 547.2+dx+8, 250.56+dy+5, 23.76, 14.4);
 
       // Right-justify Individuals so its last digit aligns with the last digit
       // of Summary Group Average below it (right edge anchored to the
@@ -10762,11 +11086,16 @@ const PDFGenerator = (() => {
     // computeSummaryGroup() skips reports flagged manualOverride (by design, for
     // multi-report group aggregation) — so a manually-entered group average must be
     // read straight off rawSG, or it silently evaluates to null and never prints.
+    // Bug fix: this used to recompute over a single-report array ({reports:
+    // [report]}), which only ever tallies that ONE report into its own
+    // category (0 or 1) — never the true group-wide breakdown. Use the real
+    // group (threaded through via opts.group by every _build() call site)
+    // so the SP/PROG/P/MP/EP counts and CHIEFEVAL's "of N" print correctly.
     const sg  = rawSG.manualOverride
       ? rawSG
-      : (DataModel.computeSummaryGroup
-          ? DataModel.computeSummaryGroup({ reports: [report] })
-          : rawSG);
+      : (opts.group && DataModel.computeSummaryGroup
+          ? DataModel.computeSummaryGroup(opts.group)
+          : (DataModel.computeSummaryGroup ? DataModel.computeSummaryGroup({ reports: [report] }) : rawSG));
 
     // ── Page 1 ──
     const p1 = pdf.addPage();
@@ -10821,11 +11150,16 @@ const PDFGenerator = (() => {
     // computeSummaryGroup() skips reports flagged manualOverride (by design, for
     // multi-report group aggregation) — so a manually-entered group average must be
     // read straight off rawSG, or it silently evaluates to null and never prints.
+    // Bug fix: this used to recompute over a single-report array ({reports:
+    // [report]}), which only ever tallies that ONE report into its own
+    // category (0 or 1) — never the true group-wide breakdown. Use the real
+    // group (threaded through via opts.group by every _build() call site)
+    // so the SP/PROG/P/MP/EP counts and CHIEFEVAL's "of N" print correctly.
     const sg  = rawSG.manualOverride
       ? rawSG
-      : (DataModel.computeSummaryGroup
-          ? DataModel.computeSummaryGroup({ reports: [report] })
-          : rawSG);
+      : (opts.group && DataModel.computeSummaryGroup
+          ? DataModel.computeSummaryGroup(opts.group)
+          : (DataModel.computeSummaryGroup ? DataModel.computeSummaryGroup({ reports: [report] }) : rawSG));
 
     // ── Page 1 ──
     const p1 = pdf.addPage();
@@ -11005,17 +11339,22 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   // ── overlayCHIEFEVALP2: blocks 40-52 on CHIEFEVAL page 2 ─────────────────
   // All x/y positions measured from reference CPO PDFs via pdfplumber.
   // Offsets are annotated; adjust the literal values to tune each block.
-  function overlayCHIEFEVALP2(pdf, pg, report) {
+  function overlayCHIEFEVALP2(pdf, pg, report, opts = {}) {
     const bl  = report.blocks || {};
     const rawSG = report.summaryGroup || {};
     // computeSummaryGroup() skips reports flagged manualOverride (by design, for
     // multi-report group aggregation) — so a manually-entered B45 value must be
     // read straight off rawSG, or it silently evaluates to null and never prints.
+    // Bug fix: this used to recompute over a single-report array ({reports:
+    // [report]}), which only ever tallies that ONE report into its own
+    // category (0 or 1) — never the true group-wide breakdown. Use the real
+    // group (threaded through via opts.group by every _build() call site)
+    // so the SP/PROG/P/MP/EP counts and CHIEFEVAL's "of N" print correctly.
     const sg  = rawSG.manualOverride
       ? rawSG
-      : (DataModel.computeSummaryGroup
-          ? DataModel.computeSummaryGroup({ reports: [report] })
-          : rawSG);
+      : (opts.group && DataModel.computeSummaryGroup
+          ? DataModel.computeSummaryGroup(opts.group)
+          : (DataModel.computeSummaryGroup ? DataModel.computeSummaryGroup({ reports: [report] }) : rawSG));
     const avg = DataModel.computeTraitAverage(report) || '';
 
     // ── B40: RS Comments on Performance ──────────────────────────────────
@@ -11043,8 +11382,14 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     // B42 label 'Summary Ranking' at y=216.8 → data just below ← adjust y
     if (report.summaryGroup?.memberRank)
       pdf.text(pg, 110.4, 212.7, String(report.summaryGroup.memberRank), DF, 11);
-    if (sg.total > 0)
-      pdf.text(pg, 178.8, 212.7, String(sg.total), DF, 11);
+    // "Of N" — group.rankTotalOverride lets the RS type in the true group size
+    // directly (e.g. when the full group includes members outside this file),
+    // taking priority over the auto-computed sg.total.
+    const ofN = opts.group?.rankTotalOverride
+      ? (parseInt(opts.group.rankTotalManual, 10) || 0)
+      : (sg.total || 0);
+    if (ofN > 0)
+      pdf.text(pg, 178.8, 212.7, String(ofN), DF, 11);
 
     // ── B43-B45: Member Trait / RSCA / Group Summary (11pt) ──────────────
     // B43 member trait avg at (238.9, 213.8), 11pt
@@ -11309,7 +11654,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     drawRotatedLabel(pdf, p2, 38, 686, 'CHARACTER', 'Times-Roman', 8);  // B37 band — up 30pt, +1pt font
     drawRotatedLabel(pdf, p2, 38, 520, 'CULTURE',   'Times-Roman', 8);  // B38+B39 band — up 30pt, +1pt font
 
-    overlayCHIEFEVALP2(pdf, p2, report);
+    overlayCHIEFEVALP2(pdf, p2, report, opts);
 
     return pdf;
   }
@@ -11358,7 +11703,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
   function _buildCombined(group, includeSummaryLetter, opts = {}) {
     const master = new PDFWriter();
     (group.reports || []).forEach(report => {
-      const pdf = _build(report, opts);
+      const pdf = _build(report, { ...opts, group });
       if (pdf) master.pages.push(...pdf.pages);
     });
     if (includeSummaryLetter) {
@@ -12668,7 +13013,7 @@ const App = (() => {
       const omitRsSsn = document.getElementById('chk-omit-rs-ssn')?.checked || false;
       showToast('Generating PDF…', 'info');
       try {
-        await PDFGenerator.download(report, filename, msg => showToast(msg, 'info'), { omitRsSsn });
+        await PDFGenerator.download(report, filename, msg => showToast(msg, 'info'), { omitRsSsn, group: _group });
         showToast('PDF downloaded.', 'success');
       } catch (e) {
         showToast('PDF generation failed: ' + e.message, 'error');
@@ -12750,7 +13095,7 @@ const App = (() => {
     let titleText, filenameBase;
 
     if (mode === 'all' || mode === 'all-summary') {
-      const pages = await Promise.all(_group.reports.map(r => PrintRenderer.render(r)));
+      const pages = await Promise.all(_group.reports.map(r => PrintRenderer.render(r, { group: _group })));
       if (mode === 'all-summary') pages.push(await PrintRenderer.renderSummaryLetter(_group));
       stage.innerHTML = pages.join('');
       const n = _group.reports.length;
@@ -12766,7 +13111,7 @@ const App = (() => {
       filenameBase = `SummaryLetter_${rsLastName}`;
     } else {
       const active = _group.reports[_group.activeIndex||0];
-      stage.innerHTML = await PrintRenderer.render(active);
+      stage.innerHTML = await PrintRenderer.render(active, { group: _group });
       const name = (active.blocks?.b1||'').split(',')[0].trim()||'Report';
       titleText = `Print Preview — ${name} (${_group.reportType})`;
       filenameBase = `${name}_${active.reportType}_${active.blocks?.b15||''}`;
@@ -14321,20 +14666,47 @@ const App = (() => {
     // FileSystemFileHandle (Chromium-only) alongside the File — enables
     // Quicksave immediately after a drag-drop open. Falls back to identical
     // behavior when getAsFileSystemHandle isn't available.
+    //
+    // .nfe drops: if a group is already open, every dropped .nfe is merged
+    // into it (same importReportsFromNfe() the "Import Reports" button
+    // uses) rather than replacing the group — dropping never discards
+    // unsaved work. If no group is open, the first dropped .nfe opens as
+    // the new group and any remaining .nfe files are merged into it.
     document.addEventListener('dragover', e => e.preventDefault());
     document.addEventListener('drop', async e => {
       e.preventDefault();
       const items = Array.from(e.dataTransfer.items || []).filter(i => i.kind === 'file');
       const files = items.length ? items.map(i => i.getAsFile()).filter(Boolean) : Array.from(e.dataTransfer.files);
-      const nfeIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.nfe'));
-      const xmlIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.xml'));
-      if (nfeIdx >= 0) {
-        let handle = null;
-        if (items[nfeIdx] && typeof items[nfeIdx].getAsFileSystemHandle === 'function') {
-          try { handle = await items[nfeIdx].getAsFileSystemHandle(); } catch { handle = null; }
+      const nfeEntries = files
+        .map((file, i) => ({ file, item: items[i] || null }))
+        .filter(entry => entry.file.name.toLowerCase().endsWith('.nfe'));
+
+      if (nfeEntries.length) {
+        if (_group) {
+          for (const { file } of nfeEntries) await importReportsFromNfe(file);
+          return;
         }
-        await openNfeFile(files[nfeIdx], handle);
-      } else if (xmlIdx >= 0) {
+        const [first, ...rest] = nfeEntries;
+        let handle = null;
+        if (first.item && typeof first.item.getAsFileSystemHandle === 'function') {
+          try { handle = await first.item.getAsFileSystemHandle(); } catch { handle = null; }
+        }
+        await openNfeFile(first.file, handle);
+        if (rest.length) {
+          if (!_group) {
+            // First file needs a passphrase (modal-passphrase is now showing) —
+            // _group won't exist until the user enters it, so don't try to
+            // merge the rest into nothing.
+            showToast(`Enter the passphrase to open ${first.file.name}, then drop the remaining ${rest.length} file(s) again to add them.`, 'info');
+          } else {
+            for (const { file } of rest) await importReportsFromNfe(file);
+          }
+        }
+        return;
+      }
+
+      const xmlIdx = files.findIndex(f => f.name.toLowerCase().endsWith('.xml'));
+      if (xmlIdx >= 0) {
         await importNavfitXML(files[xmlIdx]);
       }
     });
