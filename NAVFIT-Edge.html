@@ -6528,11 +6528,12 @@ ${rt!=='CHIEFEVAL'?`
       <div class="section-title">RSCA Management</div>
       <div class="section-subtitle">Historical trait-grade records by paygrade</div>
       <div class="rsca-actions">
-        <button class="btn-secondary" id="btn-rsca-save-as">Save RSCA As…</button>
-        <button class="btn-secondary" id="btn-rsca-quicksave" disabled>Quicksave RSCA</button>
-        <button class="btn-secondary" id="btn-rsca-import-nfe">Import .NFE data to this RSCA</button>
-        <button class="btn-secondary" id="btn-rsca-open-group">Insert to Existing Summary Group</button>
-        <button class="btn-primary" id="btn-rsca-new-group">Insert to New Summary Group</button>
+        <button class="btn-secondary" id="btn-rsca-save-as" title="Save this file to a specific location.">Save RSCA As…</button>
+        <button class="btn-secondary" id="btn-rsca-quicksave" 
+title="Save this file to its current location and passphrase (if any)." disabled>Quicksave RSCA</button>
+        <button class="btn-secondary" id="btn-rsca-import-nfe" title="Import the RSCA data from all reports in an existing .NFE file.">Import .NFE data to this RSCA</button>
+        <button class="btn-secondary" id="btn-rsca-open-group" title="Inserts this RSCA data and Reporting Senior information to an existing .NFE file.">Insert to Existing Summary Group</button>
+        <button class="btn-primary" id="btn-rsca-new-group" title="Inserts this RSCA data and Reporting Senior information to a new .NFE file.">Insert to New Summary Group</button>
       </div>
       <div id="rsca-duplicate-banner">${dupIndices.size?infoCard(`⚠ ${dupIndices.size} record(s) appear to be duplicates (same Name, SSN, Grade, and End Date as another record). Review before saving.`,'red'):''}</div>
       <div class="field-row field-row-3">
