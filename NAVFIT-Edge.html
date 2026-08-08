@@ -991,6 +991,11 @@ input, textarea, select { font-family: inherit; }
   background: var(--field-error-bg);
 }
 
+.field-textarea.line-overflow {
+  border-color: var(--red-500);
+  background: var(--field-error-bg);
+}
+
 .field-input.warn {
   border-color: var(--yellow-500);
 }
@@ -4713,7 +4718,7 @@ const FormRenderer = (() => {
           taEl.value=lines.join('\n');
           const newSel=Math.min(sel,taEl.value.length);
           try { taEl.setSelectionRange(newSel,newSel); } catch(e){}
-          taEl.classList.add('field-error');
+          taEl.classList.add('line-overflow');
           setField(field, taEl.value, subkey);
           updateCharCount(taEl);
           validateAndHighlight();
@@ -4722,11 +4727,11 @@ const FormRenderer = (() => {
         taEl.value=getCurrent();
         const safePos=taEl.value.length;
         try { taEl.setSelectionRange(safePos,safePos); } catch(e){}
-        taEl.classList.add('field-error');
+        taEl.classList.add('error');
         validateAndHighlight();
         return;
       }
-      taEl.classList.remove('field-error');
+      taEl.classList.remove('line-overflow');
       const wrapped=lines.join('\n');
       if (wrapped!==raw) {
         taEl.value=wrapped;
@@ -4910,7 +4915,7 @@ const FormRenderer = (() => {
           try { commentsTa.setSelectionRange(safePos, safePos); } catch(e){}
           // Flag via data attribute so validateAndHighlight shows the red border
           commentsTa.dataset.lineOverflow = '1';
-          commentsTa.classList.add('field-error');
+          commentsTa.classList.add('line-overflow');
           // Fire validation so the sidebar error indicator updates
           validateAndHighlight();
           return;
@@ -4918,7 +4923,7 @@ const FormRenderer = (() => {
 
         // Clear overflow flag if previously set
         delete commentsTa.dataset.lineOverflow;
-        commentsTa.classList.remove('field-error');
+        commentsTa.classList.remove('line-overflow');
 
         // Apply wrap if it changed anything
         if (wrapped !== raw) {
