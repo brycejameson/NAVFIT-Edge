@@ -5823,8 +5823,8 @@ const FormRenderer = (() => {
       careerBlock=`
       ${divider('Career Milestone Recommendations (Blocks 46–47)')}
       <div class="field-row field-row-2">
-        ${fld('b46','B46 · First Recommendation','text',report.careerRec1||'','e.g., SEA, COB','blocks','b46',20)}
-        ${fld('b47','B47 · Second Recommendation','text',report.careerRec2||'','DEPT LCPO, CMC','blocks','b47',20)}
+        ${fld('b46','B46 · First Recommendation','text',report.blocks?.b46||'','e.g., SEA, COB','blocks','b46',20)}
+        ${fld('b47','B47 · Second Recommendation','text',report.blocks?.b47||'','DEPT LCPO, CMC','blocks','b47',20)}
       </div>`;
     } else {
       careerBlock=`
@@ -5902,8 +5902,8 @@ function renderPromotion(report,group) {
       careerBlock=`
       ${divider('Career Milestone Recommendations (Blocks 46–47)')}
       <div class="field-row field-row-2">
-        ${fld('b46','B46 · First Recommendation','text',report.careerRec1||'','e.g., LCPO AT SEA, SEA','blocks','b46',20)}
-        ${fld('b47','B47 · Second Recommendation','text',report.careerRec2||'','e.g., CMDCS, CPOIC','blocks','b47',20)}
+        ${fld('b46','B46 · First Recommendation','text',report.blocks?.b46||'','e.g., LCPO AT SEA, SEA','blocks','b46',20)}
+        ${fld('b47','B47 · Second Recommendation','text',report.blocks?.b47||'','e.g., CMDCS, CPOIC','blocks','b47',20)}
       </div>`;
     } else {
       careerBlock=`
