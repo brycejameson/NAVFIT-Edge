@@ -3728,6 +3728,7 @@ const DataModel = (() => {
   function rateSuffixToPaygrade(str) {
     const s=(str||'').trim().toUpperCase();
     if (!s) return null;
+    if (s==='MCPON') return 'E-9'; // unique E-9 rating, ends in "N" like an E-3
     return RATE_SUFFIX_PAYGRADE[s.slice(-1)] || null;
   }
 
@@ -6283,9 +6284,14 @@ ${rt!=='CHIEFEVAL'?`
       </div>`;
 
     // Section 2 — digestible group-consistent fields
-    const gv=(getter)=>{
+    // `compareKey`, when given, decides mismatches instead of the raw
+    // displayed value — used by B2 so different ratings at the same
+    // paygrade (e.g. ITC vs BMC, both E-7) don't flag a mismatch, matching
+    // the Validator's own paygrade-based comparison for non-FITREP groups.
+    const gv=(getter,compareKey)=>{
       const vals=reports.map(r=>getter(r)||'');
-      const allSame=vals.every(v=>v===vals[0]);
+      const keys=compareKey?reports.map(r=>compareKey(r)||''):vals;
+      const allSame=keys.every(k=>k===keys[0]);
       return {value:vals[0]||'—',mismatch:!allSame};
     };
     const typeOfReportLabel=r=>{
@@ -6296,7 +6302,8 @@ ${rt!=='CHIEFEVAL'?`
       return parts.join(', ');
     };
     const groupFields=[
-      {label:'B2 · Grade/Rate',get:r=>r.blocks?.b2},
+      {label:'B2 · Grade/Rate',get:r=>r.blocks?.b2,
+        compareKey:rt==='FITREP'?undefined:(r=>DataModel.rateSuffixToPaygrade(r.blocks?.b2))},
       {label:'B5 · Duty Status',get:r=>r.blocks?.b5},
       {label:'B8 · Promotion Status',get:r=>r.blocks?.b8},
       {label:'B15 · Period TO',get:r=>r.blocks?.b15},
@@ -6312,7 +6319,7 @@ ${rt!=='CHIEFEVAL'?`
     const groupFieldsGrid=`
       <div class="group-fields-grid">
         ${groupFields.map(f=>{
-          const {value,mismatch}=gv(f.get);
+          const {value,mismatch}=gv(f.get,f.compareKey);
           return `<div class="group-field-item">
             <div class="group-field-item-label">${escHtml(f.label)}</div>
             <div class="group-field-item-value ${mismatch?'mismatch':''}">${mismatch?'⚠ Multiple values — see errors':escHtml(value)}</div>
