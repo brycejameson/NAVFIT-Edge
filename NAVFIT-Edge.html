@@ -2878,7 +2878,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.6.4';
+const NAVFIT_EDGE_VERSION = '0.6.5';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -4296,12 +4296,19 @@ const Validator = (() => {
 
     // ── RSCA ───────────────────────────────────────────────────
     if (!DataModel.computeRSCA(group)) {
-      if (rt==='CHIEFEVAL') addE('promotion','rsca','RSCA Calculation is required — enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
+      if (rt==='CHIEFEVAL') addW('promotion','rsca','RSCA Calculation is required — enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
       else if (rt==='EVAL') addW('promotion','rsca','RSCA is necessary to accurately calculate Post-Summary Group RSCA. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
       else if (rt==='FITREP') addW('promotion','rsca','RSCA should be carefully considered when grading FITREPs. Enter a manual RSCA value or Historical Trait Grade Count/Sum.','RSCA');
     }
 
     // ── Summary Letter ─────────────────────────────────────────
+    if (group) {
+      if (!group.rsInfo?.rsAddress?.trim()) addW('sumletter','rsAddress','Reporting Senior Address should be entered.','RS ADDRESS');
+      if (!group.isicUIC?.trim()) addW('sumletter','isicUIC','ISIC UIC should be entered.','ISIC UIC');
+      if (!group.isicAddress?.trim()) addW('sumletter','isicAddress','ISIC Address should be entered.','ISIC ADDRESS');
+      if (!group.phone?.trim()) addW('sumletter','phone','POC Phone should be entered.','PHONE');
+      if (!group.email?.trim()) addW('sumletter','email','POC E-Mail should be entered.','EMAIL');
+    }
     if (group?.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(group.email.trim())) {
       addE('sumletter','email','E-Mail must be a valid email address.','EMAIL');
     }
