@@ -3247,7 +3247,7 @@ const DataModel = (() => {
   // the printed NAVFIT98A form. normalizeCpoReadinessStatus() is used both
   // by the editor (matching an existing value to a dropdown option on
   // render) and by XML import (normalizing whatever casing NAVFIT98A used).
-  const CPO_READINESS_STATUS = ['Excellent','Good','Satisfactory','Probationary','Failure','Med Waiver','Dep/Op','Other'];
+  const CPO_READINESS_STATUS = ['Outstanding','Excellent','Good','Satisfactory','Probationary','Failure','Med Waiver','Dep/Op','Other'];
   function normalizeCpoReadinessStatus(raw) {
     const trimmed=(raw||'').trim();
     return CPO_READINESS_STATUS.find(o=>o.toLowerCase()===trimmed.toLowerCase()) || null;
@@ -4188,8 +4188,9 @@ const Validator = (() => {
         if (!(bl.b29||'').toLowerCase().match(/prt|pfa|physical/)) addW('duties','b29_pfa','PFA code "B" requires PRT non-participation explanation in Block 29.','B20/B29');
       }
     }
-    if (rt==='CHIEFEVAL' && bl.b20?.trim() && !/^(0[1-9]|1[0-2])\/\d{2} (Excellent|Good|Satisfactory|Probationary|Failure|Med Waiver|Dep\/Op|Other)$/.test(bl.b20.trim())) {
-      addW('duties','b20_format','Block 20 should be MM/YY followed by one of: Excellent, Good, Satisfactory, Probationary, Failure, Med Waiver, Dep/Op, Other.','B20');
+    const b20StatusAlts = DataModel.CPO_READINESS_STATUS.map(s=>s.replace('/','\\/')).join('|');
+    if (rt==='CHIEFEVAL' && bl.b20?.trim() && !new RegExp(`^(0[1-9]|1[0-2])\\/\\d{2} (${b20StatusAlts})$`).test(bl.b20.trim())) {
+      addW('duties','b20_format',`Block 20 should be MM/YY followed by one of: ${DataModel.CPO_READINESS_STATUS.join(', ')}.`,'B20');
     }
     if (!bl.b21?.trim()) addE('duties','b21','Billet Subcategory (Block 21) is required. Use "NA" if not applicable.','B21');
     if (/^SPECIAL\d{2}$/.test(bl.b21||'')) addW('duties','b21_special','Unauthorized use of Special billet subcategory in Block 21 unless approved in advance by CHNAVPERS.','B21');
