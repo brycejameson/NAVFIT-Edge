@@ -3425,7 +3425,7 @@ const DataModel = (() => {
       rsInfo:{b22:'',b23:'',b24:'',b25:'',b26:'',b27:'',rsAddress:''},
       reports:[createDefaultReport(reportType)],
       activeIndex:0,
-      isicUIC:'', isicAddress:'', email:'', phone:'', onTimeSubmission:null,
+      isicUIC:'', isicAddress:'', email:'', phone:'', onTimeSubmission:'yes',
       // RSCA belongs to the Reporting Senior, shared by every report in the
       // group (like rsInfo above) — see computeRSCA/computeGroupTraitSum/computePSGRSCA.
       rscaManual:'', rscaHistCount:'', rscaHistSum:'', rscaUseManual:false,
@@ -4897,12 +4897,23 @@ const FormRenderer = (() => {
       });
     });
 
-    // Summary group inputs
+    // Summary group inputs. groupTraitAvg is a decimal (e.g. "3.85"), not a
+    // headcount — parseInt would truncate "3.01"/"3.00" to 3, losing the
+    // decimal entirely on the printout. Keep the raw text live while typing,
+    // then normalize to 2 decimal places on change (blur/commit), matching
+    // the auto-computed value's toFixed(2) format.
     main.querySelectorAll('[data-sg]').forEach(el=>{
+      const isAvg=el.dataset.sg==='groupTraitAvg';
       el.addEventListener('input',()=>{
-        _report.summaryGroup[el.dataset.sg]=parseInt(el.value)||0;
+        _report.summaryGroup[el.dataset.sg]=isAvg?el.value:(parseInt(el.value)||0);
         notifyChange();
       });
+      if (isAvg) {
+        el.addEventListener('change',()=>{
+          const n=parseFloat(el.value);
+          if (!isNaN(n)) { el.value=n.toFixed(2); _report.summaryGroup.groupTraitAvg=el.value; notifyChange(); }
+        });
+      }
     });
 
     // Per-line enforcement for CHIEFEVAL trait comment boxes (2 lines × 53 chars)
@@ -6057,7 +6068,7 @@ ${rt!=='CHIEFEVAL'?`
         <label class="field-label">Group Trait Average (auto)</label>
         <input class="field-input" data-sg="groupTraitAvg" ${sg.manualOverride?'':'readonly'}
           style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--surface-disabled-bg)'}"
-          value="${auto.groupTraitAvg||''}">
+          value="${disp.groupTraitAvg||''}">
       </div>
     </div>
     ${chiefRankBlock}`;
@@ -6203,7 +6214,7 @@ ${rt!=='CHIEFEVAL'?`
         <label class="field-label">Group Trait Average (auto)</label>
         <input class="field-input" data-sg="groupTraitAvg" ${sg.manualOverride?'':'readonly'}
           style="font-family:var(--font-mono);font-size:16px;font-weight:600;${sg.manualOverride?'':'background:var(--surface-disabled-bg)'}"
-          value="${auto.groupTraitAvg||''}">
+          value="${disp.groupTraitAvg||''}">
       </div>
     </div>
 
