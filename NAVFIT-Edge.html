@@ -1790,6 +1790,7 @@ input, textarea, select { font-family: inherit; }
   .print-toolbar { display: none !important; }
   .theme-toggle { display: none !important; }
   .rsca-actions { display: none !important; }
+  #toast-container { display: none !important; }
   /* .screen's on-screen height:100vh + overflow:hidden clips everything
      past the first viewport-height of content when printing — without
      this override, multi-page reports only ever print their first page. */
@@ -2878,7 +2879,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.6.5';
+const NAVFIT_EDGE_VERSION = '0.6.6';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -4227,6 +4228,14 @@ const Validator = (() => {
         if (twoGrades.length>=3&&report.promoRec==='P') addE('promotion','three_twos_p','A Promotable recommendation may not be assigned with three or more traits graded 2.0.','B33-39');
         if (oneGrades.length>0&&['P','MP','EP'].includes(report.promoRec)) addE('promotion','one_promo','A 1.0 grade prohibits Promotable or higher.','B33-39');
         if (twoGrades.length>0&&['MP','EP'].includes(report.promoRec)) addE('promotion','two_mp_ep','A 2.0 grade prohibits Must Promote or Early Promote.','B33-39');
+        traits.forEach(t=>{
+          const tc=report.traitComments?.[t.key]||{};
+          ['a','b','c'].forEach(slot=>{
+            if (DataModel.wrapToLineLimits(tc[slot]||'', [53,53]).overflowed) {
+              addW('traits',`tc_${t.key}_${slot}`,`${t.block} Comment ${slot.toUpperCase()} exceeds 2 lines × 53 characters and will be cut off when printed.`,t.block);
+            }
+          });
+        });
       } else {
         const traits=DataModel.getTraitsForType(rt);
         const oneGrades=traits.filter(t=>report.traits?.[t.key]==='1.0');
@@ -4923,25 +4932,17 @@ const FormRenderer = (() => {
       }
     });
 
-    // Per-line enforcement for CHIEFEVAL trait comment boxes (2 lines × 53 chars)
+    // Live word-wrap for CHIEFEVAL trait comment boxes (2 lines × 53 chars
+    // nominal). Never truncates — content beyond 2 lines is kept (flagged by
+    // Validator as a warning instead), matching the Comments/B43 textarea's
+    // non-destructive reflow. Re-wrapping from scratch on every keystroke
+    // used to cap output at exactly 2 lines and silently drop everything
+    // past that, which could discard an entire untouched line far from
+    // the cursor when editing mid-text.
     main.querySelectorAll('[data-cpo-comment-ta]').forEach(cta=>{
       cta.addEventListener('input',()=>{
-        const maxLine=53, maxLines=2;
         const sel=cta.selectionStart, raw=cta.value;
-        const outputLines=[];
-        for (const userLine of raw.split('\n')) {
-          if (outputLines.length>=maxLines) break;
-          let rem=userLine;
-          while (rem.length>maxLine) {
-            if (outputLines.length>=maxLines) break;
-            let brk=rem.lastIndexOf(' ',maxLine);
-            if (brk<=0) brk=maxLine;
-            outputLines.push(rem.slice(0,brk));
-            rem=rem.slice(brk).replace(/^ /,'');
-          }
-          if (outputLines.length<maxLines) outputLines.push(rem);
-        }
-        const wrapped=outputLines.join('\n');
+        const wrapped=DataModel.wrapTextUniform(raw,53);
         if (wrapped!==raw){
           cta.value=wrapped;
           try{cta.setSelectionRange(Math.min(sel,wrapped.length),Math.min(sel,wrapped.length));}catch(e){}
@@ -5229,9 +5230,30 @@ const FormRenderer = (() => {
   // ── Validation Highlighting ────────────────────────────────────
   function validateAndHighlight() {
     const result=Validator.validate(_report,_group);
-    document.querySelectorAll('.field-input.error,.field-input.warn').forEach(el=>el.classList.remove('error','warn'));
-    result.errors.forEach(e=>{ const el=document.querySelector(`[data-subkey="${e.field}"]`); if(el) el.classList.add('error'); });
-    result.warnings.forEach(w=>{ const el=document.querySelector(`[data-subkey="${w.field}"]`); if(el) el.classList.add('warn'); });
+    const touchedFields=new Set();
+    document.querySelectorAll('.field-input.error,.field-input.warn').forEach(el=>{ el.classList.remove('error','warn'); touchedFields.add(el); });
+    result.errors.forEach(e=>{ const el=document.querySelector(`[data-subkey="${e.field}"]`); if(el) { el.classList.add('error'); touchedFields.add(el); } });
+    result.warnings.forEach(w=>{ const el=document.querySelector(`[data-subkey="${w.field}"]`); if(el) { el.classList.add('warn'); touchedFields.add(el); } });
+    // Headless/Chromium quirk (confirmed empirically this session, see the
+    // RSCA duplicate-highlight and Block 29 line-overflow fixes): a
+    // class-driven border-color override doesn't reliably repaint on an
+    // existing DOM node from a classList mutation alone. Detach+reinsert at
+    // the same position forces a proper recalc; preserve focus/cursor since
+    // this runs on every keystroke and a touched element may be the one
+    // currently being typed into.
+    touchedFields.forEach(el=>{
+      const wasFocused=document.activeElement===el;
+      const selStart=(wasFocused&&'selectionStart' in el)?el.selectionStart:null;
+      const selEnd=(wasFocused&&'selectionStart' in el)?el.selectionEnd:null;
+      const parent=el.parentNode, next=el.nextSibling;
+      if (!parent) return;
+      parent.removeChild(el);
+      parent.insertBefore(el,next);
+      if (wasFocused) {
+        el.focus();
+        if (selStart!==null) { try { el.setSelectionRange(selStart,selEnd); } catch(e){} }
+      }
+    });
     // Duplicate rank validation
     const rankErrs=Validator.checkDuplicateRanks(_group);
     if (rankErrs.length) {
@@ -5798,9 +5820,8 @@ const FormRenderer = (() => {
                     <span>Comment ${slot.toUpperCase()}</span>
                     <span class="char-counter" style="color:${vLen>106?'var(--red-500)':vLen>95?'var(--amber-600)':'var(--gray-400)'}">${vLen}/106</span>
                   </div>
-                  <textarea class="field-input" style="font-size:12px;font-family:'Courier New',monospace;padding:3px 4px;resize:none;line-height:1.5;overflow:hidden;width:55ch"
-                    data-trait-comment="${t.key}:${slot}" rows="2"
-                    maxlength="106" data-maxchars="106"
+                  <textarea class="field-input" style="font-size:12px;font-family:'Courier New',monospace;padding:3px 4px;resize:none;line-height:1.5;overflow-y:auto;width:55ch"
+                    data-trait-comment="${t.key}:${slot}" data-subkey="tc_${t.key}_${slot}" rows="2"
                     data-cpo-comment-ta="1"
                     placeholder="Line 1 (53 chars max)&#10;Line 2 (53 chars max)">${escHtml(v)}</textarea>
                 </div>`;
@@ -11630,6 +11651,7 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     // those are typed as part of the address lines themselves).
     pdf.text(pg, 373.9, 67.2, 'Phone:', DF, 9);  // ← adjust x/y to reposition label
     pdf.text(pg, 373.9, 52.8, 'DSN:',   DF, 9);  // ← adjust x/y to reposition label
+    if (opts.group?.phone) pdf.text(pg, 410, 67.2, esc(opts.group.phone), DF, 9);  // ← adjust x to sit right of "Phone:"
     if (report.rsAddress) {
       const lines = report.rsAddress.split('\n');
       lines.slice(0, 3).forEach((line, i) => {
@@ -12922,6 +12944,10 @@ const App = (() => {
     });
     const t = document.getElementById(id);
     if (t) { t.classList.remove('hidden'); t.classList.add('active'); }
+    // Toasts are a fixed-position overlay outside any screen, so one that's
+    // still visible when navigating here would otherwise linger on top of
+    // the print preview.
+    if (id === 'screen-print') document.getElementById('toast-container')?.replaceChildren();
   }
 
   function showModal(id)  { document.getElementById(id)?.classList.remove('hidden'); }
