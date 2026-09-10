@@ -991,11 +991,6 @@ input, textarea, select { font-family: inherit; }
   background: var(--field-error-bg);
 }
 
-.field-textarea.line-overflow {
-  border-color: var(--red-500);
-  background: var(--field-error-bg);
-}
-
 .field-input.warn {
   border-color: var(--yellow-500);
 }
@@ -2879,7 +2874,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.6.6';
+const NAVFIT_EDGE_VERSION = '0.6.7';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3274,7 +3269,7 @@ const DataModel = (() => {
     b27: { chars: 11,  lines: 1 },   // stored as 9 digits
     b28: { chars: 90,  lines: 3,  total: 270 },
     b29_abbr: { chars: 14, lines: 1 },
-    b29: { chars: 90,  lines: 4,  firstLine: 72, total: 342 },
+    b29: { chars: 90,  lines: 4,  firstLine: 69, total: 342 },
     b30: { chars: 7,   lines: 1 },
     b31: { chars: 18,  lines: 1 },
     // EVAL-specific
@@ -3852,6 +3847,51 @@ const DataModel = (() => {
     return outputLines.join('\n');
   }
 
+  // Like wrapToLineLimits, but never truncates: once past the last defined
+  // per-line width it keeps wrapping using that last width indefinitely
+  // instead of stopping and dropping the remainder. Used for every
+  // wrap-enforced comment field's live-typing + import-rewrap path — content
+  // beyond the nominal line budget is kept (flagged by Validator as a
+  // warning via wrapToLineLimits's `overflowed`, not discarded here).
+  function wrapVariableLines(text, lineMax) {
+    const outputLines=[];
+    for (const userLine of (text||'').split('\n')) {
+      let remaining=userLine;
+      while (true) {
+        const max=lineMax[Math.min(outputLines.length,lineMax.length-1)];
+        if (remaining.length<=max) { outputLines.push(remaining); break; }
+        let breakAt=remaining.lastIndexOf(' ',max);
+        if (breakAt<=0) breakAt=max;
+        outputLines.push(remaining.slice(0,breakAt));
+        remaining=remaining.slice(breakAt).replace(/^ /,'');
+      }
+    }
+    return outputLines.join('\n');
+  }
+
+  // Silent per-field safety ceiling — a worst-case guard against pathological
+  // input (giant pastes, corrupted imports) ballooning memory/file size, not
+  // a soft typing limit. Deliberately much larger than any field's real
+  // print budget (the largest, Comments at 10pt, tops out at 1656 chars).
+  const FIELD_CHAR_HARD_CAP = 2000;
+
+  // Single source of truth for the per-line character widths of every
+  // wrap-enforced field below the Comments block — used by the live-typing
+  // binder and both import re-wrap paths alike (previously duplicated three
+  // times, which had let CHAR_LIMITS.b29.firstLine drift out of sync with
+  // the actually-enforced first-line width; see CHAR_LIMITS.b29 below).
+  const WRAP_LINE_LIMITS = {
+    b28: [90,90,90],
+    b29: [69,90,90,90],
+    b40a: [14,14],
+    b40b: [14,14],
+    b41a: [16,16],
+    b41b: [16,16],
+    rsAddress_chief: [31,31,31],
+    rsAddress_other: [31,31,31,31],
+    trait_comment: [53,53],
+  };
+
   // Single source of truth for the Comments block's per-report-type/font
   // limits (B43 for EVAL, B41 for FITREP, B40 for CHIEFEVAL) — replaces
   // the same ternary that used to be hand-rolled in three separate places.
@@ -3964,7 +4004,8 @@ const DataModel = (() => {
     computeRSCA,computeGroupTraitSum,computePSGRSCA,composeConcurrentRS,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
     formatDateDDMmmYY,extensionOccasionLabel,occasionLabel,extensionTypeOfReportLabel,
-    rateSuffixToPaygrade,designatorCategory,wrapToLineLimits,wrapTextUniform,getCommentsLimits,
+    rateSuffixToPaygrade,designatorCategory,wrapToLineLimits,wrapTextUniform,wrapVariableLines,
+    FIELD_CHAR_HARD_CAP,WRAP_LINE_LIMITS,getCommentsLimits,
     RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup,
     PAYGRADES,paygradeToReportType,createDefaultRscaFile,buildRscaFilename,computeRscaStatsForGrade,
     checkRscaDuplicates,
@@ -4198,8 +4239,14 @@ const Validator = (() => {
 
     if (!bl.b28?.trim()) addW('duties','b28','Command Employment (Block 28) should be entered.','B28');
     else { const total=(bl.b28||'').length; if(total>CL.b28.total) addW('duties','b28',`Block 28 exceeds ${CL.b28.total} total character limit.`,'B28'); }
+    if (DataModel.wrapToLineLimits(bl.b28||'', DataModel.WRAP_LINE_LIMITS.b28).overflowed) {
+      addW('duties','b28','Block 28 exceeds its 3-line × 90-character print budget and will be cut off when printed.','B28');
+    }
 
     if (!bl.b29?.trim()) addW('duties','b29','Primary Duties (Block 29) should be entered.','B29');
+    if (DataModel.wrapToLineLimits(bl.b29||'', DataModel.WRAP_LINE_LIMITS.b29).overflowed) {
+      addW('duties','b29','Block 29 exceeds its 4-line print budget (69/90/90/90 chars) and will be cut off when printed.','B29');
+    }
     if (!bl.b29_abbr?.trim()) addW('duties','b29_abbr','Primary duty abbreviation (Block 29 box) should be entered.','B29');
     else if (bl.b29_abbr.trim().length>CL.b29_abbr.chars) addE('duties','b29_abbr',`Block 29 abbreviation exceeds ${CL.b29_abbr.chars} characters.`,'B29');
 
@@ -4274,12 +4321,29 @@ const Validator = (() => {
     // (47-ENL) Enlisted Retention required.
     if (rt==='EVAL' && !report.retention) addE('promotion','retention','Entry required in Block 47, Enlisted Retention.','B47');
 
+    // ── Career Recommendations ────────────────────────────────
+    if (rt==='EVAL') {
+      if (DataModel.wrapToLineLimits(bl.b41a||'', DataModel.WRAP_LINE_LIMITS.b41a).overflowed) {
+        addW('careers','b41a','Block 41a exceeds its 2-line × 16-character print budget and will be cut off when printed.','B41');
+      }
+      if (DataModel.wrapToLineLimits(bl.b41b||'', DataModel.WRAP_LINE_LIMITS.b41b).overflowed) {
+        addW('careers','b41b','Block 41b exceeds its 2-line × 16-character print budget and will be cut off when printed.','B41');
+      }
+    } else if (rt==='FITREP') {
+      if (DataModel.wrapToLineLimits(bl.b40a||'', DataModel.WRAP_LINE_LIMITS.b40a).overflowed) {
+        addW('careers','b40a','Block 40a exceeds its 2-line × 14-character print budget and will be cut off when printed.','B40');
+      }
+      if (DataModel.wrapToLineLimits(bl.b40b||'', DataModel.WRAP_LINE_LIMITS.b40b).overflowed) {
+        addW('careers','b40b','Block 40b exceeds its 2-line × 14-character print budget and will be cut off when printed.','B40');
+      }
+    }
+
     // ── Comments ───────────────────────────────────────────────
     if (!isNOB&&!report.comments?.trim()) addW('comments','no_comments','Comments on Performance should be entered for observed reports.','B43');
     const commentsLimits = DataModel.getCommentsLimits(rt, report.commentsFont);
     const commentBlock = commentsLimits.block;
     if ((report.comments||'').length>commentsLimits.maxChars) addW('comments','length',`Comments exceed maximum length for ${commentBlock}.`,'B43');
-    if ((report.comments||'').split('\n').length>commentsLimits.maxLines) addE('comments','lines',`Comments exceed the maximum of ${commentsLimits.maxLines} lines for ${commentBlock}.`,'B43');
+    if ((report.comments||'').split('\n').length>commentsLimits.maxLines) addW('comments','comments',`Comments exceed the maximum of ${commentsLimits.maxLines} lines for ${commentBlock} and will be cut off when printed.`,'B43');
     if (rt==='FITREP'&&bl.b2) {
       const g=bl.b2.trim().toUpperCase();
       if ((g==='CDR'||g==='CAPT')&&!(report.comments||'').toLowerCase().includes('grgb')&&!(report.comments||'').toLowerCase().includes('get real')) addE('comments','grgb','GRGB comments are mandatory for CDR and CAPT FITREPs.','B41');
@@ -4313,6 +4377,10 @@ const Validator = (() => {
     // ── Summary Letter ─────────────────────────────────────────
     if (group) {
       if (!group.rsInfo?.rsAddress?.trim()) addW('sumletter','rsAddress','Reporting Senior Address should be entered.','RS ADDRESS');
+      const rsAddrLineMax = rt==='CHIEFEVAL' ? DataModel.WRAP_LINE_LIMITS.rsAddress_chief : DataModel.WRAP_LINE_LIMITS.rsAddress_other;
+      if (DataModel.wrapToLineLimits(group.rsInfo?.rsAddress||'', rsAddrLineMax).overflowed) {
+        addW('sumletter','rsAddress',`Reporting Senior Address exceeds its ${rsAddrLineMax.length}-line × 31-character print budget and will be cut off when printed.`,'RS ADDRESS');
+      }
       if (!group.isicUIC?.trim()) addW('sumletter','isicUIC','ISIC UIC should be entered.','ISIC UIC');
       if (!group.isicAddress?.trim()) addW('sumletter','isicAddress','ISIC Address should be entered.','ISIC ADDRESS');
       if (!group.phone?.trim()) addW('sumletter','phone','POC Phone should be entered.','PHONE');
@@ -4759,50 +4827,28 @@ const FormRenderer = (() => {
   // ── Field Binding ──────────────────────────────────────────────
   function bindTopLevelEvents() { bindFields(); }
 
-  // Enforces a variable-per-line wrap on a textarea as the user types,
-  // rejecting (restoring the previous value) if content would exceed the
-  // field's total line budget — mirrors the B43 comments textarea's
-  // reject-on-overflow behavior above, generalized for per-line-position
-  // limits that differ line to line.
-  function bindVariableWrapTextarea(selector, field, subkey, lineMax, getCurrent) {
+  // Enforces a variable-per-line wrap on a textarea as the user types.
+  // Never truncates/rejects — content beyond the field's nominal line
+  // budget is kept (flagged by Validator as a warning instead), matching
+  // the CHIEFEVAL trait-comment boxes' non-destructive reflow. A silent
+  // FIELD_CHAR_HARD_CAP applies regardless, as a memory/filesize safety
+  // valve well above any field's real print budget.
+  function bindVariableWrapTextarea(selector, field, subkey, lineMax) {
     const taEl=document.querySelector(selector);
     if (!taEl) return;
     taEl.addEventListener('input', () => {
-      const sel=taEl.selectionStart, raw=taEl.value;
-      const {lines, overflowed}=DataModel.wrapToLineLimits(raw, lineMax);
-      if (overflowed) {
-        const prevValue=getCurrent();
-        const prevOverflowed=DataModel.wrapToLineLimits(prevValue, lineMax).overflowed;
-        if (prevOverflowed && raw.length<=prevValue.length) {
-          // Content was already over budget before this edit (e.g. imported
-          // or pasted text) — allow edits that don't grow it (Delete/
-          // Backspace) so the user can dig back out, instead of rejecting
-          // every keystroke and snapping the cursor to the end forever.
-          taEl.value=lines.join('\n');
-          const newSel=Math.min(sel,taEl.value.length);
-          try { taEl.setSelectionRange(newSel,newSel); } catch(e){}
-          taEl.classList.add('line-overflow');
-          setField(field, taEl.value, subkey);
-          updateCharCount(taEl);
-          validateAndHighlight();
-          return;
-        }
-        taEl.value=getCurrent();
-        const safePos=taEl.value.length;
-        try { taEl.setSelectionRange(safePos,safePos); } catch(e){}
-        taEl.classList.add('error');
-        validateAndHighlight();
-        return;
-      }
-      taEl.classList.remove('line-overflow');
-      const wrapped=lines.join('\n');
-      if (wrapped!==raw) {
+      const sel=taEl.selectionStart;
+      let raw=taEl.value;
+      if (raw.length>DataModel.FIELD_CHAR_HARD_CAP) raw=raw.slice(0,DataModel.FIELD_CHAR_HARD_CAP);
+      const wrapped=DataModel.wrapVariableLines(raw, lineMax);
+      if (wrapped!==taEl.value) {
         taEl.value=wrapped;
         const newSel=Math.min(sel,wrapped.length);
         try { taEl.setSelectionRange(newSel,newSel); } catch(e){}
       }
       setField(field, taEl.value, subkey);
       updateCharCount(taEl);
+      notifyChange();
     });
   }
 
@@ -4893,17 +4939,6 @@ const FormRenderer = (() => {
       });
     });
 
-    // CHIEFEVAL trait comments
-    main.querySelectorAll('[data-trait-comment]').forEach(el=>{
-      el.addEventListener('input',()=>{
-        const [key,slot]=el.dataset.traitComment.split(':');
-        if (!_report.traitComments) _report.traitComments={};
-        if (!_report.traitComments[key]) _report.traitComments[key]={a:'',b:'',c:''};
-        _report.traitComments[key][slot]=el.value;
-        updateCharCount(el); notifyChange();
-      });
-    });
-
     // Promo rec buttons
     main.querySelectorAll('.promo-btn').forEach(btn=>{
       btn.addEventListener('click',()=>{
@@ -4941,9 +4976,11 @@ const FormRenderer = (() => {
     // the cursor when editing mid-text.
     main.querySelectorAll('[data-cpo-comment-ta]').forEach(cta=>{
       cta.addEventListener('input',()=>{
-        const sel=cta.selectionStart, raw=cta.value;
-        const wrapped=DataModel.wrapTextUniform(raw,53);
-        if (wrapped!==raw){
+        const sel=cta.selectionStart;
+        let raw=cta.value;
+        if (raw.length>DataModel.FIELD_CHAR_HARD_CAP) raw=raw.slice(0,DataModel.FIELD_CHAR_HARD_CAP);
+        const wrapped=DataModel.wrapVariableLines(raw,DataModel.WRAP_LINE_LIMITS.trait_comment);
+        if (wrapped!==cta.value){
           cta.value=wrapped;
           try{cta.setSelectionRange(Math.min(sel,wrapped.length),Math.min(sel,wrapped.length));}catch(e){}
         }
@@ -4952,15 +4989,15 @@ const FormRenderer = (() => {
         if (!_report.traitComments) _report.traitComments={};
         if (!_report.traitComments[key]) _report.traitComments[key]={a:'',b:'',c:''};
         _report.traitComments[key][slot]=cta.value;
+        updateCharCount(cta);
         notifyChange();
       });
     });
 
-    // Per-line word-wrap for the Comments textarea (B43/B41/B40).
-    // Words that push a line past the limit are wrapped to the next line.
-    // If the result would exceed the line limit, a validation error fires
-    // instead of discarding content — the change is rejected and the
-    // cursor restored. Also owns the live char counter (#comment-char-count)
+    // Per-line word-wrap for the Comments textarea (B43/B41/B40). Never
+    // truncates/rejects — content beyond the line budget is kept (flagged
+    // by Validator as a warning), matching every other wrap-enforced
+    // comment field. Also owns the live char counter (#comment-char-count)
     // — this is the only place with correct access to _report; a duplicate
     // counter listener used to live in the App module and throw on every
     // keystroke since it referenced this module's private _report.
@@ -4969,36 +5006,18 @@ const FormRenderer = (() => {
       commentsTa.addEventListener('input', () => {
         const limits = DataModel.getCommentsLimits(_report.reportType, _report.commentsFont);
         const sel     = commentsTa.selectionStart;
-        const raw     = commentsTa.value;
+        let raw       = commentsTa.value;
+        if (raw.length>DataModel.FIELD_CHAR_HARD_CAP) raw=raw.slice(0,DataModel.FIELD_CHAR_HARD_CAP);
         const wrapped = DataModel.wrapTextUniform(raw, limits.maxLine);
 
-        if (wrapped.split('\n').length > limits.maxLines) {
-          // Reject only the newline that caused overflow — restore previous value
-          // without moving the cursor or disrupting other editing behaviour.
-          commentsTa.value = _report.comments || '';
-          // Keep cursor at the end of the restored text
-          const safePos = (commentsTa.value).length;
-          try { commentsTa.setSelectionRange(safePos, safePos); } catch(e){}
-          // Flag via data attribute so validateAndHighlight shows the red border
-          commentsTa.dataset.lineOverflow = '1';
-          commentsTa.classList.add('line-overflow');
-          // Fire validation so the sidebar error indicator updates
-          validateAndHighlight();
-          return;
-        }
-
-        // Clear overflow flag if previously set
-        delete commentsTa.dataset.lineOverflow;
-        commentsTa.classList.remove('line-overflow');
-
-        // Apply wrap if it changed anything
-        if (wrapped !== raw) {
+        if (wrapped !== commentsTa.value) {
           commentsTa.value = wrapped;
           const newSel = Math.min(sel, wrapped.length);
           try { commentsTa.setSelectionRange(newSel, newSel); } catch(e){}
         }
         setField('comments', commentsTa.value, 'comments');
         updateCharCount(commentsTa);
+        notifyChange();
 
         const counter = document.getElementById('comment-char-count');
         if (counter) {
@@ -5009,16 +5028,16 @@ const FormRenderer = (() => {
       });
     }
 
-    // Variable-per-line word-wrap for B29 / B40a-b / B41a-b / RS Address —
-    // same reject-on-overflow WYSIWYG behavior as the comments textarea
-    // above, generalized to support each line having its own max length
-    // (e.g. B29's first line is shorter than lines 2-4).
-    bindVariableWrapTextarea('[data-subkey="b28"]','blocks','b28',[90,90,90], ()=>_report.blocks?.b28||'');
-    bindVariableWrapTextarea('[data-subkey="b29"]','blocks','b29',[69,90,90,90], ()=>_report.blocks?.b29||'');
-    bindVariableWrapTextarea('[data-subkey="b40a"]','blocks','b40a',[14,14], ()=>_report.blocks?.b40a||'');
-    bindVariableWrapTextarea('[data-subkey="b40b"]','blocks','b40b',[14,14], ()=>_report.blocks?.b40b||'');
-    bindVariableWrapTextarea('[data-subkey="b41a"]','blocks','b41a',[16,16], ()=>_report.blocks?.b41a||'');
-    bindVariableWrapTextarea('[data-subkey="b41b"]','blocks','b41b',[16,16], ()=>_report.blocks?.b41b||'');
+    // Variable-per-line word-wrap for B28 / B29 / B40a-b / B41a-b / RS
+    // Address — same non-destructive wrap-and-warn behavior as the
+    // comments textarea above, generalized to support each line having
+    // its own max length (e.g. B29's first line is shorter than lines 2-4).
+    bindVariableWrapTextarea('[data-subkey="b28"]','blocks','b28',DataModel.WRAP_LINE_LIMITS.b28);
+    bindVariableWrapTextarea('[data-subkey="b29"]','blocks','b29',DataModel.WRAP_LINE_LIMITS.b29);
+    bindVariableWrapTextarea('[data-subkey="b40a"]','blocks','b40a',DataModel.WRAP_LINE_LIMITS.b40a);
+    bindVariableWrapTextarea('[data-subkey="b40b"]','blocks','b40b',DataModel.WRAP_LINE_LIMITS.b40b);
+    bindVariableWrapTextarea('[data-subkey="b41a"]','blocks','b41a',DataModel.WRAP_LINE_LIMITS.b41a);
+    bindVariableWrapTextarea('[data-subkey="b41b"]','blocks','b41b',DataModel.WRAP_LINE_LIMITS.b41b);
     // RS Address (B48/B44/B51) is edited solely via the Summary Letter Info
     // tab (data-field="rsAddressGroup") to avoid duplicating the same
     // group-shared value in two places — see the note in renderComments().
@@ -5029,7 +5048,7 @@ const FormRenderer = (() => {
     // (DataModel.CHAR_LIMITS.b51_cpo stays at its nominal 5 lines so the
     // limit can be relaxed again if NAVPERSCOM revises the physical form).
     bindVariableWrapTextarea('[data-field="rsAddressGroup"]','rsAddressGroup','rsAddress',
-      _report.reportType==='CHIEFEVAL' ? [31,31,31] : [31,31,31,31], ()=>_report.rsAddress||'');
+      _report.reportType==='CHIEFEVAL' ? DataModel.WRAP_LINE_LIMITS.rsAddress_chief : DataModel.WRAP_LINE_LIMITS.rsAddress_other);
 
     // CHIEFEVAL-only structured B20 (MM/YY + status) — composes into the
     // same flat blocks.b20 string every report type uses. Deliberately not
@@ -5822,7 +5841,7 @@ const FormRenderer = (() => {
                   </div>
                   <textarea class="field-input" style="font-size:12px;font-family:'Courier New',monospace;padding:3px 4px;resize:none;line-height:1.5;overflow-y:auto;width:55ch"
                     data-trait-comment="${t.key}:${slot}" data-subkey="tc_${t.key}_${slot}" rows="2"
-                    data-cpo-comment-ta="1"
+                    data-cpo-comment-ta="1" data-maxchars="106"
                     placeholder="Line 1 (53 chars max)&#10;Line 2 (53 chars max)">${escHtml(v)}</textarea>
                 </div>`;
               }).join('')}
@@ -11453,7 +11472,7 @@ const PDFGenerator = (() => {
       '1.0': ["1.0 Below Standards", "-Demonstrates behavior that stifles", "command or work center success", "-No personal integrity and does not take", "responsibility for actions or decisions", "-Fails to live up to Navy Core Values:", "Honor, Courage, and Commitment"],
       '2.0': ["2.0 Progressing", "-Ignores destructive behavior; fails to", "correct obvious problems that lead to it", "-Lacks personal integrity and does not", "actively take responsibility for actions or", "decisions", "-Inconsistently lives up to Navy Core", "Values: Honor, Courage, and Commitment"],
       '3.0': ["3.0 Meets Standards", "-Values human differences, leverages them", "to foster an atmosphere conducive to", "personal and team success", "-Trustworthy, ethical, and honest", "-Lives up to Navy Core Values: Honor,", "Courage, and Commitment"],
-      '4.0': ["4.0 Above Standards", "-Clearly defines the problem and is", "accountable for the outcomes", "-Continuously self-assesses with an", "unbiased, learning mindset to provide wellfounded", "solutions", "-Provides forceful backup and takes prompt", "action to learn from mistakes", "-Holds self and peers Accountable"],
+      '4.0': ["4.0 Above Standards", "-Clearly defines the problem and is", "accountable for the outcomes", "-Continuously self-assesses with an", "unbiased, learning mindset to provide well-", "founded solutions", "-Provides forceful backup and takes prompt", "action to learn from mistakes", "-Holds self and peers Accountable"],
       '5.0': ["5.0 Greatly Exceeds Standards", "-Strengthens command through fair,", "character-based leadership", "-Uncompromising code of integrity", "-Exemplifies Navy Core Values: Honor,", "Courage, and Commitment"],
       'NOB': ['NOB'],
     },
@@ -12142,7 +12161,7 @@ const AccdbBridge = (() => {
 
     // Re-wrap every field the editor treats as line-wrap-enforced — see
     // the identical comment in XmlImporter.parseReportElement for why.
-    const rewrap = (text, lineMax) => DataModel.wrapToLineLimits(text || '', lineMax).lines.join('\n');
+    const rewrap = (text, lineMax) => DataModel.wrapVariableLines((text || '').slice(0, DataModel.FIELD_CHAR_HARD_CAP), lineMax);
     data.blocks.b28 = rewrap(data.blocks.b28, [90,90,90]);
     data.blocks.b29 = rewrap(data.blocks.b29, [69,90,90,90]);
     if (data.blocks.b41a) data.blocks.b41a = rewrap(data.blocks.b41a, [16,16]);
@@ -12151,7 +12170,7 @@ const AccdbBridge = (() => {
     // Comments (B43/B41/B40) gets the non-truncating wrap — unlike the
     // fields above, overflow here must stay visible (Validator flags it)
     // rather than being silently cut off.
-    data.comments = DataModel.wrapTextUniform(data.comments, DataModel.getCommentsLimits(data.reportType, data.commentsFont).maxLine);
+    data.comments = DataModel.wrapTextUniform((data.comments||'').slice(0, DataModel.FIELD_CHAR_HARD_CAP), DataModel.getCommentsLimits(data.reportType, data.commentsFont).maxLine);
 
     return { ok: true, data, errors };
   }
@@ -12644,7 +12663,7 @@ const XmlImporter = (() => {
     // this app's editor allows. Without this, the field starts already
     // over budget and the live wrap-enforcement handler
     // (bindVariableWrapTextarea) rejects every subsequent keystroke.
-    const rewrap = (text, lineMax) => DataModel.wrapToLineLimits(text || '', lineMax).lines.join('\n');
+    const rewrap = (text, lineMax) => DataModel.wrapVariableLines((text || '').slice(0, DataModel.FIELD_CHAR_HARD_CAP), lineMax);
     report.blocks.b28 = rewrap(report.blocks.b28, [90,90,90]);
     report.blocks.b29 = rewrap(report.blocks.b29, [69,90,90,90]);
     if (report.blocks.b41a) report.blocks.b41a = rewrap(report.blocks.b41a, [16,16]);
@@ -12660,7 +12679,7 @@ const XmlImporter = (() => {
     // Comments (B43/B41/B40) gets the non-truncating wrap — unlike the
     // fields above, overflow here must stay visible (Validator flags it)
     // rather than being silently cut off.
-    report.comments = DataModel.wrapTextUniform(report.comments, DataModel.getCommentsLimits(rt, report.commentsFont).maxLine);
+    report.comments = DataModel.wrapTextUniform((report.comments||'').slice(0, DataModel.FIELD_CHAR_HARD_CAP), DataModel.getCommentsLimits(rt, report.commentsFont).maxLine);
 
     return report;
   }
