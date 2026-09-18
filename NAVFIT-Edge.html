@@ -3625,7 +3625,7 @@ const DataModel = (() => {
     if (blk.b10) occ='PERIODIC';
     else if (blk.b11) occ='DI';
     else if (blk.b12) occ='DRS';
-    return `${pg}_${rsLast}_${endDate}_${occ}.nfe`;
+    return `${rsLast}_${pg}_${endDate}_${occ}.nfe`;
   }
 
   function formatSSN(raw) {
@@ -5540,12 +5540,15 @@ const FormRenderer = (() => {
   // untouched (status shows the blank placeholder) until the user actively
   // edits via these controls.
   function renderB20Cpo(b20) {
-    const m = /^(\d{2})\/(\d{2})\s+(.+)$/.exec((b20||'').trim());
-    let mm='', yy='', status='';
-    if (m) {
-      mm = m[1]; yy = m[2];
-      status = DataModel.normalizeCpoReadinessStatus(m[3]) || '';
-    }
+    // MM/YY and status are both optional independently — composeB20() omits
+    // the "MM/YY " prefix entirely when either date field is blank, and
+    // omits the status when none is selected. A regex that required the
+    // prefix to be present before it would parse the status at all used to
+    // lose the status on every re-render (e.g. tab switch) whenever the
+    // user picked a status without also filling in MM/YY.
+    const m = /^(?:(\d{2})\/(\d{2}))?\s*(.*)$/.exec((b20||'').trim());
+    const mm = m[1]||'', yy = m[2]||'';
+    const status = DataModel.normalizeCpoReadinessStatus(m[3]) || '';
     return `
     <div class="field-group">
       <label class="field-label">B20 · Physical Readiness</label>
@@ -5700,6 +5703,29 @@ const FormRenderer = (() => {
     </div>
     ${ta('b29',b29label,b.b29,4,'blocks','b29',339,b29hint)}
     ${rt!=='CHIEFEVAL'?`<div class="field-hint" style="margin-top:4px;color:var(--gray-500)"><strong>PFA format (BUPERSINST 1650.1H):</strong> Include PFA score in format <code>\"PFA: YY-C: P/WS/##/XX\"</code> where YY=Fiscal Year (2 digits), C=Cycle (1 or 2), P/F=Pass/Fail, WS/NWS=Within BCA Standards/Not Within BCA Standards, ##=Numerical Avg. Score (0-100), XX=Score Category (Good Medium, etc.). Example: <code>PFA: 26-1: P/WS/65/GM</code></div>`:''}
+
+    ${infoCard(`<strong>PFA Score Chart (BUPERSINST 1650.1H)</strong>
+    <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:11px">
+      <thead><tr style="background:var(--navy-700);color:#fff">
+        <th style="padding:3px 8px;text-align:left">Performance Category</th>
+        <th style="padding:3px 8px;text-align:left">PFA Annotation</th>
+      </tr></thead>
+      <tbody>
+        <tr style="background:#f8fafc"><td style="padding:3px 8px">Outstanding High</td><td style="padding:3px 8px">100/OH</td></tr>
+        <tr><td style="padding:3px 8px">Outstanding Medium</td><td style="padding:3px 8px">95/OM</td></tr>
+        <tr style="background:#f8fafc"><td style="padding:3px 8px">Outstanding Low</td><td style="padding:3px 8px">90/OL</td></tr>
+        <tr><td style="padding:3px 8px">Excellent High</td><td style="padding:3px 8px">85/EH</td></tr>
+        <tr style="background:#f8fafc"><td style="padding:3px 8px">Excellent Medium</td><td style="padding:3px 8px">80/EM</td></tr>
+        <tr><td style="padding:3px 8px">Excellent Low</td><td style="padding:3px 8px">75/EL</td></tr>
+        <tr style="background:#f8fafc"><td style="padding:3px 8px">Good High</td><td style="padding:3px 8px">70/GH</td></tr>
+        <tr><td style="padding:3px 8px">Good Medium</td><td style="padding:3px 8px">65/GM</td></tr>
+        <tr style="background:#f8fafc"><td style="padding:3px 8px">Good Low</td><td style="padding:3px 8px">60/GL</td></tr>
+        <tr><td style="padding:3px 8px">Satisfactory High</td><td style="padding:3px 8px">55/SH</td></tr>
+        <tr style="background:#f8fafc"><td style="padding:3px 8px">Satisfactory Medium</td><td style="padding:3px 8px">50/SM</td></tr>
+        <tr><td style="padding:3px 8px">Probationary</td><td style="padding:3px 8px">45/P</td></tr>
+        <tr style="background:#f8fafc"><td style="padding:3px 8px">Fail</td><td style="padding:3px 8px">&lt;45/F</td></tr>
+      </tbody>
+    </table>`)}
     `;
   }
 
@@ -6066,7 +6092,7 @@ ${rt!=='CHIEFEVAL'?`
       </div>
     </div>
     ${divider('RSCA — Block 44 (CHIEFEVAL)')}
-    ${fld('rsca','B44 · RSCA (manually entered)','text',report.rsca||'','e.g., 4.23','rsca','rsca',4,'Reporting Senior\'s Cumulative Average')}`:
+    ${fld('rsca','B44 · RSCA (defaults to calculated; edit to override)','text',report.rsca||DataModel.computeRSCA(group)||'','e.g., 4.23','rsca','rsca',4,'Reporting Senior\'s Cumulative Average — auto-filled from the calculated RSCA unless manually overridden')}`:
     '';
 
     return `
@@ -11635,7 +11661,13 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     // B45 group summary at (365.0, 213.7), 10pt
     // Adjust x/y to reposition each
     if (avg)              pdf.text(pg, 238.9, 213.8, avg,                    DF, 11);
-    if (report.rsca)      pdf.text(pg, 365.0, 231.7, esc(report.rsca),       DF, 10);
+    // report.rsca only gets written when the user touches the RSCA manual-
+    // override checkbox or historical count/sum fields — a freshly created
+    // or loaded report never gets it auto-populated. Fall back to the live
+    // computed RSCA so Block 44 isn't blank just because the user never
+    // happened to trigger that sync; an actual manual entry still wins.
+    const b44Rsca = report.rsca || DataModel.computeRSCA(opts.group || { reports: [report] }) || '';
+    if (b44Rsca)           pdf.text(pg, 365.0, 231.7, esc(b44Rsca),          DF, 10);
     const groupAvgC = sg.groupTraitAvg || '';
     if (groupAvgC)        pdf.text(pg, 365.0, 213.7, esc(String(groupAvgC)), DF, 10);
 
