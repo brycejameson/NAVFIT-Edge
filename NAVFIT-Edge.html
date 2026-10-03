@@ -12623,9 +12623,17 @@ const XmlImporter = (() => {
     report.blocks.b30 = txt(el, 'DateCounseled');
     report.blocks.b31 = buildCounselor(el);
 
-    // Career Recommendations
-    report.blocks.b41a = txt(el, 'RecommendA');
-    report.blocks.b41b = txt(el, 'RecommendB');
+    // Career Recommendations — EVAL's editor/print path reads b41a/b41b
+    // (Block 41); FITREP's reads b40a/b40b (Block 40) instead. Writing
+    // both XML fields to b41a/b41b unconditionally silently dropped
+    // FITREP imports into a field nothing displays or prints.
+    if (rt === 'FITREP') {
+      report.blocks.b40a = txt(el, 'RecommendA');
+      report.blocks.b40b = txt(el, 'RecommendB');
+    } else {
+      report.blocks.b41a = txt(el, 'RecommendA');
+      report.blocks.b41b = txt(el, 'RecommendB');
+    }
 
     // B49 — Senior Rater (EVAL)
     report.blocks.b49 = txt(el, 'SeniorRater') || txt(el, 'Rater');
@@ -12700,6 +12708,8 @@ const XmlImporter = (() => {
     report.blocks.b29 = rewrap(report.blocks.b29, [69,90,90,90]);
     if (report.blocks.b41a) report.blocks.b41a = rewrap(report.blocks.b41a, [16,16]);
     if (report.blocks.b41b) report.blocks.b41b = rewrap(report.blocks.b41b, [16,16]);
+    if (report.blocks.b40a) report.blocks.b40a = rewrap(report.blocks.b40a, [14,14]);
+    if (report.blocks.b40b) report.blocks.b40b = rewrap(report.blocks.b40b, [14,14]);
     report.rsAddress = rewrap(report.rsAddress, rt==='CHIEFEVAL' ? [31,31,31] : [31,31,31,31]);
     if (rt === 'CHIEFEVAL' && report.traitComments) {
       Object.keys(report.traitComments).forEach(key => {
