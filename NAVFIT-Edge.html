@@ -202,6 +202,7 @@ input, textarea, select { font-family: inherit; }
 #screen-print.active { display: flex; flex-direction: column; }
 #screen-batch.active { display: flex; flex-direction: column; }
 #screen-rsca.active { display: flex; flex-direction: column; }
+#screen-nfeh.active { display: flex; flex-direction: column; }
 
 /* ── App Header (Landing) ── */
 .app-header {
@@ -2119,11 +2120,16 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           <span class="action-title">Open Group File</span>
           <span class="action-desc">Load encrypted group from .nfe file</span>
         </button>
-        <button class="action-card" id="btn-rsca-tool">
-          <span class="action-icon">◆</span>
-          <span class="action-title">RSCA Management</span>
-          <span class="action-desc">Track Reporting Senior trait-grade history</span>
-        </button>
+        <div class="action-card-split">
+          <button class="action-card action-card-compact" id="btn-rsca-tool">
+            <span class="action-icon">◆</span>
+            <span class="action-title">RSCA Management</span>
+          </button>
+          <button class="action-card action-card-compact" id="btn-nfeh-tool">
+            <span class="action-icon">⚓</span>
+            <span class="action-title">Track Command Employment/Achievements</span>
+          </button>
+        </div>
         <div class="action-card-split">
           <button class="action-card action-card-compact" id="btn-import-accdb">
             <span class="action-icon">⬡</span>
@@ -2196,6 +2202,30 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           <span class="type-badge chief">OPEN</span>
           <span class="type-name">Open Existing RSCA Profile</span>
           <span class="type-desc">Load a previously saved .rsca profile file.</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Command Employment/Achievement Tracking Create/Open Modal ── -->
+  <div id="modal-nfeh-choice" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Command Employment/Achievement Tracking</h2>
+        <button class="modal-close" data-modal="modal-nfeh-choice">✕</button>
+      </div>
+      <p class="modal-desc" style="padding:var(--sp-5) var(--sp-6) 0;margin-bottom:0">Maintain a command's reusable event history for drafting suggested Block 28 Command Employment entries.</p>
+      <div class="eval-type-grid" style="grid-template-columns:1fr 1fr">
+        <button class="eval-type-card" id="btn-nfeh-create-new">
+          <span class="type-badge">NEW</span>
+          <span class="type-name">Create New History File</span>
+          <span class="type-desc">Start a new encrypted command event-history file.</span>
+        </button>
+        <button class="eval-type-card" id="btn-nfeh-open-existing">
+          <span class="type-badge chief">OPEN</span>
+          <span class="type-name">Open Existing History File</span>
+          <span class="type-desc">Load a previously saved .nfeh file.</span>
         </button>
       </div>
     </div>
@@ -2665,6 +2695,17 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
     <main class="rsca-main" id="rsca-main"></main>
   </div>
 
+  <div id="screen-nfeh" class="screen hidden">
+    <div class="print-toolbar">
+      <button class="sidebar-back rsca-back" id="btn-nfeh-back">
+        <span class="sidebar-back-arrow">←</span>
+        <span class="sidebar-back-brand">NAVFIT-EDGE</span>
+      </button>
+      <span class="print-title">Command Employment/Achievement Tracking — <span id="nfeh-filename">Untitled</span></span>
+    </div>
+    <main class="rsca-main" id="nfeh-main"></main>
+  </div>
+
   <!-- ── Help Modal ── -->
   <div id="modal-help" class="modal hidden">
     <div class="modal-backdrop"></div>
@@ -2767,6 +2808,31 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
     </div>
   </div>
 
+  <!-- ── Command Employment/Achievement Tracking: Editor import preview ── -->
+  <div id="modal-nfeh-import-preview" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box wide">
+      <div class="modal-header">
+        <h2>Import Command Employment / Achievements</h2>
+        <button id="btn-nfeh-import-preview-x">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc" id="nfeh-import-preview-desc"></p>
+        <div class="field-group">
+          <label class="field-label">Suggested Block 28 Entry
+            <span class="char-counter" id="nfeh-import-preview-counter" style="float:right;font-size:10px;font-family:var(--font-mono);color:var(--gray-400)"></span>
+          </label>
+          <textarea id="nfeh-import-preview-text" class="field-input field-textarea" rows="5" style="font-family:'Courier New',monospace;font-size:12px"></textarea>
+          <div class="field-hint">¹ Edit as needed. If this exceeds Block 28's 270-character budget, the usual overflow warning will fire after applying — nothing is truncated for you.</div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-nfeh-import-preview-cancel">Cancel</button>
+          <button class="btn-primary" id="btn-nfeh-import-preview-apply">Apply to Block 28</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── RSCA: Duplicate record confirm ── -->
   <div id="modal-rsca-duplicate" class="modal hidden">
     <div class="modal-backdrop"></div>
@@ -2812,6 +2878,8 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
   <input type="file" id="file-input-rsca-open" accept=".rsca" style="display:none">
   <input type="file" id="file-input-rsca-nfe-group" accept=".nfe" style="display:none">
   <input type="file" id="file-input-rsca-nfe-import" accept=".nfe" style="display:none">
+  <input type="file" id="file-input-nfeh-open" accept=".nfeh" style="display:none">
+  <input type="file" id="file-input-nfeh-import" accept=".nfeh" style="display:none">
 
   <!-- Print/PDF choice modal -->
   <div id="modal-print-choice" class="modal hidden">
@@ -3351,6 +3419,30 @@ const DataModel = (() => {
     { key: 'character',   label: 'Tactical Performance',               block: 'B39', abbr: 'TAC PERF' }
   ];
 
+  // Report-type-specific extra columns shown on the Summary Group Review
+  // screen's wide table (and the Executive Report, which mirrors it) past
+  // the core Member/Rank/Promo/trait/Avg columns. `top:true` means the
+  // value lives directly on the report object (e.g. `report.retention`)
+  // rather than under `report.blocks`.
+  const SGR_EXTRA_COLS = {
+    EVAL: [
+      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
+      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
+      {key:'b41a',label:'B41a'},{key:'b41b',label:'B41b'},{key:'b42',label:'B42'},
+      {key:'retention',label:'B47',top:true},{key:'b49',label:'B49'}
+    ],
+    CHIEFEVAL: [
+      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
+      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
+      {key:'b46',label:'B46'},{key:'b47',label:'B47'}
+    ],
+    FITREP: [
+      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
+      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
+      {key:'b40a',label:'B40a'},{key:'b40b',label:'B40b'}
+    ]
+  };
+
   // Periodic report "To" date (month+day) by paygrade. E-9/W-5 (any designator)
   // and O-6 (designator 6000-6999) no longer receive periodic reports at all —
   // handled as a hard error in Validator, not looked up here.
@@ -3762,6 +3854,42 @@ const DataModel = (() => {
     return { _rsca: true, _version: '1.0.0', rsName: '', rsSSN: '', records: [] };
   }
 
+  // ── Command Employment/Achievement Tracking (.nfeh) ────────────
+  function createDefaultNfehFile() {
+    return { _nfeh: true, _version: '1.0.0', shipStation: '', uic: '', missionDesc: '', records: [] };
+  }
+
+  function buildNfehFilename(nfehFile) {
+    const ship = (nfehFile?.shipStation || '').trim().toUpperCase().replace(/[^A-Za-z0-9]/g,'') || 'UNIT';
+    return `${ship}_History.nfeh`;
+  }
+
+  // Builds the suggested Block 28 text from a .nfeh file's records that
+  // overlap the report's B14-B15 period. Month count is the OVERLAP between
+  // the event's span and the report period (clipped at both ends), not the
+  // event's full duration — an event that starts before or ends after the
+  // report period only contributes the portion that actually falls inside
+  // it. Rounded up to the nearest whole month (min 1 for any overlap at
+  // all), using a flat 30-day divisor to avoid calendar-month edge cases.
+  function buildNfehImportText(nfehFile, b14, b15) {
+    const reportStart = parseDateYYMMMDD(b14), reportEnd = parseDateYYMMMDD(b15);
+    const matched = [];
+    (nfehFile?.records || []).forEach(rec => {
+      if (!(rec.eventTitle || '').trim() || !isValidDate(rec.startDate) || !isValidDate(rec.endDate)) return;
+      const evStart = parseDateYYMMMDD(rec.startDate), evEnd = parseDateYYMMMDD(rec.endDate);
+      if (evEnd < reportStart || evStart > reportEnd) return; // no overlap with the report period
+      const clipStart = evStart < reportStart ? reportStart : evStart;
+      const clipEnd   = evEnd   > reportEnd   ? reportEnd   : evEnd;
+      const days = Math.round((clipEnd.getTime() - clipStart.getTime()) / 86400000);
+      matched.push({ title: rec.eventTitle.trim(), months: Math.max(1, Math.ceil(days / 30)) });
+    });
+    const segments = [];
+    const missionDesc = (nfehFile?.missionDesc || '').trim();
+    if (missionDesc) segments.push(missionDesc);
+    matched.forEach(m => segments.push(`${m.title}-${m.months}.`));
+    return { text: segments.join('  '), matched, totalRecords: (nfehFile?.records || []).length };
+  }
+
   function buildRscaFilename(rscaFile) {
     const last = (rscaFile?.rsName || '').split(',')[0].trim().toUpperCase().replace(/[^A-Za-z0-9]/g,'') || 'RS';
     return `${last}_RSCA.rsca`;
@@ -4009,7 +4137,9 @@ const DataModel = (() => {
     RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup,
     PAYGRADES,paygradeToReportType,createDefaultRscaFile,buildRscaFilename,computeRscaStatsForGrade,
     checkRscaDuplicates,
-    CPO_READINESS_STATUS,normalizeCpoReadinessStatus
+    CPO_READINESS_STATUS,normalizeCpoReadinessStatus,
+    createDefaultNfehFile,buildNfehFilename,buildNfehImportText,
+    SGR_EXTRA_COLS
   };
 })();
 
@@ -4824,6 +4954,17 @@ const FormRenderer = (() => {
     if (id==='promosg') updateSummaryAuto();
   }
 
+  // Applies a Command Employment/Achievement Tracking (.nfeh) import's
+  // suggested text to Block 28 through the normal setField path — so
+  // dirty-marking, revalidation (including the existing B28 overflow
+  // warning), and the on-screen refresh all happen exactly as if the user
+  // had typed it in themselves.
+  function applyBlock28Import(text) {
+    if (!_report) return;
+    setField('blocks', text, 'b28');
+    renderSection(currentSection());
+  }
+
   // ── Field Binding ──────────────────────────────────────────────
   function bindTopLevelEvents() { bindFields(); }
 
@@ -5114,6 +5255,17 @@ const FormRenderer = (() => {
     // TEMPORARY — remove before v1.0 — Fill Test Data toggle button
     const fillTestBtn=document.getElementById('btn-fill-test-data');
     if (fillTestBtn) { fillTestBtn.addEventListener('click', toggleTestData); }
+
+    // Import from Command Employment/Achievement Tracking (.nfeh) file —
+    // only present on the Duties tab; rebound on every render() call like
+    // every other tab-specific control here. The actual file-pick/decrypt/
+    // match/preview flow lives at the App level (needs NavEvalCrypto, the
+    // passphrase modal, and a file picker — none of which FormRenderer
+    // owns), reached the same defensive way FormRenderer already calls
+    // into App elsewhere (showToast, openGradeReview).
+    document.getElementById('btn-import-nfeh')?.addEventListener('click', () => {
+      if (typeof App?.openNfehImportForEditor === 'function') App.openNfehImportForEditor();
+    });
 
     // Trait expand buttons
     main.querySelectorAll('.trait-expand-btn').forEach(btn=>{
@@ -5691,6 +5843,7 @@ const FormRenderer = (() => {
     <div class="section-title">Duties &amp; Employment</div>
     ${divider('Command Employment (Block 28)')}
     ${ta('b28','B28 · Command Employment and Achievements (3 lines × 90 chars = 270 total)',b.b28,3,'blocks','b28',270,'3 lines, 90 chars/line max')}
+    <button type="button" class="btn-secondary" id="btn-import-nfeh" style="margin-top:4px;font-weight:normal" title="Import matching events from a Command Employment/Achievement Tracking (.nfeh) file into Block 28">Import from History File</button>
 
     ${divider('Primary Duties (Block 29)')}
     <div class="field-group">
@@ -6326,25 +6479,6 @@ ${rt!=='CHIEFEVAL'?`
   }
 
   // ── Summary Group Review Screen ─────────────────────────────────
-  const SGR_EXTRA_COLS = {
-    EVAL: [
-      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
-      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
-      {key:'b41a',label:'B41a'},{key:'b41b',label:'B41b'},{key:'b42',label:'B42'},
-      {key:'retention',label:'B47',top:true},{key:'b49',label:'B49'}
-    ],
-    CHIEFEVAL: [
-      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
-      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
-      {key:'b46',label:'B46'},{key:'b47',label:'B47'}
-    ],
-    FITREP: [
-      {key:'b3',label:'B3'},{key:'b6',label:'B6'},{key:'b7',label:'B7'},{key:'b9',label:'B9'},
-      {key:'b14',label:'B14'},{key:'b20',label:'B20'},{key:'b30',label:'B30'},{key:'b31',label:'B31'},
-      {key:'b40a',label:'B40a'},{key:'b40b',label:'B40b'}
-    ]
-  };
-
   function renderGradeReviewScreen(group) {
     const reports=group.reports||[];
     const rt=group.reportType;
@@ -6413,13 +6547,16 @@ ${rt!=='CHIEFEVAL'?`
       </div>`;
 
     // Section 3 — expanded per-report table
-    const extraCols=SGR_EXTRA_COLS[rt]||[];
+    const extraCols=DataModel.SGR_EXTRA_COLS[rt]||[];
     const extraColVal=(r,c)=>c.top ? (r[c.key]||'') : (r.blocks?.[c.key]||'');
 
     return `
     <div style="padding:var(--sp-8);max-width:1600px">
       <div class="section-title">Summary Group Review</div>
       <div class="section-subtitle">RSCA, group-consistent fields, and per-report grades — reviewed together before printing</div>
+      <div class="rsca-actions">
+        <button class="btn-primary" id="btn-print-executive-report" title="Opens a printable executive-style report of this group's roster, rankings, and group averages.">Print Executive Report</button>
+      </div>
       ${rscaBanner}
       ${groupFieldsGrid}
       ${infoCard('Adjust trait grades, promotion recommendations, and summary rank in the table below before printing.','blue')}
@@ -6535,6 +6672,9 @@ ${rt!=='CHIEFEVAL'?`
         if(typeof openGradeReview==='function') openGradeReview();
         else if(typeof App?.openGradeReview==='function') App.openGradeReview();
       });
+    });
+    document.getElementById('btn-print-executive-report')?.addEventListener('click', () => {
+      if (typeof App?.openExecutiveReportPreview === 'function') App.openExecutiveReportPreview(group);
     });
     updateGRTotals(group);
   }
@@ -6843,6 +6983,134 @@ title="Save this file to its current location and passphrase (if any)." disabled
     });
   }
 
+  // ── Command Employment/Achievement Tracking (.nfeh) screen ──────
+  function renderNfehScreen(nfehFile) {
+    const records = nfehFile.records || [];
+    const sortOrder = nfehFile.sortOrder;
+    let sorted = records.slice();
+    if (sortOrder) {
+      sorted.sort((a,b) => {
+        if (sortOrder==='startdate-asc' || sortOrder==='startdate-desc') {
+          const da=(a.startDate||''), db=(b.startDate||'');
+          return sortOrder==='startdate-asc' ? da.localeCompare(db) : db.localeCompare(da);
+        }
+        const ta_=(a.eventTitle||'').toLowerCase(), tb_=(b.eventTitle||'').toLowerCase();
+        return sortOrder==='title-asc' ? ta_.localeCompare(tb_) : tb_.localeCompare(ta_);
+      });
+    }
+
+    const table = `
+      <div class="summary-table-wrap">
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>Event Title
+                <span style="display:inline-flex;gap:2px;margin-left:4px">
+                  ${rscaSortBtn('title-asc','A↑','A→Z')}${rscaSortBtn('title-desc','Z↓','Z→A')}
+                </span>
+              </th>
+              <th>Start Date
+                <span style="display:inline-flex;gap:2px;margin-left:4px">
+                  ${rscaSortBtn('startdate-asc','↑','Oldest first')}${rscaSortBtn('startdate-desc','↓','Newest first')}
+                </span>
+              </th>
+              <th>End Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sorted.length ? sorted.map(r=>{
+              const idx=records.indexOf(r);
+              return `
+              <tr data-ridx="${idx}">
+                <td><input type="text" class="field-input nfeh-cell-input" data-ridx="${idx}" data-rfield="eventTitle" value="${escHtml(r.eventTitle||'')}" maxlength="80" style="${RSCA_CELL_INPUT_STYLE}"></td>
+                <td><span class="date-field-wrap-inline"><input type="text" class="field-input nfeh-cell-input nfeh-cell-date" data-ridx="${idx}" data-rfield="startDate" value="${escHtml(r.startDate||'')}" placeholder="YYMMMDD" maxlength="7" style="${RSCA_CELL_INPUT_STYLE}" data-datepicker><button type="button" class="date-picker-btn-inline" data-datepicker-trigger tabindex="-1" aria-label="Open date picker">&#128197;</button></span></td>
+                <td><span class="date-field-wrap-inline"><input type="text" class="field-input nfeh-cell-input nfeh-cell-date" data-ridx="${idx}" data-rfield="endDate" value="${escHtml(r.endDate||'')}" placeholder="YYMMMDD" maxlength="7" style="${RSCA_CELL_INPUT_STYLE}" data-datepicker><button type="button" class="date-picker-btn-inline" data-datepicker-trigger tabindex="-1" aria-label="Open date picker">&#128197;</button></span></td>
+                <td style="text-align:center">
+                  <button class="nfeh-delete-btn" data-idx="${idx}" title="Delete this record" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;font-size:13px;padding:2px 6px">✕</button>
+                </td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No records yet.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-secondary" id="btn-nfeh-add-record" style="margin-top:var(--sp-3)">+ Add Record</button>`;
+
+    return `
+    <div style="max-width:1200px">
+      <div class="section-title">Command Employment/Achievement Tracking</div>
+      <div class="section-subtitle">Command event history for drafting Block 28 entries</div>
+      <div class="rsca-actions">
+        <button class="btn-secondary" id="btn-nfeh-save-as" title="Save this file to a specific location.">Save History As…</button>
+        <button class="btn-secondary" id="btn-nfeh-quicksave" title="Save this file to its current location and passphrase (if any)." disabled>Quicksave History</button>
+      </div>
+      <div class="field-row field-row-3">
+        ${fld('nfeh-shipstation','Ship/Station','text',nfehFile.shipStation||'','e.g., VFA-81','nfeh','shipStation',18)}
+        ${fld('nfeh-uic','UIC','text',nfehFile.uic||'','e.g., 12345','nfeh','uic',5)}
+      </div>
+      ${ta('nfeh-missiondesc','Brief Mission Description',nfehFile.missionDesc||'',3,'nfeh','missionDesc',270,'Prefixed to every suggested Block 28 entry built from this file.')}
+      ${table}
+    </div>`;
+  }
+
+  // onChange: dirty-marking only, no re-render (keystroke-safe).
+  // onRerender: full re-render — used wherever the table shape itself
+  // changes (sort order, delete), mirroring bindRscaScreen's onGradeChange.
+  function bindNfehScreen(nfehFile, onChange, onRerender) {
+    const main=document.getElementById('nfeh-main');
+    if (!main) return;
+    main.querySelectorAll('[data-field="nfeh"]').forEach(el=>{
+      const evt=el.tagName==='SELECT'?'change':'input';
+      el.addEventListener(evt,()=>{
+        const sk=el.dataset.subkey;
+        let v=el.value;
+        if (sk==='shipStation' || sk==='uic') {
+          const pos=el.selectionStart;
+          el.value=v.toUpperCase();
+          try { el.setSelectionRange(pos,pos); } catch(e){}
+          v=el.value;
+        }
+        nfehFile[sk]=v;
+        if (onChange) onChange(nfehFile);
+      });
+    });
+    main.querySelectorAll('.nfeh-cell-input').forEach(el=>{
+      el.addEventListener('input',()=>{
+        const ridx=parseInt(el.dataset.ridx), field=el.dataset.rfield;
+        const rec=nfehFile.records[ridx];
+        if (!rec) return;
+        const v=field==='eventTitle' ? el.value : el.value.toUpperCase();
+        const pos=el.selectionStart;
+        el.value=v;
+        try { el.setSelectionRange(pos,pos); } catch(e){}
+        rec[field]=el.value;
+        if (field==='startDate' || field==='endDate') {
+          const complete=rec[field].length>=7;
+          el.classList.toggle('error', complete && !DataModel.isValidDate(rec[field]));
+        }
+        if (onChange) onChange(nfehFile);
+      });
+    });
+    main.querySelectorAll('.gr-sort-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        nfehFile.sortOrder=btn.dataset.sort;
+        if (onChange) onChange(nfehFile);
+        if (onRerender) onRerender();
+      });
+    });
+    main.querySelectorAll('.nfeh-delete-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const idx=parseInt(btn.dataset.idx);
+        const rec=nfehFile.records[idx];
+        if (!rec) return;
+        if (!confirm(`Delete the record "${rec.eventTitle||'this event'}"?`)) return;
+        nfehFile.records.splice(idx,1);
+        if (onChange) onChange(nfehFile);
+        if (onRerender) onRerender();
+      });
+    });
+  }
+
   // ── Trait Descriptions ─────────────────────────────────────────
   function getTraitDescs(rt) {
     if (rt==='FITREP') return {
@@ -6872,7 +7140,8 @@ title="Save this file to its current location and passphrase (if any)." disabled
     init, setActiveReport, isDirty, markClean, switchSection,
     validateAndHighlight, updateSummaryAuto, renderGradeReviewScreen, bindGradeReview,
     openValidationModal, computeGroupTotals,
-    renderRscaScreen, bindRscaScreen
+    renderRscaScreen, bindRscaScreen,
+    renderNfehScreen, bindNfehScreen, applyBlock28Import
   };
 })();
 
@@ -6939,6 +7208,15 @@ const PrintRenderer = (() => {
     return PDFGenerator.serializeHtmlPages(pdf, fontFamilies);
   }
 
+  async function renderExecutiveReport(group, opts = {}) {
+    ensureCss();
+    const fontFamilies = await PDFGenerator.registerHtmlFonts();
+    const writer = new PDFGenerator.HtmlWriter();
+    const pdf = PDFGenerator.buildExecutiveReport(group, { ...opts, writer });
+    if (!pdf) return '<p>Unable to render Executive Report</p>';
+    return PDFGenerator.serializeHtmlPages(pdf, fontFamilies);
+  }
+
   async function renderExtensionLetter(group, report, varInputs, opts = {}) {
     ensureCss();
     const fontFamilies = await PDFGenerator.registerHtmlFonts();
@@ -6993,7 +7271,7 @@ const PrintRenderer = (() => {
     return PDFGenerator.serializeHtmlPages(pdf, fontFamilies);
   }
 
-  return { render, renderSummaryLetter, renderExtensionLetter, renderAdminChangeLetter, renderLetterSupplementLetter, renderSuppReportLetter, renderSignatureBlocksLetter, renderRsInfoLetter };
+  return { render, renderSummaryLetter, renderExecutiveReport, renderExtensionLetter, renderAdminChangeLetter, renderLetterSupplementLetter, renderSuppReportLetter, renderSignatureBlocksLetter, renderRsInfoLetter };
 })();
 
 
@@ -10292,6 +10570,192 @@ const PDFGenerator = (() => {
   }
 
   // ══════════════════════════════════════════════════════════════════
+  // Executive Summary Report (Summary Group Review → "Print Executive
+  // Report"). A freeform roster document — not overlaid on any NAVPERS
+  // form — built from exactly the same computed values the Summary Group
+  // Review screen already shows on screen (RSCA/PSG RSCA, group-consistent
+  // RS fields, per-member rank/promo/trait-average, group average).
+  // Writer-agnostic like renderSummaryLetter/renderExtensionLetter — works
+  // with either PDFWriter (download) or HtmlWriter (Print Preview).
+  // ══════════════════════════════════════════════════════════════════
+
+  // Landscape (792×612) — the roster needs to fit the full on-screen row
+  // (Member through every trait column through every report-type-specific
+  // extra column, same set as DataModel.SGR_EXTRA_COLS), which portrait
+  // has nowhere near the width for even at a tiny font.
+  const EXEC_PAGE_W = 792, EXEC_PAGE_H = 612, EXEC_MARGIN = 28, EXEC_ROW_H = 13;
+  const EXEC_DATA_SIZE = 7, EXEC_HEAD_SIZE = 7;
+
+  function execCenterText(pdf, page, str, y, size, font = 'Times-Roman') {
+    const tw = PDFWriter.measureText(str, font, size);
+    pdf.text(page, (EXEC_PAGE_W - tw) / 2, y, str, font, size);
+  }
+
+  // Trims str (if needed) so it fits maxW at the given font/size, appending
+  // an ellipsis — these columns are far narrower than any on-screen field's
+  // natural width, so most long values (ship/station, career-rec text,
+  // counselor names) need this rather than overflowing into the next column.
+  function execFit(pdf, str, font, size, maxW) {
+    if (!str) return '';
+    if (PDFWriter.measureText(str, font, size) <= maxW) return str;
+    let s = str;
+    while (s.length > 1 && PDFWriter.measureText(s + '…', font, size) > maxW) s = s.slice(0, -1);
+    return s + '…';
+  }
+
+  // Full on-screen Summary Group Review row, reused verbatim: Member, Rank,
+  // Promo, one column per trait (DataModel.getTraitsForType), Avg, then
+  // every report-type-specific extra column (DataModel.SGR_EXTRA_COLS) —
+  // same data, same order, same source functions the screen itself uses.
+  function execBuildColumns(rt) {
+    const traits = DataModel.getTraitsForType(rt);
+    const extra = DataModel.SGR_EXTRA_COLS[rt] || [];
+    const usable = EXEC_PAGE_W - EXEC_MARGIN * 2;
+    const fixed = { member: 100, rank: 26, promo: 32, trait: 19, avg: 24 };
+    const fixedTotal = fixed.member + fixed.rank + fixed.promo + fixed.avg + fixed.trait * traits.length;
+    const extraW = extra.length ? Math.max(26, (usable - fixedTotal) / extra.length) : 0;
+
+    const cols = [
+      { id: 'member', label: 'MEMBER', w: fixed.member, align: 'left' },
+      { id: 'rank',   label: 'RANK',   w: fixed.rank,   align: 'center' },
+      { id: 'promo',  label: 'PROMO',  w: fixed.promo,  align: 'center' },
+      ...traits.map(t => ({ id: 'trait', trait: t, label: t.block, w: fixed.trait, align: 'center' })),
+      { id: 'avg',    label: 'AVG',    w: fixed.avg,    align: 'center' },
+      ...extra.map(c => ({ id: 'extra', extra: c, label: c.label, w: extraW, align: 'left' })),
+    ];
+    let x = EXEC_MARGIN;
+    cols.forEach(c => { c.x = x; x += c.w; });
+    return cols;
+  }
+
+  function execColValue(r, col, isCPO) {
+    if (col.id === 'member') {
+      const name = (r.blocks?.b1||'').split(',')[0].trim() || 'Report';
+      return r.blocks?.b2 ? `${name} (${r.blocks.b2})` : name;
+    }
+    if (col.id === 'rank')  return String(r.summaryGroup?.memberRank || '—');
+    if (col.id === 'promo') return r.promoRec || '—';
+    if (col.id === 'avg')   return DataModel.computeTraitAverage(r) || '—';
+    if (col.id === 'trait') {
+      const g = isCPO ? r.traitGrades?.[col.trait.key] : r.traits?.[col.trait.key];
+      return g || '—';
+    }
+    if (col.id === 'extra') {
+      const c = col.extra;
+      const raw = c.top ? (r[c.key]||'') : (r.blocks?.[c.key]||'');
+      return String(raw).replace(/\s*\n+\s*/g, ' ').trim() || '—';
+    }
+    return '';
+  }
+
+  function renderExecutiveReport(group, opts = {}) {
+    const pdf = opts.writer || new PDFWriter();
+    const reports = group.reports || [];
+    const rt = group.reportType;
+    const isCPO = rt === 'CHIEFEVAL';
+    const first = reports[0] || {};
+    const rs = group.rsInfo || {};
+    const rsField = k => rs[k] || first.blocks?.[k] || '';
+    const traits = DataModel.getTraitsForType(rt);
+
+    const sg = DataModel.computeSummaryGroup(group);
+    const rsca = DataModel.computeRSCA(group);
+    const psgRsca = DataModel.computePSGRSCA(group);
+    const avgs = reports.map(r => DataModel.computeTraitAverage(r)).filter(Boolean).map(parseFloat);
+    const groupAvg = avgs.length ? (avgs.reduce((a,c)=>a+c,0)/avgs.length).toFixed(2) : '—';
+    // Per-trait group averages, mirroring FormRenderer's updateGRTotals exactly.
+    const traitAvgs = {};
+    traits.forEach(t => {
+      const grades = reports.map(r => (isCPO ? r.traitGrades?.[t.key] : r.traits?.[t.key]))
+        .filter(g => g && g!=='NOB' && !isNaN(parseFloat(g))).map(parseFloat);
+      traitAvgs[t.key] = grades.length ? (grades.reduce((a,b)=>a+b,0)/grades.length).toFixed(2) : '—';
+    });
+
+    // Same sort order currently active on the Grade Review screen —
+    // group.sortOrder is the live state that table's own sort buttons set.
+    let rows = reports.slice();
+    const order = group.sortOrder;
+    if (order) {
+      rows.sort((a,b) => {
+        if (order==='rank-asc' || order==='rank-desc') {
+          const ra=parseInt(a.summaryGroup?.memberRank)||9999, rb=parseInt(b.summaryGroup?.memberRank)||9999;
+          return order==='rank-asc' ? ra-rb : rb-ra;
+        }
+        const na=(a.blocks?.b1||'').toLowerCase(), nb=(b.blocks?.b1||'').toLowerCase();
+        return order==='alpha-asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+      });
+    }
+
+    const columns = execBuildColumns(rt);
+    let page = pdf.addPage(EXEC_PAGE_W, EXEC_PAGE_H);
+    let y = EXEC_PAGE_H - EXEC_MARGIN;
+
+    const footer = (pg) => execCenterText(pdf, pg, 'CUI', 16, 7);
+    const cellText = (pg, col, yy, str, font, size) => {
+      const fitted = execFit(pdf, String(str), font, size, col.w - 4);
+      const tx = col.align==='center' ? col.x + Math.max(0,(col.w - PDFWriter.measureText(fitted,font,size))/2) : col.x;
+      pdf.text(pg, tx, yy, fitted, font, size);
+    };
+    const drawRosterHeader = (pg, yy) => {
+      columns.forEach(c => cellText(pg, c, yy, c.label, 'Times-Bold', EXEC_HEAD_SIZE));
+      pdf.line(pg, EXEC_MARGIN, yy-4, EXEC_PAGE_W-EXEC_MARGIN, yy-4, 0.75);
+    };
+
+    // ── Header band ──────────────────────────────────────────────
+    execCenterText(pdf, page, 'SUMMARY GROUP EXECUTIVE REPORT', y, 14, 'Times-Bold'); y -= 16;
+    const rsLine = [rsField('b22'), rsField('b23'), rsField('b24')].filter(Boolean).join(', ');
+    if (rsLine) { execCenterText(pdf, page, rsLine, y, 9); y -= 11; }
+    const rsLine2 = [rsField('b25'), rsField('b26') ? `UIC ${rsField('b26')}` : ''].filter(Boolean).join(' — ');
+    if (rsLine2) { execCenterText(pdf, page, rsLine2, y, 8); y -= 11; }
+    const periodTo = first.blocks?.b15 || '';
+    const genLine = `${rt||''} Group${periodTo ? ' · Period To ' + periodTo : ''} · Generated ${DataModel.formatDateDDMmmYY()}`;
+    execCenterText(pdf, page, genLine, y, 8, 'Times-Roman'); y -= 16;
+
+    // ── Summary stat band ────────────────────────────────────────
+    pdf.text(page, EXEC_MARGIN, y, `MEMBERS IN GROUP: ${reports.length}`, 'Times-Bold', 9); y -= 12;
+    pdf.text(page, EXEC_MARGIN, y, `PROMOTION RECOMMENDATION BREAKOUT:  SP ${sg.sp} · PROG ${sg.prog} · P ${sg.p} · MP ${sg.mp} · EP ${sg.ep}${sg.nob?` · NOB ${sg.nob}`:''}`, 'Times-Roman', 8); y -= 12;
+    pdf.text(page, EXEC_MARGIN, y, `RSCA: ${rsca||'—'}    POST-SUMMARY GROUP RSCA: ${psgRsca||'—'}    GROUP TRAIT AVERAGE: ${groupAvg}`, 'Times-Roman', 8); y -= 14;
+    pdf.line(page, EXEC_MARGIN, y, EXEC_PAGE_W-EXEC_MARGIN, y, 1); y -= 14;
+
+    // ── Roster table ─────────────────────────────────────────────
+    drawRosterHeader(page, y); y -= EXEC_ROW_H;
+    rows.forEach((r, i) => {
+      if (y < EXEC_MARGIN + 24) {
+        footer(page);
+        page = pdf.addPage(EXEC_PAGE_W, EXEC_PAGE_H);
+        y = EXEC_PAGE_H - EXEC_MARGIN;
+        execCenterText(pdf, page, 'SUMMARY GROUP EXECUTIVE REPORT (continued)', y, 11, 'Times-Bold'); y -= 16;
+        drawRosterHeader(page, y); y -= EXEC_ROW_H;
+      }
+      columns.forEach(c => cellText(page, c, y, execColValue(r, c, isCPO), 'Times-Roman', EXEC_DATA_SIZE));
+      y -= EXEC_ROW_H;
+    });
+
+    // ── Footer: per-trait + overall GROUP AVG ───────────────────
+    if (y < EXEC_MARGIN + 24) {
+      footer(page);
+      page = pdf.addPage(EXEC_PAGE_W, EXEC_PAGE_H);
+      y = EXEC_PAGE_H - EXEC_MARGIN;
+    }
+    pdf.line(page, EXEC_MARGIN, y+4, EXEC_PAGE_W-EXEC_MARGIN, y+4, 0.75);
+    columns.forEach(c => {
+      if (c.id === 'member') cellText(page, c, y-8, 'GROUP AVG', 'Times-Bold', EXEC_DATA_SIZE);
+      else if (c.id === 'trait') cellText(page, c, y-8, traitAvgs[c.trait.key], 'Times-Bold', EXEC_DATA_SIZE);
+      else if (c.id === 'avg') cellText(page, c, y-8, groupAvg, 'Times-Bold', EXEC_DATA_SIZE);
+    });
+    footer(page);
+
+    return pdf;
+  }
+
+  async function downloadExecutiveReport(group, filename, onStatus, opts = {}) {
+    const pdf = renderExecutiveReport(group, opts);
+    if (!pdf) return;
+    const resolved = await _resolveFonts(pdf, onStatus);
+    pdf.download(filename || `ExecutiveReport_${group.reportType}.pdf`, resolved);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
   // Extension Letter (Special Letters → Extension)
   // Generates a blank-page (not overlaid on any NAVPERS form) 8.5×11in
   // correspondence letter per the governing instruction's standard Navy-
@@ -12008,6 +12472,8 @@ function drawCPOTraitGrade(pdf, pg, gradeY, grade) {
     download, downloadGroup, downloadSummaryLetter,
     build: _build,           // exposes the report-type dispatcher for Print Preview
     buildSummaryLetter: renderSummaryLetter, // writer-agnostic — usable with HtmlWriter for Print Preview
+    buildExecutiveReport: renderExecutiveReport, // writer-agnostic — usable with HtmlWriter for Print Preview
+    downloadExecutiveReport,
     buildExtensionLetter: renderExtensionLetter, // writer-agnostic — usable with HtmlWriter for Print Preview
     downloadExtensionLetter,
     buildAdminChangeLetter: renderAdminChangeLetter,
@@ -12520,13 +12986,6 @@ const XmlImporter = (() => {
     return comments;
   }
 
-  // ── Parse statement intent ────────────────────────────────────
-  function mapStatementIntent(el) {
-    if (bool(el, 'StatementYes')) return 'submit';
-    if (bool(el, 'StatementNo'))  return 'not_submit';
-    return 'none';
-  }
-
   // ── Core: convert one <Reports> element to NavEval report ─────
   function parseReportElement(el) {
     const rawType = txt(el, 'ReportType');
@@ -12665,9 +13124,6 @@ const XmlImporter = (() => {
     // Retention
     if (bool(el, 'RetentionYes'))     report.retention = 'Recommended';
     else if (bool(el, 'RetentionNo')) report.retention = 'Not Recommended';
-
-    // Statement Intent
-    report.statementIntent = mapStatementIntent(el);
 
     // RS Address
     report.rsAddress = buildRSAddress(el);
@@ -12938,6 +13394,23 @@ const App = (() => {
     _rscaFileHandle = null; _rscaHandleId = null;
   }
 
+  // ── Command Employment/Achievement Tracking Tool (.nfeh) state ───
+  let _nfehFile              = null;  // current .nfeh data object
+  let _currentNfehFile       = null;  // current filename (display string)
+  let _nfehSessionPassphrase = null;
+  let _nfehDirty             = false;
+  let _nfehFileHandle        = null;  // FileSystemFileHandle|null — gates Quicksave History
+  let _nfehHandleId          = null;  // HandleStore key for _nfehFileHandle
+  // Set while the in-editor "Import from History File" flow is mid-flight
+  // (file picked, awaiting passphrase) — mirrors _pendingFile/_pendingFileHandle
+  // but kept separate so a concurrent RSCA/group open can't clobber it.
+  let _pendingNfehImportFile = null;  // { content, filename } | null
+
+  function resetNfehFileState() {
+    _currentNfehFile = null; _nfehSessionPassphrase = null;
+    _nfehFileHandle = null; _nfehHandleId = null;
+  }
+
   const RECENT_KEY = 'navfitedge_recent_v1';
   const MAX_RECENT = 8;
   const THEME_KEY = 'navfit-theme';
@@ -12984,6 +13457,8 @@ const App = (() => {
     bindEditorEvents();
     bindPrintEvents();
     bindRscaEvents();
+    bindNfehEvents();
+    bindNfehImportPreviewModalEvents();
     bindSpecialLettersEvents();
     bindFileInputEvents();
     loadRecentFiles();
@@ -13430,6 +13905,20 @@ const App = (() => {
     showScreen('screen-print');
   }
 
+  // Opened directly from the Summary Group Review screen's own "Print
+  // Executive Report" button — reuses the #screen-print/#print-stage
+  // toolbar unchanged, so Print (window.print()) works for free exactly
+  // like every other preview here.
+  async function openExecutiveReportPreview(group) {
+    if (!group) return;
+    const stage = document.getElementById('print-stage');
+    if (!stage) return;
+    stage.innerHTML = await PrintRenderer.renderExecutiveReport(group);
+    document.getElementById('print-title').textContent = `Print Preview — Executive Report (${group.reportType})`;
+    document.title = `ExecutiveReport_${group.reportType}`.replace(/[^A-Za-z0-9._-]/g, '_');
+    showScreen('screen-print');
+  }
+
   async function openExtensionPrintPreview(group, report, varInputs, opts = {}) {
     const stage = document.getElementById('print-stage');
     if (!stage) return;
@@ -13461,7 +13950,7 @@ const App = (() => {
     const errEl   = document.getElementById('passphrase-error');
     errEl.classList.add('hidden');
 
-    if (_passphraseMode === 'save' || _passphraseMode === 'rsca-save') {
+    if (_passphraseMode === 'save' || _passphraseMode === 'rsca-save' || _passphraseMode === 'nfeh-save') {
       if (pass && pass !== confirm) {
         errEl.textContent = 'Passphrases do not match.';
         errEl.classList.remove('hidden');
@@ -13469,9 +13958,11 @@ const App = (() => {
       }
       hideModal('modal-passphrase');
       if (_passphraseMode === 'rsca-save') doSaveRscaFile(pass || null);
+      else if (_passphraseMode === 'nfeh-save') doSaveNfehFile(pass || null);
       else doSaveFile(pass || null);
     } else {
-      // 'open'-shaped modes: 'open', 'rsca-open', 'rsca-nfe-group', 'rsca-nfe-import'
+      // 'open'-shaped modes: 'open', 'rsca-open', 'rsca-nfe-group', 'rsca-nfe-import',
+      // 'nfeh-open', 'nfeh-import'
       if (!pass) {
         errEl.textContent = 'A passphrase is required to open this file.';
         errEl.classList.remove('hidden');
@@ -13481,6 +13972,8 @@ const App = (() => {
       if (_passphraseMode === 'rsca-open') doOpenRscaFileWithPassphrase(pass);
       else if (_passphraseMode === 'rsca-nfe-group') doOpenRscaNfeGroupWithPassphrase(pass);
       else if (_passphraseMode === 'rsca-nfe-import') doOpenRscaNfeImportWithPassphrase(pass);
+      else if (_passphraseMode === 'nfeh-open') doOpenNfehFileWithPassphrase(pass);
+      else if (_passphraseMode === 'nfeh-import') doNfehImportWithPassphrase(pass);
       else doOpenFileWithPassphrase(pass);
     }
   }
@@ -13614,6 +14107,42 @@ const App = (() => {
     document.getElementById('btn-rsca-create-group-cancel')?.addEventListener('click', () => hideModal('modal-rsca-create-group'));
     document.getElementById('btn-rsca-create-group-x')?.addEventListener('click', () => hideModal('modal-rsca-create-group'));
 
+  }
+
+  // ── Command Employment/Achievement Tracking Tool ──────────────────
+  function bindNfehEvents() {
+    document.getElementById('btn-nfeh-tool')?.addEventListener('click', () => showModal('modal-nfeh-choice'));
+
+    document.getElementById('btn-nfeh-create-new')?.addEventListener('click', () => {
+      hideModal('modal-nfeh-choice');
+      _nfehFile = DataModel.createDefaultNfehFile();
+      resetNfehFileState();
+      _nfehDirty = false;
+      openNfehScreen();
+    });
+
+    document.getElementById('btn-nfeh-open-existing')?.addEventListener('click', async () => {
+      hideModal('modal-nfeh-choice');
+      if (HandleStore.isAvailable()) {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            types: [{ description: 'Command Employment/Achievement History File', accept: { 'application/octet-stream': ['.nfeh'] } }]
+          });
+          const file = await handle.getFile();
+          await openNfehFile(file, handle);
+        } catch (e) {
+          if (e.name === 'AbortError') return;
+          showToast('Error opening file: ' + e.message, 'error');
+        }
+        return;
+      }
+      document.getElementById('file-input-nfeh-open').click();
+    });
+
+    document.getElementById('btn-nfeh-back')?.addEventListener('click', () => {
+      if (_nfehDirty && !confirm('You have unsaved changes in this History file. Discard them and go back?')) return;
+      showScreen('screen-landing');
+    });
   }
 
   // Extension Letter Variable Inputs persist across modal close/reopen (but
@@ -14235,6 +14764,273 @@ const App = (() => {
     showToast(`New ${reportType} group created from RSCA profile (${_rscaSelectedGrade}).`, 'success');
   }
 
+  // ── Command Employment/Achievement Tracking Tool ──────────────────
+  function bindNfehActionButtons() {
+    document.getElementById('btn-nfeh-save-as')?.addEventListener('click', () => promptSaveNfehFile());
+    document.getElementById('btn-nfeh-quicksave')?.addEventListener('click', doQuicksaveNfeh);
+    updateNfehQuicksaveButtonState();
+
+    document.getElementById('btn-nfeh-add-record')?.addEventListener('click', () => {
+      const blank = { eventTitle:'', startDate:'', endDate:'' };
+      _nfehFile.records.push(blank);
+      _nfehDirty = true;
+      renderNfehMain();
+      const newIdx = _nfehFile.records.length - 1;
+      const titleEl = document.querySelector(`.nfeh-cell-input[data-ridx="${newIdx}"][data-rfield="eventTitle"]`);
+      if (titleEl) titleEl.focus();
+    });
+  }
+
+  function openNfehScreen() {
+    if (!_nfehFile) return;
+    renderNfehMain();
+    const fnEl = document.getElementById('nfeh-filename');
+    if (fnEl) fnEl.textContent = (_currentNfehFile || 'Untitled').replace(/\.nfeh$/i,'');
+    showScreen('screen-nfeh');
+  }
+
+  function renderNfehMain() {
+    const main = document.getElementById('nfeh-main');
+    if (!main) return;
+    main.innerHTML = FormRenderer.renderNfehScreen(_nfehFile);
+    FormRenderer.bindNfehScreen(_nfehFile,
+      () => { _nfehDirty = true; },
+      () => { _nfehDirty = true; renderNfehMain(); }
+    );
+    bindNfehActionButtons();
+  }
+
+  async function openNfehFile(file, handle = null) {
+    try {
+      const content = await NavEvalCrypto.readFile(file);
+      const result = NavEvalCrypto.decrypt(content, null);
+      if (result.error === 'PASSPHRASE_REQUIRED') {
+        _pendingFile = { content, filename: file.name };
+        _pendingFileHandle = handle;
+        _passphraseMode = 'nfeh-open';
+        document.getElementById('passphrase-title').textContent = 'History File is Passphrase Protected';
+        document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
+        document.getElementById('passphrase-confirm-group').style.display = 'none';
+        document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-input').value = '';
+        showModal('modal-passphrase');
+        return;
+      }
+      if (!result.ok) { showToast('Cannot open: ' + result.error, 'error'); return; }
+      loadNfehFile(result.data, file.name, handle, null);
+    } catch(e) { showToast('Error reading History file: ' + e.message, 'error'); }
+  }
+
+  function doOpenNfehFileWithPassphrase(passphrase) {
+    if (!_pendingFile) return;
+    const result = NavEvalCrypto.decrypt(_pendingFile.content, passphrase);
+    if (!result.ok) { showToast('Incorrect passphrase.', 'error'); _pendingFile = null; _pendingFileHandle = null; return; }
+    loadNfehFile(result.data, _pendingFile.filename, _pendingFileHandle, passphrase);
+    _pendingFile = null; _pendingFileHandle = null;
+  }
+
+  function loadNfehFile(data, filename, handle, passphrase) {
+    if (!data || !data._nfeh) { showToast('Unrecognized Command Employment/Achievement Tracking file format.', 'error'); return; }
+    _nfehFile = data;
+    _currentNfehFile = filename;
+    _nfehSessionPassphrase = passphrase;
+    _nfehDirty = false;
+    _nfehFileHandle = handle || null;
+    _nfehHandleId = null;
+    if (handle) {
+      _nfehHandleId = DataModel.generateId();
+      HandleStore.set(_nfehHandleId, handle).catch(()=>{});
+    }
+    openNfehScreen();
+    showToast(`Opened: ${filename}`, 'success');
+  }
+
+  function promptSaveNfehFile() {
+    if (!_nfehFile) return;
+    if (!(_nfehFile.shipStation || '').trim()) {
+      showToast('Ship/Station is required before saving a History file.', 'error');
+      return;
+    }
+    _passphraseMode = 'nfeh-save';
+    document.getElementById('passphrase-title').textContent = 'Save & Encrypt History File';
+    document.getElementById('passphrase-desc').textContent =
+      'Your file will be AES-256 encrypted. Add an optional passphrase for additional protection, or leave blank for standard encryption.';
+    document.getElementById('passphrase-confirm-group').style.display = '';
+    document.getElementById('passphrase-error').classList.add('hidden');
+    document.getElementById('passphrase-input').value = '';
+    document.getElementById('passphrase-confirm').value = '';
+    showModal('modal-passphrase');
+    setTimeout(() => document.getElementById('passphrase-input').focus(), 100);
+  }
+
+  async function doSaveNfehFile(passphrase) {
+    if (!_nfehFile) return;
+    const suggested = _currentNfehFile || DataModel.buildNfehFilename(_nfehFile);
+
+    if (HandleStore.isAvailable()) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested,
+          types: [{ description: 'Command Employment/Achievement History File', accept: { 'application/octet-stream': ['.nfeh'] } }]
+        });
+        const content  = NavEvalCrypto.encrypt(_nfehFile, passphrase);
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+
+        _currentNfehFile = handle.name;
+        _nfehSessionPassphrase = passphrase;
+        _nfehDirty = false;
+        _nfehFileHandle = handle;
+        _nfehHandleId = DataModel.generateId();
+        HandleStore.set(_nfehHandleId, handle).catch(()=>{});
+        updateNfehQuicksaveButtonState();
+        const fnEl = document.getElementById('nfeh-filename');
+        if (fnEl) fnEl.textContent = handle.name.replace(/\.nfeh$/i,'');
+        showToast('History file saved.', 'success');
+      } catch (e) {
+        if (e.name !== 'AbortError') showToast('Error saving: ' + e.message, 'error');
+      }
+    } else {
+      // Fallback: classic blob download (non-Chromium) — no reusable handle
+      try {
+        const content = NavEvalCrypto.encrypt(_nfehFile, passphrase);
+        const blob = new Blob([content], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement('a'), { href: url, download: suggested });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        _currentNfehFile = suggested; _nfehSessionPassphrase = null;
+        _nfehDirty = false;
+        const fnEl = document.getElementById('nfeh-filename');
+        if (fnEl) fnEl.textContent = suggested.replace(/\.nfeh$/i,'');
+        showToast('History file saved.', 'success');
+      } catch(e) {
+        showToast('Error saving: ' + e.message, 'error');
+      }
+    }
+  }
+
+  async function doQuicksaveNfeh() {
+    if (!_nfehFile) return;
+    if (!_nfehFileHandle) { promptSaveNfehFile(); return; }
+    try {
+      let perm = await _nfehFileHandle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') perm = await _nfehFileHandle.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') throw new Error('PERMISSION_DENIED');
+      const content  = NavEvalCrypto.encrypt(_nfehFile, _nfehSessionPassphrase);
+      const writable = await _nfehFileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      _nfehDirty = false;
+      showToast('History file saved. (Reused your existing passphrase.)', 'success');
+    } catch (e) {
+      const reason = e.message === 'PERMISSION_DENIED' ? 'permission to write to this file was denied'
+        : e.name === 'NotFoundError' ? 'the file could not be found — it may have been moved or deleted'
+        : (e.message || 'an unknown error occurred');
+      showToast(`Quicksave failed (${reason}). Opening Save As instead…`, 'error');
+      _nfehFileHandle = null; _nfehHandleId = null;
+      updateNfehQuicksaveButtonState();
+      promptSaveNfehFile();
+    }
+  }
+
+  function updateNfehQuicksaveButtonState() {
+    const btn = document.getElementById('btn-nfeh-quicksave');
+    if (btn) btn.disabled = !_nfehFileHandle;
+  }
+
+  // ── Editor import: "Import from History File" (above Block 29) ───
+  async function openNfehImportForEditor() {
+    const report = _group?.reports?.[_group.activeIndex || 0];
+    if (!report) return;
+    const b14 = report.blocks?.b14, b15 = report.blocks?.b15;
+    if (!DataModel.isValidDate(b14) || !DataModel.isValidDate(b15)) {
+      showToast('Set a valid Period of Report (Block 14/15) before importing.', 'error');
+      return;
+    }
+    if (HandleStore.isAvailable()) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: 'Command Employment/Achievement History File', accept: { 'application/octet-stream': ['.nfeh'] } }]
+        });
+        const file = await handle.getFile();
+        await processNfehImportFile(file, report, b14, b15);
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        showToast('Error opening file: ' + e.message, 'error');
+      }
+      return;
+    }
+    document.getElementById('file-input-nfeh-import').click();
+  }
+
+  // Shared decrypt/passphrase-dispatch for the editor import flow — used by
+  // both the File System Access picker above and the non-Chromium fallback
+  // <input type=file> change handler (see bindFileInputEvents()).
+  async function processNfehImportFile(file, report, b14, b15) {
+    try {
+      const content = await NavEvalCrypto.readFile(file);
+      const result = NavEvalCrypto.decrypt(content, null);
+      if (result.error === 'PASSPHRASE_REQUIRED') {
+        _pendingNfehImportFile = { content, filename: file.name };
+        _passphraseMode = 'nfeh-import';
+        document.getElementById('passphrase-title').textContent = 'History File is Passphrase Protected';
+        document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
+        document.getElementById('passphrase-confirm-group').style.display = 'none';
+        document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-input').value = '';
+        showModal('modal-passphrase');
+        return;
+      }
+      if (!result.ok) { showToast('Cannot open: ' + result.error, 'error'); return; }
+      runNfehImportMatch(result.data, report, b14, b15);
+    } catch(e) { showToast('Error reading History file: ' + e.message, 'error'); }
+  }
+
+  function doNfehImportWithPassphrase(passphrase) {
+    if (!_pendingNfehImportFile) return;
+    const result = NavEvalCrypto.decrypt(_pendingNfehImportFile.content, passphrase);
+    if (!result.ok) { showToast('Incorrect passphrase.', 'error'); _pendingNfehImportFile = null; return; }
+    const report = _group?.reports?.[_group.activeIndex || 0];
+    _pendingNfehImportFile = null;
+    if (!report) return;
+    runNfehImportMatch(result.data, report, report.blocks?.b14, report.blocks?.b15);
+  }
+
+  function runNfehImportMatch(data, report, b14, b15) {
+    if (!data || !data._nfeh) { showToast('Unrecognized Command Employment/Achievement Tracking file format.', 'error'); return; }
+    const result = DataModel.buildNfehImportText(data, b14, b15);
+    if (!result.text) {
+      showToast('No matching events or mission description found for this report’s period.', 'info');
+      return;
+    }
+    const descEl = document.getElementById('nfeh-import-preview-desc');
+    if (descEl) descEl.textContent =
+      `${result.matched.length} of ${result.totalRecords} record(s) occurred during this report's period (${b14}–${b15}).`;
+    const textEl = document.getElementById('nfeh-import-preview-text');
+    if (textEl) { textEl.value = result.text; updateNfehImportPreviewCounter(); }
+    showModal('modal-nfeh-import-preview');
+  }
+
+  function updateNfehImportPreviewCounter() {
+    const textEl = document.getElementById('nfeh-import-preview-text');
+    const counterEl = document.getElementById('nfeh-import-preview-counter');
+    if (textEl && counterEl) counterEl.textContent = `${textEl.value.length}/270`;
+  }
+
+  function bindNfehImportPreviewModalEvents() {
+    document.getElementById('nfeh-import-preview-text')?.addEventListener('input', updateNfehImportPreviewCounter);
+    document.getElementById('btn-nfeh-import-preview-apply')?.addEventListener('click', () => {
+      const text = document.getElementById('nfeh-import-preview-text')?.value || '';
+      hideModal('modal-nfeh-import-preview');
+      FormRenderer.applyBlock28Import(text);
+    });
+    const cancel = () => hideModal('modal-nfeh-import-preview');
+    document.getElementById('btn-nfeh-import-preview-cancel')?.addEventListener('click', cancel);
+    document.getElementById('btn-nfeh-import-preview-x')?.addEventListener('click', cancel);
+  }
+
   // Pulls Name/SSN/Grade/EndDate/B33-39 out of every report in a decrypted
   // .nfe group, for the "Import .NFE file data to this RSCA" flow. Grade is
   // derived the same report-type-aware way as periodic-date validation:
@@ -14429,6 +15225,18 @@ const App = (() => {
     document.getElementById('file-input-rsca-nfe-import')?.addEventListener('change', async e => {
       const file = e.target.files[0]; if (!file) return; e.target.value = '';
       await openRscaNfeImport(file);
+    });
+    // History File: Open Existing History File (non-Chromium fallback)
+    document.getElementById('file-input-nfeh-open')?.addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return; e.target.value = '';
+      await openNfehFile(file);
+    });
+    // History File: editor "Import from History File" (non-Chromium fallback)
+    document.getElementById('file-input-nfeh-import')?.addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return; e.target.value = '';
+      const report = _group?.reports?.[_group.activeIndex || 0];
+      if (!report) return;
+      await processNfehImportFile(file, report, report.blocks?.b14, report.blocks?.b15);
     });
   }
 
@@ -15232,7 +16040,7 @@ const App = (() => {
     } catch(e) { showToast('Error importing: ' + e.message, 'error'); }
   }
 
-  return { showToast, showScreen, showModal, hideModal };
+  return { showToast, showScreen, showModal, hideModal, openNfehImportForEditor, openExecutiveReportPreview };
 })();
 
 
