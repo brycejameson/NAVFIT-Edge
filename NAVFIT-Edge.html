@@ -5021,10 +5021,15 @@ const FormRenderer = (() => {
   // suggested text to Block 28 through the normal setField path — so
   // dirty-marking, revalidation (including the existing B28 overflow
   // warning), and the on-screen refresh all happen exactly as if the user
-  // had typed it in themselves.
+  // had typed it in themselves. The constructed text arrives as one
+  // unbroken line (the import preview textarea doesn't enforce B28's
+  // wrap), so it's rewrapped to B28's real 3×90-char line limits first —
+  // the same treatment XML/NFE import already gives b28 — rather than
+  // landing as a single raw line nothing else in the app would ever store.
   function applyBlock28Import(text) {
     if (!_report) return;
-    setField('blocks', text, 'b28');
+    const wrapped = DataModel.wrapVariableLines((text||'').slice(0, DataModel.FIELD_CHAR_HARD_CAP), DataModel.WRAP_LINE_LIMITS.b28);
+    setField('blocks', wrapped, 'b28');
     renderSection(currentSection());
   }
 
@@ -15182,7 +15187,11 @@ const App = (() => {
     if (descEl) descEl.textContent =
       `${result.matched.length} of ${result.totalRecords} record(s) occurred during this report's period (${b14}–${b15}).`;
     const textEl = document.getElementById('nfeh-import-preview-text');
-    if (textEl) { textEl.value = result.text; updateNfehImportPreviewCounter(); }
+    // Pre-wrap to B28's real 3x90-char line limits so the preview shows
+    // exactly what will land in the field, not a single raw line — the
+    // constructed text otherwise has no line breaks at all.
+    const wrapped = DataModel.wrapVariableLines(result.text.slice(0, DataModel.FIELD_CHAR_HARD_CAP), DataModel.WRAP_LINE_LIMITS.b28);
+    if (textEl) { textEl.value = wrapped; updateNfehImportPreviewCounter(); }
     showModal('modal-nfeh-import-preview');
   }
 
