@@ -13094,8 +13094,13 @@ const XmlImporter = (() => {
       report.blocks.b41b = txt(el, 'RecommendB');
     }
 
-    // B49 — Senior Rater (EVAL)
-    report.blocks.b49 = txt(el, 'SeniorRater') || txt(el, 'Rater');
+    // B42 — Rater (EVAL); B49 — Senior Rater (EVAL). These were previously
+    // merged into a single b49 assignment (SeniorRater falling back to
+    // Rater when blank), which left B42 permanently empty on every import
+    // and, when SeniorRater actually was blank, wrote the Rater's name
+    // into the Senior Rater field instead.
+    report.blocks.b42 = txt(el, 'Rater');
+    report.blocks.b49 = txt(el, 'SeniorRater');
 
     // Comments
     report.comments = txt(el, 'Comments');
