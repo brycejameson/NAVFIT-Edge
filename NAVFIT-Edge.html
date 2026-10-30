@@ -5581,13 +5581,15 @@ const FormRenderer = (() => {
       result.sectionErrors['promosg']=result.sectionErrors['promosg']||[];
       result.sectionErrors['promosg'].push(rankErrs[0].msg);
     }
-    // PFA score validation
+    // PFA score validation — a warning (checkPFA's own doc comment says so,
+    // and the field gets the .warn class below), not an error. It used to
+    // be pushed into result.errors/sectionErrors, which inflated the
+    // report's error count, listed it under "Errors" in the validation
+    // modal, and incorrectly lit the Duties tab's has-errors indicator.
     const pfaErrs=Validator.checkPFA(_report);
     if (pfaErrs.length) {
       const pfaErrsMapped = pfaErrs.map(e=>({section:'duties',field:e.field,message:e.msg,blockRef:'B29'}));
-      result.errors.push(...pfaErrsMapped);
-      result.sectionErrors['duties']=result.sectionErrors['duties']||[];
-      result.sectionErrors['duties'].push(pfaErrs[0].msg);
+      result.warnings.push(...pfaErrsMapped);
       const b29El=document.querySelector('[data-subkey="b29"]');
       if (b29El) b29El.classList.add('warn');
     }
@@ -5616,13 +5618,22 @@ const FormRenderer = (() => {
   const VALIDATION_SECTION_TO_TAB = { promotion:'promosg', summary:'promosg' };
 
   // Loops every report in the group through Validator.validate and sums the
-  // counts. Only called lazily when the modal opens — not on every keystroke.
+  // counts, plus the two checks validateAndHighlight() bolts on per-report
+  // outside Validator.validate itself (checkPFA, checkDuplicateRanks) — this
+  // used to omit both entirely, undercounting the group total relative to
+  // what the per-report validation panel/modal actually show. checkPFA is
+  // per-report (counted once per report it applies to, as a warning);
+  // checkDuplicateRanks is a single group-wide check (counted once for the
+  // whole group, as an error — never multiplied per report). Only called
+  // lazily when the modal opens — not on every keystroke.
   function computeGroupTotals(group) {
     let errors=0, warnings=0;
     (group?.reports||[]).forEach(r=>{
       const res=Validator.validate(r,group);
       errors+=res.errors.length; warnings+=res.warnings.length;
+      warnings+=Validator.checkPFA(r).length;
     });
+    errors+=Validator.checkDuplicateRanks(group).length;
     return {errors,warnings,reportCount:(group?.reports||[]).length};
   }
 
