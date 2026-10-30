@@ -3997,6 +3997,69 @@ const DataModel = (() => {
     return outputLines.join('\n');
   }
 
+  // Like wrapTextUniform/wrapVariableLines (lineMax may be a number or an
+  // array — unifies both), but additionally returns `map`, a parallel array
+  // where map[i] is the offset into `text` that wrapped[i] came from. This
+  // is what lets the live-typing reflow engine (bindReflowTextarea in
+  // FormRenderer) tell a synthetic (soft) line break apart from a real one
+  // the user typed — text.charAt(map[i]) === '\n' means the break at
+  // wrapped[i] is a real '\n' carried through verbatim; anything else means
+  // wrapWithMap manufactured it to fit maxLine, and it's safe to merge back
+  // across on a later edit. Never called from the print/import/export
+  // rewrap paths (wrapTextUniform/wrapVariableLines, untouched above) —
+  // those have no cursor to preserve and don't need the map.
+  function wrapWithMap(text, lineMax) {
+    const arr = Array.isArray(lineMax) ? lineMax : [lineMax];
+    text = text || '';
+    const n = text.length;
+    const wrapped = [];
+    const map = [];
+    let li = 0;          // read cursor into `text`
+    let lineStart = 0;   // logical index where the current userLine segment began
+    let lineNo = 0;       // 0-based output line index, for arr[] lookup
+
+    while (li < n) {
+      let segEnd = text.indexOf('\n', lineStart);
+      if (segEnd === -1) segEnd = n;
+      const max = arr[Math.min(lineNo, arr.length - 1)];
+      const segLen = segEnd - li;
+
+      if (segLen <= max) {
+        for (let k = li; k < segEnd; k++) { wrapped.push(text[k]); map.push(k); }
+        li = segEnd;
+        if (li < n) {               // real '\n' present — emit verbatim (hard break)
+          wrapped.push('\n'); map.push(li);
+          li++; lineStart = li; lineNo++;
+        }
+        continue;
+      }
+
+      // Soft-wrap needed: mirror `remaining.lastIndexOf(' ', max)` as an
+      // absolute-index backward scan over [li, li+max].
+      const windowEnd = li + max;
+      let breakAt = -1;
+      for (let k = windowEnd; k >= li; k--) { if (text[k] === ' ') { breakAt = k; break; } }
+
+      let cutEnd, nextLi, softMapIdx;
+      if (breakAt === -1 || breakAt === li) {
+        // No usable space — forced mid-word hard split (mirrors `breakAt<=0`).
+        cutEnd = li + max;
+        nextLi = cutEnd;
+        if (text[nextLi] === ' ') nextLi++;   // mirrors the original's
+                                               // unconditional one-space strip
+        softMapIdx = cutEnd - 1;
+      } else {
+        cutEnd = breakAt;
+        nextLi = breakAt + 1;                 // elide the space
+        softMapIdx = breakAt;
+      }
+      for (let k = li; k < cutEnd; k++) { wrapped.push(text[k]); map.push(k); }
+      wrapped.push('\n'); map.push(softMapIdx);  // soft break
+      li = nextLi; lineStart = nextLi; lineNo++;
+    }
+    return { wrapped: wrapped.join(''), map };
+  }
+
   // Silent per-field safety ceiling — a worst-case guard against pathological
   // input (giant pastes, corrupted imports) ballooning memory/file size, not
   // a soft typing limit. Deliberately much larger than any field's real
@@ -4132,7 +4195,7 @@ const DataModel = (() => {
     computeRSCA,computeGroupTraitSum,computePSGRSCA,composeConcurrentRS,
     buildFilename,formatSSN,cleanSSN,isValidDate,parseDateYYMMMDD,monthsBetween,rateToPaygrade,
     formatDateDDMmmYY,extensionOccasionLabel,occasionLabel,extensionTypeOfReportLabel,
-    rateSuffixToPaygrade,designatorCategory,wrapToLineLimits,wrapTextUniform,wrapVariableLines,
+    rateSuffixToPaygrade,designatorCategory,wrapToLineLimits,wrapTextUniform,wrapVariableLines,wrapWithMap,
     FIELD_CHAR_HARD_CAP,WRAP_LINE_LIMITS,getCommentsLimits,
     RS_INFO_KEYS,isRsInfoBlank,rsInfoConflict,applyRsInfoToGroup,
     PAYGRADES,paygradeToReportType,createDefaultRscaFile,buildRscaFilename,computeRscaStatsForGrade,
@@ -4968,25 +5031,115 @@ const FormRenderer = (() => {
   // ── Field Binding ──────────────────────────────────────────────
   function bindTopLevelEvents() { bindFields(); }
 
-  // Enforces a variable-per-line wrap on a textarea as the user types.
-  // Never truncates/rejects — content beyond the field's nominal line
-  // budget is kept (flagged by Validator as a warning instead), matching
-  // the CHIEFEVAL trait-comment boxes' non-destructive reflow. A silent
+  // ── Reflow engine for wrap-enforced textareas ────────────────────
+  // Minimal-edit diff between two strings via a common-prefix/common-suffix
+  // walk. Reduces any realistic textarea `input` event (single keystroke,
+  // backspace/delete, IME commit, paste, cut, drag-drop, replace-selection,
+  // undo/redo) to "delete oldStr[delStart,delEnd), insert insText".
+  function diffEdit(oldStr, newStr) {
+    let start=0;
+    const maxStart=Math.min(oldStr.length, newStr.length);
+    while (start<maxStart && oldStr[start]===newStr[start]) start++;
+    let oldEnd=oldStr.length, newEnd=newStr.length;
+    while (oldEnd>start && newEnd>start && oldStr[oldEnd-1]===newStr[newEnd-1]) { oldEnd--; newEnd--; }
+    return { delStart:start, delEnd:oldEnd, insText:newStr.slice(start,newEnd) };
+  }
+  function wrappedToLogical(map, p) {
+    if (map.length===0) return 0;
+    if (p>=map.length) return map[map.length-1]+1;
+    return map[p];
+  }
+  // map is non-decreasing — binary search for the first wrapped offset
+  // whose logical position is >= target.
+  function logicalToWrapped(map, target) {
+    let lo=0, hi=map.length;
+    while (lo<hi) {
+      const mid=(lo+hi)>>1;
+      if (map[mid]>=target) hi=mid; else lo=mid+1;
+    }
+    return lo;
+  }
+
+  // Word-processor-style reflow for a wrap-enforced textarea: an edit
+  // anywhere in a paragraph cascades forward/backward through the rest of
+  // that paragraph (pulling words up into short lines, pushing them down
+  // from over-length ones) instead of the overflow word becoming an
+  // isolated new line — but never merges across a line break the user
+  // actually typed (Enter), only ones this function itself inserted to
+  // satisfy maxLine. Replaces calling DataModel.wrapTextUniform/
+  // wrapVariableLines fresh on the whole value every keystroke (which
+  // can't tell a real `\n` apart from one it previously inserted, since
+  // both are stored as the same byte).
+  //
+  // Mechanism: track transient "logical" text (paragraphs separated only
+  // by real `\n`) in closure, never persisted — `_report`/`_group` still
+  // only ever see the fully-wrapped string, exactly as before. Each
+  // keystroke: diff the browser's new raw value against the wrapped value
+  // we set last time to recover the edit, translate it into logical-text
+  // coordinates via the offset map DataModel.wrapWithMap returns, splice
+  // it into the logical text, and re-wrap that fresh. A `\n` can only ever
+  // land inside the diff's inserted span if the browser itself just wrote
+  // it in response to *this* keystroke (Enter, paste, or drop) — anything
+  // pre-existing always falls in the diff's untouched prefix/suffix, so
+  // hard vs. soft breaks are classified correctly with no explicit
+  // detection needed.
+  //
+  // lineMax: number|number[], OR a zero-arg function returning one of
+  // those — called fresh on every keystroke rather than captured once at
+  // bind time, for fields whose width can change without a full re-render
+  // (Comments' font-size radio toggles its maxLine live; see its caller).
+  // commit(taEl) runs after taEl.value is in its final state for this
+  // keystroke and owns everything field-specific (setField, char counters,
+  // notifyChange) — exactly what each caller already did inline.
+  function bindReflowTextarea(taEl, lineMax, commit) {
+    if (!taEl) return;
+    const resolveMax = () => typeof lineMax==='function' ? lineMax() : lineMax;
+    let prevLogical = taEl.value;
+    let seed = DataModel.wrapWithMap(prevLogical, resolveMax());
+    let prevWrapped = seed.wrapped, prevMap = seed.map;
+    let composing = false;
+
+    // Mutating value/caret mid-IME-composition corrupts the composition —
+    // skip reflow while composing, run it once as a single atomic edit
+    // when the IME commits.
+    taEl.addEventListener('compositionstart', () => { composing = true; });
+    taEl.addEventListener('compositionend', () => { composing = false; processInput(); });
+    taEl.addEventListener('input', e => { if (!composing && !e.isComposing) processInput(); });
+
+    function processInput() {
+      const rawNow = taEl.value;
+      if (rawNow === prevWrapped) return;
+
+      const { delStart, delEnd, insText } = diffEdit(prevWrapped, rawNow);
+      const logDelStart = wrappedToLogical(prevMap, delStart);
+      const logDelEnd   = wrappedToLogical(prevMap, delEnd);
+
+      let newLogical = prevLogical.slice(0, logDelStart) + insText + prevLogical.slice(logDelEnd);
+      if (newLogical.length > DataModel.FIELD_CHAR_HARD_CAP) newLogical = newLogical.slice(0, DataModel.FIELD_CHAR_HARD_CAP);
+
+      const { wrapped: newWrapped, map: newMap } = DataModel.wrapWithMap(newLogical, resolveMax());
+
+      if (newWrapped !== rawNow) {
+        taEl.value = newWrapped;
+        const targetLogical = logDelStart + insText.length;
+        const newCaret = logicalToWrapped(newMap, targetLogical);
+        try { taEl.setSelectionRange(newCaret, newCaret); } catch(e){}
+      }
+
+      prevLogical = newLogical; prevWrapped = newWrapped; prevMap = newMap;
+      commit(taEl);
+    }
+  }
+
+  // Enforces a variable-per-line wrap on a textarea as the user types,
+  // reflowing like a word processor (see bindReflowTextarea above). Never
+  // truncates/rejects — content beyond the field's nominal line budget is
+  // kept (flagged by Validator as a warning instead), matching the
+  // CHIEFEVAL trait-comment boxes' non-destructive reflow. A silent
   // FIELD_CHAR_HARD_CAP applies regardless, as a memory/filesize safety
   // valve well above any field's real print budget.
   function bindVariableWrapTextarea(selector, field, subkey, lineMax) {
-    const taEl=document.querySelector(selector);
-    if (!taEl) return;
-    taEl.addEventListener('input', () => {
-      const sel=taEl.selectionStart;
-      let raw=taEl.value;
-      if (raw.length>DataModel.FIELD_CHAR_HARD_CAP) raw=raw.slice(0,DataModel.FIELD_CHAR_HARD_CAP);
-      const wrapped=DataModel.wrapVariableLines(raw, lineMax);
-      if (wrapped!==taEl.value) {
-        taEl.value=wrapped;
-        const newSel=Math.min(sel,wrapped.length);
-        try { taEl.setSelectionRange(newSel,newSel); } catch(e){}
-      }
+    bindReflowTextarea(document.querySelector(selector), lineMax, taEl => {
       setField(field, taEl.value, subkey);
       updateCharCount(taEl);
       notifyChange();
@@ -5116,21 +5269,12 @@ const FormRenderer = (() => {
     // past that, which could discard an entire untouched line far from
     // the cursor when editing mid-text.
     main.querySelectorAll('[data-cpo-comment-ta]').forEach(cta=>{
-      cta.addEventListener('input',()=>{
-        const sel=cta.selectionStart;
-        let raw=cta.value;
-        if (raw.length>DataModel.FIELD_CHAR_HARD_CAP) raw=raw.slice(0,DataModel.FIELD_CHAR_HARD_CAP);
-        const wrapped=DataModel.wrapVariableLines(raw,DataModel.WRAP_LINE_LIMITS.trait_comment);
-        if (wrapped!==cta.value){
-          cta.value=wrapped;
-          try{cta.setSelectionRange(Math.min(sel,wrapped.length),Math.min(sel,wrapped.length));}catch(e){}
-        }
-        // Save to report
-        const [key,slot]=cta.dataset.traitComment.split(':');
+      bindReflowTextarea(cta, DataModel.WRAP_LINE_LIMITS.trait_comment, taEl => {
+        const [key,slot]=taEl.dataset.traitComment.split(':');
         if (!_report.traitComments) _report.traitComments={};
         if (!_report.traitComments[key]) _report.traitComments[key]={a:'',b:'',c:''};
-        _report.traitComments[key][slot]=cta.value;
-        updateCharCount(cta);
+        _report.traitComments[key][slot]=taEl.value;
+        updateCharCount(taEl);
         notifyChange();
       });
     });
@@ -5144,29 +5288,24 @@ const FormRenderer = (() => {
     // keystroke since it referenced this module's private _report.
     const commentsTa = document.getElementById('comments-textarea');
     if (commentsTa) {
-      commentsTa.addEventListener('input', () => {
-        const limits = DataModel.getCommentsLimits(_report.reportType, _report.commentsFont);
-        const sel     = commentsTa.selectionStart;
-        let raw       = commentsTa.value;
-        if (raw.length>DataModel.FIELD_CHAR_HARD_CAP) raw=raw.slice(0,DataModel.FIELD_CHAR_HARD_CAP);
-        const wrapped = DataModel.wrapTextUniform(raw, limits.maxLine);
+      // Function form: re-reads _report.commentsFont fresh every keystroke,
+      // since the font-size radio toggle (above) changes maxLine without a
+      // full re-render — matching the old handler's live limits lookup.
+      bindReflowTextarea(commentsTa,
+        () => DataModel.getCommentsLimits(_report.reportType, _report.commentsFont).maxLine,
+        taEl => {
+          const limits = DataModel.getCommentsLimits(_report.reportType, _report.commentsFont);
+          setField('comments', taEl.value, 'comments');
+          updateCharCount(taEl);
+          notifyChange();
 
-        if (wrapped !== commentsTa.value) {
-          commentsTa.value = wrapped;
-          const newSel = Math.min(sel, wrapped.length);
-          try { commentsTa.setSelectionRange(newSel, newSel); } catch(e){}
-        }
-        setField('comments', commentsTa.value, 'comments');
-        updateCharCount(commentsTa);
-        notifyChange();
-
-        const counter = document.getElementById('comment-char-count');
-        if (counter) {
-          const len = commentsTa.value.length;
-          counter.textContent = `${len} / ${limits.maxChars}`;
-          counter.style.color = len > limits.maxChars ? 'var(--red-500)' : 'var(--gray-400)';
-        }
-      });
+          const counter = document.getElementById('comment-char-count');
+          if (counter) {
+            const len = taEl.value.length;
+            counter.textContent = `${len} / ${limits.maxChars}`;
+            counter.style.color = len > limits.maxChars ? 'var(--red-500)' : 'var(--gray-400)';
+          }
+        });
     }
 
     // Variable-per-line word-wrap for B28 / B29 / B40a-b / B41a-b / RS
