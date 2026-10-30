@@ -5298,6 +5298,15 @@ const FormRenderer = (() => {
         if (!_group.rsInfo) _group.rsInfo={};
         _group.rsInfo[subkey]=value;
       }
+      // B15 (Period To) must be identical across every report in a summary
+      // group (Validator already errors if it isn't) — propagate it live
+      // the same way RS info does, rather than leaving the user to keep
+      // every report's B15 in sync by hand. NAVFIT98A imports don't
+      // enforce this, so an imported file can still land with mismatched
+      // B15s; this only takes effect once the user edits B15 in the editor.
+      else if (subkey==='b15') {
+        _group.reports.forEach(r => { r.blocks.b15=value; });
+      }
     }
     else if (field==='concurrentRS') {
       _report.concurrentRS[subkey]=value;
@@ -6220,6 +6229,10 @@ ${rt!=='CHIEFEVAL'?`
         rows="${rt==='CHIEFEVAL'?6:18}" style="font-size:${ rt==='CHIEFEVAL' ? '14' : (report.commentsFont||'10')==='11' ? '15' : '14' }px;line-height:1.4;font-family:'Courier New',Courier,monospace;overflow-x:auto;overflow-y:hidden;resize:none;white-space:pre" data-maxchars="${maxChars}"
         data-validate="b43-lines">${escHtml(report.comments||'')}</textarea>
       <div class="field-hint">${rt==='CHIEFEVAL'?'6 lines × 87 chars':'18 lines — 10pt: 92 chars/line · 11pt: 84 chars/line'}</div>
+    </div>
+    <div class="field-group" style="max-width:280px">
+      <label class="field-label">Post-Summary Group RSCA (PSG RSCA, auto)</label>
+      <input class="field-input" readonly style="background:var(--surface-disabled-bg);font-family:var(--font-mono);font-size:16px;font-weight:600" value="${DataModel.computePSGRSCA(group)||(group.rscaUseManual?'Unable to calculate PSG RSCA with Manual RSCA entry.':'Not yet calculated')}">
     </div>
     ${qualBlock}`;
   }
@@ -10441,7 +10454,7 @@ const PDFGenerator = (() => {
   const SUMLETTER_NAME_X = 22.92 + SUMLETTER_DX, SUMLETTER_SSN_X = 156.83 + SUMLETTER_DX, SUMLETTER_AVG_X = 233.84 + SUMLETTER_DX;
 
   // ── overlaySummaryLetter: stamps blocks 1-13 + roster + footer on page N ────
-  function overlaySummaryLetter(pdf, pg, group, pageNum, totalPages, rowTopYs, startIndex, omitRsSsn) {
+  function overlaySummaryLetter(pdf, pg, group, pageNum, totalPages, rowTopYs, startIndex) {
     const rs = group.rsInfo || {};
     const bl0 = (group.reports[0] || {}).blocks || {};
     const sg = DataModel.computeSummaryGroup({ reports: group.reports });
@@ -10453,7 +10466,12 @@ const PDFGenerator = (() => {
     // Blocks 1-4 (RS name/grade/SSN/UIC)
     if (rs.b22) pdf.text(pg, 22.92+dx, 725.29+dy, esc(rs.b22), DF, DS);
     if (rs.b23) pdf.text(pg, 188.57+dx, 725.29+dy, esc(rs.b23), DF, DS);
-    if (rs.b27 && !omitRsSsn) pdf.text(pg, 367.75+dx, 725.29+dy, DataModel.formatSSN(rs.b27), DF, DS);
+    // Unlike the per-report overlays, the RS SSN here is never omitted —
+    // the Summary Letter is the Reporting Senior's own identifying
+    // document, not a member's report, so the "omit RS SSN" checkbox
+    // (meant to protect it on reports going to the member/others) doesn't
+    // apply to it.
+    if (rs.b27) pdf.text(pg, 367.75+dx, 725.29+dy, DataModel.formatSSN(rs.b27), DF, DS);
     if (rs.b26) pdf.text(pg, 463.56+dx, 725.29+dy, esc(rs.b26), DF, DS);
 
     // Blocks 5-8 (paygrade/promo status/desig/duty status) — from representative report
@@ -10556,14 +10574,14 @@ const PDFGenerator = (() => {
 
     const p1 = pdf.addPage();
     drawBlankForm(pdf, p1, SUMLETTER_P1_LINES, SUMLETTER_P1_RECTS, SUMLETTER_P1_WORDS);
-    overlaySummaryLetter(pdf, p1, group, 1, totalPages, SUMLETTER_P1_ROW_TOP_Y, 0, opts.omitRsSsn);
+    overlaySummaryLetter(pdf, p1, group, 1, totalPages, SUMLETTER_P1_ROW_TOP_Y, 0);
 
     if (needsPage2) {
       const p2 = pdf.addPage();
       drawBlankForm(pdf, p2, SUMLETTER_P2_LINES, SUMLETTER_P2_RECTS, SUMLETTER_P2_WORDS);
       // Page 1 always holds SUMLETTER_P1_ROW_TOP_Y.length*2 reports (2 columns);
       // page 2 continues from there regardless of its own (different) row capacity.
-      overlaySummaryLetter(pdf, p2, group, 2, totalPages, SUMLETTER_P2_ROW_TOP_Y, SUMLETTER_P1_ROW_TOP_Y.length * 2, opts.omitRsSsn);
+      overlaySummaryLetter(pdf, p2, group, 2, totalPages, SUMLETTER_P2_ROW_TOP_Y, SUMLETTER_P1_ROW_TOP_Y.length * 2);
     }
 
     return pdf;
