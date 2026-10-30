@@ -2942,7 +2942,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.7.0';
+const NAVFIT_EDGE_VERSION = '0.7.1';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3875,18 +3875,31 @@ const DataModel = (() => {
     const reportStart = parseDateYYMMMDD(b14), reportEnd = parseDateYYMMMDD(b15);
     const matched = [];
     (nfehFile?.records || []).forEach(rec => {
-      if (!(rec.eventTitle || '').trim() || !isValidDate(rec.startDate) || !isValidDate(rec.endDate)) return;
-      const evStart = parseDateYYMMMDD(rec.startDate), evEnd = parseDateYYMMMDD(rec.endDate);
-      if (evEnd < reportStart || evStart > reportEnd) return; // no overlap with the report period
+      if (!(rec.eventTitle || '').trim() || !isValidDate(rec.startDate)) return;
+      // A blank End Date (not merely an invalid one — that's still skipped
+      // below) means the event is still ongoing: it has no overlap test to
+      // fail, so it's included in every report regardless of period. Its
+      // month count instead runs through the report's own end date, as the
+      // closest thing to "how long has this covered so far."
+      const isOngoing = !(rec.endDate || '').trim();
+      if (!isOngoing && !isValidDate(rec.endDate)) return;
+      const evStart = parseDateYYMMMDD(rec.startDate);
+      const evEnd = isOngoing ? null : parseDateYYMMMDD(rec.endDate);
+      if (!isOngoing && (evEnd < reportStart || evStart > reportEnd)) return; // no overlap with the report period
       const clipStart = evStart < reportStart ? reportStart : evStart;
-      const clipEnd   = evEnd   > reportEnd   ? reportEnd   : evEnd;
+      const effectiveEnd = isOngoing ? reportEnd : (evEnd > reportEnd ? reportEnd : evEnd);
+      const clipEnd = effectiveEnd < clipStart ? clipStart : effectiveEnd; // guard: ongoing event not yet started this period
       const days = Math.round((clipEnd.getTime() - clipStart.getTime()) / 86400000);
-      matched.push({ title: rec.eventTitle.trim(), months: Math.max(1, Math.ceil(days / 30)) });
+      const months = Math.max(1, Math.ceil(days / 30));
+      const score = (rec.score || '').trim();
+      matched.push({ title: rec.eventTitle.trim(), months, score, category: (rec.category||'').trim() });
     });
     const segments = [];
     const missionDesc = (nfehFile?.missionDesc || '').trim();
     if (missionDesc) segments.push(missionDesc);
-    matched.forEach(m => segments.push(`${m.title}-${m.months}.`));
+    // A Score overrides the month count after the hyphen (e.g. an INSURV
+    // grade) — the month count is otherwise the only thing that goes there.
+    matched.forEach(m => segments.push(`${m.title}-${m.score || m.months}.`));
     return { text: segments.join('  '), matched, totalRecords: (nfehFile?.records || []).length };
   }
 
@@ -5738,6 +5751,34 @@ const FormRenderer = (() => {
 
   function divider(label) { return `<div class="form-divider-label">${label}</div>`; }
   function infoCard(html,type='') { return `<div class="info-card ${type}">${html}</div>`; }
+
+  // Info card with a "Show More"/"Show Less" toggle revealing extra detail
+  // below the lead text — see bindInfoMoreToggles for the click handler
+  // (call it once after inserting the card's markup, the same way the trait
+  // "Show criteria" expanders are bound).
+  function infoCardWithMore(leadHtml, moreHtml, type='') {
+    return `<div class="info-card ${type}">
+      ${leadHtml}
+      <button type="button" class="info-more-btn" style="display:block;margin-top:6px;background:none;border:none;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font-size:inherit;font-weight:600">Show More</button>
+      <div class="info-more-panel" style="display:none;margin-top:8px">${moreHtml}</div>
+    </div>`;
+  }
+
+  // Delegated binder for every infoCardWithMore on the given container —
+  // toggles the panel immediately following the clicked button and swaps
+  // its label, mirroring the trait "Show criteria"/"Hide criteria" pattern.
+  function bindInfoMoreToggles(container) {
+    if (!container) return;
+    container.querySelectorAll('.info-more-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const panel=btn.nextElementSibling;
+        if (!panel) return;
+        const open=panel.style.display!=='none';
+        panel.style.display=open?'none':'block';
+        btn.textContent=open?'Show More':'Show Less';
+      });
+    });
+  }
   function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -6982,7 +7023,10 @@ ${rt!=='CHIEFEVAL'?`
     return `
     <div style="max-width:1500px">
       <div class="section-title">RSCA Management</div>
-      <div class="section-subtitle">Historical trait-grade records by paygrade</div>
+      ${infoCardWithMore(
+        'Reporting Seniors and their administrative personnel may use this screen to manage RSCA profiles for all grades.',
+        '[Placeholder — replace with additional RSCA Management guidance.]'
+      )}
       <div class="rsca-actions">
         <button class="btn-secondary" id="btn-rsca-save-as" title="Save this file to a specific location.">Save RSCA As…</button>
         <button class="btn-secondary" id="btn-rsca-quicksave" 
@@ -7080,6 +7124,7 @@ title="Save this file to its current location and passphrase (if any)." disabled
   function bindRscaScreen(rscaFile, selectedGrade, onGradeChange, cb) {
     const main=document.getElementById('rsca-main');
     if (!main) return;
+    bindInfoMoreToggles(main);
     main.querySelectorAll('[data-field="rsca"]').forEach(el=>{
       const evt=el.tagName==='SELECT'?'change':'input';
       el.addEventListener(evt,()=>{
@@ -7177,12 +7222,14 @@ title="Save this file to its current location and passphrase (if any)." disabled
                   ${rscaSortBtn('title-asc','A↑','A→Z')}${rscaSortBtn('title-desc','Z↓','Z→A')}
                 </span>
               </th>
+              <th>Category</th>
               <th>Start Date
                 <span style="display:inline-flex;gap:2px;margin-left:4px">
                   ${rscaSortBtn('startdate-asc','↑','Oldest first')}${rscaSortBtn('startdate-desc','↓','Newest first')}
                 </span>
               </th>
               <th>End Date</th>
+              <th>Score (Inspections only)</th>
               <th></th>
             </tr>
           </thead>
@@ -7192,13 +7239,15 @@ title="Save this file to its current location and passphrase (if any)." disabled
               return `
               <tr data-ridx="${idx}">
                 <td><input type="text" class="field-input nfeh-cell-input" data-ridx="${idx}" data-rfield="eventTitle" value="${escHtml(r.eventTitle||'')}" maxlength="80" style="${RSCA_CELL_INPUT_STYLE}"></td>
+                <td><input type="text" class="field-input nfeh-cell-input" data-ridx="${idx}" data-rfield="category" value="${escHtml(r.category||'')}" maxlength="40" style="${RSCA_CELL_INPUT_STYLE}"></td>
                 <td><span class="date-field-wrap-inline"><input type="text" class="field-input nfeh-cell-input nfeh-cell-date" data-ridx="${idx}" data-rfield="startDate" value="${escHtml(r.startDate||'')}" placeholder="YYMMMDD" maxlength="7" style="${RSCA_CELL_INPUT_STYLE}" data-datepicker><button type="button" class="date-picker-btn-inline" data-datepicker-trigger tabindex="-1" aria-label="Open date picker">&#128197;</button></span></td>
                 <td><span class="date-field-wrap-inline"><input type="text" class="field-input nfeh-cell-input nfeh-cell-date" data-ridx="${idx}" data-rfield="endDate" value="${escHtml(r.endDate||'')}" placeholder="YYMMMDD" maxlength="7" style="${RSCA_CELL_INPUT_STYLE}" data-datepicker><button type="button" class="date-picker-btn-inline" data-datepicker-trigger tabindex="-1" aria-label="Open date picker">&#128197;</button></span></td>
+                <td><input type="text" class="field-input nfeh-cell-input" data-ridx="${idx}" data-rfield="score" value="${escHtml(r.score||'')}" maxlength="20" style="${RSCA_CELL_INPUT_STYLE}"></td>
                 <td style="text-align:center">
                   <button class="nfeh-delete-btn" data-idx="${idx}" title="Delete this record" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;font-size:13px;padding:2px 6px">✕</button>
                 </td>
               </tr>`;
-            }).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--gray-400)">No records yet.</td></tr>`}
+            }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--gray-400)">No records yet.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -7207,7 +7256,10 @@ title="Save this file to its current location and passphrase (if any)." disabled
     return `
     <div style="max-width:1200px">
       <div class="section-title">Command Employment/Achievement Tracking</div>
-      <div class="section-subtitle">Command event history for drafting Block 28 entries</div>
+      ${infoCardWithMore(
+        'Administrative personnel may use this screen to record important command events, achievements, inspections, unit awards, etc. for inclusion into Block 28 of all reports.',
+        '[Placeholder — replace with additional Command Employment/Achievement Tracking guidance.]'
+      )}
       <div class="rsca-actions">
         <button class="btn-secondary" id="btn-nfeh-save-as" title="Save this file to a specific location.">Save History As…</button>
         <button class="btn-secondary" id="btn-nfeh-quicksave" title="Save this file to its current location and passphrase (if any)." disabled>Quicksave History</button>
@@ -7227,6 +7279,7 @@ title="Save this file to its current location and passphrase (if any)." disabled
   function bindNfehScreen(nfehFile, onChange, onRerender) {
     const main=document.getElementById('nfeh-main');
     if (!main) return;
+    bindInfoMoreToggles(main);
     main.querySelectorAll('[data-field="nfeh"]').forEach(el=>{
       const evt=el.tagName==='SELECT'?'change':'input';
       el.addEventListener(evt,()=>{
@@ -14949,7 +15002,7 @@ const App = (() => {
     updateNfehQuicksaveButtonState();
 
     document.getElementById('btn-nfeh-add-record')?.addEventListener('click', () => {
-      const blank = { eventTitle:'', startDate:'', endDate:'' };
+      const blank = { eventTitle:'', category:'', startDate:'', endDate:'', score:'' };
       _nfehFile.records.push(blank);
       _nfehDirty = true;
       renderNfehMain();
