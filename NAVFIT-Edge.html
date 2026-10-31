@@ -3897,9 +3897,33 @@ const DataModel = (() => {
     const segments = [];
     const missionDesc = (nfehFile?.missionDesc || '').trim();
     if (missionDesc) segments.push(missionDesc);
-    // A Score overrides the month count after the hyphen (e.g. an INSURV
-    // grade) — the month count is otherwise the only thing that goes there.
-    matched.forEach(m => segments.push(`${m.title}-${m.score || m.months}.`));
+    // Format: "[CATEGORY: ]EVENT-VALUE[, EVENT-VALUE...]." — records sharing
+    // a non-blank Category are grouped into one comma-joined segment, with
+    // the category name only before the first item (e.g. "DEPLOYED: C5F
+    // AOR-7, C6F AOR-2."); a blank Category never groups (each such record
+    // stays its own period-terminated segment, as before). Groups appear in
+    // the order their category first occurs among matched records. A Score
+    // overrides the month count after the hyphen (e.g. an INSURV grade) —
+    // the month count is otherwise the only thing that goes there.
+    const groups = [];
+    const categoryIndex = new Map();
+    matched.forEach(m => {
+      const item = { title: m.title, value: m.score || m.months };
+      if (m.category) {
+        if (categoryIndex.has(m.category)) {
+          groups[categoryIndex.get(m.category)].items.push(item);
+        } else {
+          categoryIndex.set(m.category, groups.length);
+          groups.push({ category: m.category, items: [item] });
+        }
+      } else {
+        groups.push({ category: '', items: [item] });
+      }
+    });
+    groups.forEach(g => {
+      const body = g.items.map(it => `${it.title}-${it.value}`).join(', ');
+      segments.push(`${g.category ? g.category+': ' : ''}${body}.`);
+    });
     return { text: segments.join('  '), matched, totalRecords: (nfehFile?.records || []).length };
   }
 
@@ -7025,7 +7049,16 @@ ${rt!=='CHIEFEVAL'?`
       <div class="section-title">RSCA Management</div>
       ${infoCardWithMore(
         'Reporting Seniors and their administrative personnel may use this screen to manage RSCA profiles for all grades.',
-        '[Placeholder — replace with additional RSCA Management guidance.]'
+        `<p>Reporting Seniors (RSs) are obligated to properly manage their Reporting Senior's Cumulative Average for each individual paygrade from E5 to O6. E1 to E4 are trackable here, but currently have no need of management driven by advancement or promotion like the more senior grades.</p>
+        <p>RSs should be cognizant of several numerical terms when writing reports:</p>
+        <p><strong>Trait Grade:</strong> The value associated with marking an "X" on a report in blocks 33 through 39. Ranges from 1.0 to 5.0.</p>
+        <p><strong>Individual Trait Average (ITA):</strong> In a single report, this number is calculated by dividing the sum total value of all trait grades by the number of traits actually marked. ("NOB" marks are not counted in this number.) Ranges from 1.00 to 5.00, rounded to two decimal places.</p>
+        <p><strong>Summary Group Average (SGA):</strong> Same calculation as the Individual Trait Average, but for all reports in that summary group (again, "NOB" marks are not counted.) Ranges from 1.00 to 5.00, rounded to two decimal places.</p>
+        <p><strong>Reporting Senior's Cumulative Average (RSCA):</strong> Divide the sum total value of all trait grades EVER given by the RS for Sailors in a specific paygrade, by the number of traits EVER marked in the same paygrade. (Again, "NOB" marks are not counted.) Ranges from 1.00 to 5.00, rounded to two decimal places. NPC will track a RSCA for every paygrade that a RS has signed reports for.</p>
+        <p><strong>Post-Summary Group RSCA (PSG RSCA):</strong> A projection calculated while preparing a summary group. Same calculation as the RSCA, but include sum total values and number of traits of the summary group being prepared for signature.</p>
+        <p>PSG RSCA is very important for E5 and E6 Sailors. The farther an ITA is above the PSG RSCA, the greater advantage they receive during an advancement cycle.</p>
+        <p>RSCA is critical for ALL officer paygrades. ITA when compared to RSCA, is a weighty indicator to a selection board.</p>
+        <p>RSCA is calculated/established on the first day of the month, 90 days from a report's ending date.</p>`
       )}
       <div class="rsca-actions">
         <button class="btn-secondary" id="btn-rsca-save-as" title="Save this file to a specific location.">Save RSCA As…</button>
@@ -7258,7 +7291,18 @@ title="Save this file to its current location and passphrase (if any)." disabled
       <div class="section-title">Command Employment/Achievement Tracking</div>
       ${infoCardWithMore(
         'Administrative personnel may use this screen to record important command events, achievements, inspections, unit awards, etc. for inclusion into Block 28 of all reports.',
-        '[Placeholder — replace with additional Command Employment/Achievement Tracking guidance.]'
+        `<p>Block 28 of all types of report briefly state command employment and significant command awards and achievements occurring during the period that report covers.</p>
+        <p>Usually, the block contains a description of the command's mission, followed by an account of things like:</p>
+        <div style="font-family:var(--font-mono);font-size:11px;line-height:1.6;margin:4px 0 8px">
+          DEPLOYED: C5F AOR-8.<br>
+          AWARDED: Battle "E"-FY26.<br>
+          DETACHED: Air Wing Fallon-1.<br>
+          SMI: Outstanding.
+        </div>
+        <p>With the events recorded here, and using a report's begin and end date, NAVFIT-Edge can automatically construct an entry for Block 28 with applicable records.</p>
+        <p>Note that classified inspection results should NOT be included on reports.</p>
+        <p>Entries will follow the following format:</p>
+        <p style="font-family:var(--font-mono);font-size:11px">[MISSION].  [CATEGORY NAME]: [EVENT OR INSPECTION NAME]-[# OF MONTHS OR SCORE].</p>`
       )}
       <div class="rsca-actions">
         <button class="btn-secondary" id="btn-nfeh-save-as" title="Save this file to a specific location.">Save History As…</button>
