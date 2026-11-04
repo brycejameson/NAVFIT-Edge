@@ -2098,7 +2098,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
         <span class="brand-name">NAVFIT-Edge</span>
         <span class="brand-version" id="brand-version">v0.1</span>
       </div>
-      <div class="header-tag">Current EVALMAN: <a href="https://www.mynavyhr.navy.mil/Portals/55/Reference/Instructions/BUPERS/BUPERSINST%201610.10H%20CH-2.pdf?ver=RxGDl7U00wFsKklIhUBpBA%3d%3d" target="_blank" rel="noopener">BUPERSINST 1610.10H CH-2</a> · 26 May 2026</div>
+      <div class="header-tag">Current EVALMAN: <a href="https://www.mynavyhr.navy.mil/Portals/55/Reference/Instructions/BUPERS/BUPERSINST%201610.10H%20CH-4.pdf" target="_blank" rel="noopener">BUPERSINST 1610.10H CH-4</a> · 22 Oct 2026</div>
     </header>
     <main class="landing-main">
       <div class="landing-hero">
@@ -2942,7 +2942,7 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
 // the data. This is the app version — distinct from NavEvalCrypto's
 // FILE_VERSION, which tracks the .nfe on-disk *format*, not the app.
 // ═══════════════════════════════════════════════════════════════════
-const NAVFIT_EDGE_VERSION = '0.7.1';
+const NAVFIT_EDGE_VERSION = '0.7.2';
 
 // Compares two 'x.y.z' version strings. Returns <0 if a<b, 0 if equal, >0 if a>b.
 function compareVersions(a, b) {
@@ -3445,14 +3445,18 @@ const DataModel = (() => {
 
   // Periodic report "To" date (month+day) by paygrade. E-9/W-5 (any designator)
   // and O-6 (designator 6000-6999) no longer receive periodic reports at all —
-  // handled as a hard error in Validator, not looked up here.
+  // handled as a hard error in Validator, not looked up here. O-5/O-6 are also
+  // absent — BUPERSINST 1610.10H CH-3 moves their periodic end dates (O-6
+  // 31JUL->31MAR, O-5 30APR->30JUN) effective 1 Jan 2027, so those two are
+  // resolved by a year-conditional branch in Validator instead of a static
+  // lookup here.
   const PERIODIC_END_DATES = {
     'E-1':{month:'JUL',day:15}, 'E-2':{month:'JUL',day:15}, 'E-3':{month:'JUL',day:15},
     'E-4':{month:'JUN',day:15}, 'E-5':{month:'MAR',day:15}, 'E-6':{month:'NOV',day:15},
     'E-7':{month:'SEP',day:15}, 'E-8':{month:'SEP',day:15}, // CMDCS E-8 override handled in Validator
     'W-1':{month:'SEP',day:30}, 'W-2':{month:'SEP',day:30}, 'W-3':{month:'MAR',day:31}, 'W-4':{month:'MAR',day:31},
     'O-1':{month:'MAY',day:31}, 'O-2':{month:'FEB',day:28}, // leap-year override handled in Validator
-    'O-3':{month:'JAN',day:31}, 'O-4':{month:'OCT',day:31}, 'O-5':{month:'JUN',day:30}, 'O-6':{month:'MAR',day:31}
+    'O-3':{month:'JAN',day:31}, 'O-4':{month:'OCT',day:31}
   };
 
   const PROMO_LIMIT_TABLE=[ // BUPERSINST 1610.10H Table 1-2, groups 1-30.
@@ -4189,6 +4193,7 @@ const DataModel = (() => {
     { min:7400, max:7499, label:'Active CWO (General Line)' },
     { min:7500, max:7599, label:'Active CWO (General Staff)' },
     { min:7800, max:7899, label:'Active CWO (Information Warfare)' },
+    { min:7900, max:7999, label:'Active CWO (Executive Support Technician)' },
   ];
   const DESIGNATOR_CATEGORIES_RESERVE = [
     { min:6100, max:6499, label:'Reserve LDO/WO (Line)' },
@@ -4427,15 +4432,27 @@ const Validator = (() => {
       } else if (pgKey && DataModel.isValidDate(bl.b15)) {
         const toStr = bl.b15.trim().toUpperCase();
         const toMonth = toStr.slice(2,5), toDay = parseInt(toStr.slice(5,7),10);
-        let exp;
+        const yy=parseInt(toStr.slice(0,2),10), year=yy>=50?1900+yy:2000+yy;
+        let exp, expMsg;
         if (pgKey==='E-8' && rateRaw==='CMDCS') exp = {month:'NOV',day:15};
         else if (pgKey==='O-2') {
-          const yy=parseInt(toStr.slice(0,2),10), year=yy>=50?1900+yy:2000+yy;
           const isLeap=(year%4===0 && (year%100!==0 || year%400===0));
           exp = {month:'FEB', day:isLeap?29:28};
+        } else if (pgKey==='O-6' || pgKey==='O-5') {
+          // BUPERSINST 1610.10H CH-3 (eff. 1 Jan 2027): O-6 periodic ending
+          // moves 31JUL->31MAR, O-5 moves 30APR->30JUN. A one-time bridging
+          // report is authorized to span the transition (O-6: 1Aug26-
+          // 31Mar27; O-5: 1May26-30Jun27, both within the existing >15mo
+          // warning's tolerance) but it still lands on the new end date, so
+          // this is a plain year cutover, not a third valid date.
+          const isNewCycle = year>=2027;
+          const oldExp = pgKey==='O-6' ? {month:'JUL',day:31} : {month:'APR',day:30};
+          const newExp = pgKey==='O-6' ? {month:'MAR',day:31} : {month:'JUN',day:30};
+          exp = isNewCycle ? newExp : oldExp;
+          expMsg = `${newExp.month}${String(newExp.day).padStart(2,'0')} (periods ending 2027 or later) or ${oldExp.month}${String(oldExp.day).padStart(2,'0')} (2026 or earlier)`;
         } else exp = DataModel.PERIODIC_END_DATES[pgKey];
         if (exp && (toMonth!==exp.month || toDay!==exp.day)) {
-          addE('admin','b15',`Periodic report for ${pgKey}: Block 15 should be ${exp.month}${String(exp.day).padStart(2,'0')} (any year), found ${toMonth}${String(toDay).padStart(2,'0')}.`,'B15');
+          addE('admin','b15',`Periodic report for ${pgKey}: Block 15 should be ${expMsg || `${exp.month}${String(exp.day).padStart(2,'0')} (any year)`}, found ${toMonth}${String(toDay).padStart(2,'0')}.`,'B15');
         }
       }
     }
@@ -6122,7 +6139,7 @@ const FormRenderer = (() => {
       ${fld('b31','B31 · Counselor Name','text',b.b31,'LNAME, F M','blocks','b31',18)}
     </div>
     <div class="field-hint" style="margin-top:-8px">¹ Block 32 (member signature) is completed on the paper form at time of review.</div>
-    ${infoCard(`<strong>Midterm Counseling Target Dates by Paygrade (BUPERSINST 1650.1H)</strong>
+    ${infoCard(`<strong>Midterm Counseling Target Dates by Paygrade (BUPERSINST 1610.10H)</strong>
     <table style="border-collapse:collapse;width:100%;margin-top:8px;font-size:11px">
       <thead><tr style="background:var(--navy-700);color:#fff">
         <th style="padding:3px 8px;text-align:left">Paygrade</th>
@@ -6166,6 +6183,8 @@ const FormRenderer = (() => {
     <div class="section-title">Performance Traits (Blocks 33–39)</div>
     ${isNOB?infoCard('<strong>Not Observed</strong> — all traits set to NOB.'):''}
     ${report.reportType==='FITREP'?infoCard('<strong>Trait 39 — Tactical Performance</strong> applies to warfare-qualified officers only. Mark NOB if the officer is not warfare-qualified.','blue'):''}
+    ${report.reportType==='FITREP' && DataModel.designatorCategory(report.blocks?.b3, report.blocks?.b5==='ACT'?'ACTIVE':'RESERVE')==='Chaplain Corps'
+      ?infoCard('<strong>Trait 39 (Chaplain Corps)</strong> — per BUPERSINST 1610.10H CH-3/CH-4, on CHC officer FITREPs Block 39 is used to assign a trait grade based solely on the chaplain\'s effectiveness as a religious ministry professional, in accordance with CHC standards.','blue'):''}
     ${infoCard('NOB=Not Observed (this trait) · 1.0=Below Standards · 2.0=Progressing · 3.0=Promotable · 4.0=Must Promote · 5.0=Early Promote','blue')}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <span class="field-label" style="margin:0">Performance Trait Grades</span>
@@ -16020,7 +16039,7 @@ const App = (() => {
     <h2><a href="https://github.com/brycejameson/NAVFIT-Edge" target="_blank" rel="noopener">Official NAVFIT-Edge Github Repository</a></h2>
     <h2><a href="https://github.com/brycejameson/NAVFIT-Edge/wiki" target="_blank" rel="noopener">Official NAVFIT-Edge Github Wiki</a></h2>
     <h3>About NAVFIT-Edge</h3>
-    <p>NAVFIT-Edge is a browser-based, open-source alternative to NAVFIT98A. It implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-2 (26 May 2026). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
+    <p>NAVFIT-Edge is a browser-based, open-source alternative to NAVFIT98A. It implements a comprehensive set of validation rules aligned with BUPERSINST 1610.10H CH-4 (22 Oct 2026). Despite being run in a Microsoft Edge or Google Chrome window, all saved data stays in your files — nothing is transmitted to or saved on a "back-end" server.</p>
     <h3>File Formats (.nfe and .rsca)</h3>
     <p>A <code>.nfe</code> file contains a <strong>single summary group of reports</strong>. A <code>.rsca</code> file contains a <strong>reporting senior's Reporting Senior's Cumulative Average data for all paygrades</strong>.  Both files are always AES-256 encrypted to keep them opaque to ordinary tools and apps; this default encryption is portable between machines and is not real access control, since anyone with NAVFIT-Edge can open them.  For <strong>true</strong> protection from unauthorized persons or apps opening an <code>.nfe</code> file, a user should save it to locations only they have access to, or set an optional passphrase which can be given to other users.</p>
     <h3>Report Navigation</h3>
@@ -16090,7 +16109,7 @@ const App = (() => {
     bindKeyboard();
     bindDragDrop();
     showScreen('screen-landing');
-    console.log(`%cNavEval v${NAVFIT_EDGE_VERSION} ready — BUPERSINST 1610.10H CH-1 (16 Dec 2025)`, 'color:#e08c00;font-weight:bold');
+    console.log(`%cNavEval v${NAVFIT_EDGE_VERSION} ready — BUPERSINST 1610.10H CH-4 (22 Oct 2026)`, 'color:#e08c00;font-weight:bold');
   });
 
   // Warn on accidental back/refresh/close when there are unsaved changes.
