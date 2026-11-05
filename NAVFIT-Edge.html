@@ -2608,6 +2608,10 @@ input::placeholder, textarea::placeholder { color: var(--placeholder-color); opa
           <input type="password" id="passphrase-confirm" class="field-input" placeholder="Re-enter passphrase">
         </div>
         <div id="passphrase-error" class="field-error hidden"></div>
+        <div id="passphrase-save-xml-link" class="hidden" style="margin-top:10px">
+          <button type="button" id="btn-save-as-xml" style="background:none;border:none;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font-size:inherit;font-weight:600">Save as XML Instead</button>
+          <p class="modal-desc" style="margin-top:4px">Writes an unencrypted, NAVFIT98A-importable XML file instead — no passphrase or encryption applied.</p>
+        </div>
         <div class="modal-actions">
           <button class="btn-secondary" data-modal="modal-passphrase">Cancel</button>
           <button class="btn-primary" id="btn-passphrase-confirm">Continue</button>
@@ -13617,7 +13621,316 @@ const XmlImporter = (() => {
     });
   }
 
-  return { parseXML, importFile };
+  // ── Exporter: NavEval group → NAVFIT98A-importable XML ─────────
+  // Mechanical inverse of parseReportElement/mapReportType/mapDutyStatus/
+  // mapPromoStatus/mapGrade/mapEVALTraits/mapFITREPTraits/mapCHIEFEVALGrades/
+  // mapCHIEFEVALComments/buildRSName/buildCounselor/buildConcurrentRS/
+  // buildRSAddress/buildCPOPhysical above — see those for the forward
+  // direction of every mapping used here.
+
+  function escapeXml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+      // txt()'s own comment documents that real NAVFIT98A exports encode
+      // embedded line breaks in memo fields as &#13; rather than literal
+      // bytes — match that on the way out so re-import normalizes cleanly.
+      .replace(/\n/g, '&#13;');
+  }
+
+  function tag(name, value) {
+    if (value === '' || value === null || value === undefined) return '';
+    return `<${name}>${escapeXml(value)}</${name}>`;
+  }
+
+  function boolTag(name, value) {
+    return `<${name}>${value ? '1' : '0'}</${name}>`;
+  }
+
+  function intTag(name, value) {
+    if (value === null || value === undefined || value === '' || isNaN(value)) return '';
+    return `<${name}>${Math.round(value)}</${name}>`;
+  }
+
+  // YYMMMDD → ISO datetime, rebuilt from UTC components of the same
+  // calendar date so the local machine's timezone can never shift the
+  // date by a day (a naive parseDateYYMMMDD(...).toISOString() would).
+  // Deliberately NOT built via Date.UTC/.toISOString(): isoToNavDate (the
+  // forward direction, above) re-parses with `new Date(iso)` and reads
+  // LOCAL getters (getFullYear/getMonth/getDate). A UTC-instant string
+  // read back through local getters shifts a day in any non-UTC timezone
+  // (confirmed: round-trip testing in a UTC-negative zone rolled every
+  // date back one day). Emitting a naive datetime with no 'Z'/offset
+  // sidesteps the whole instant-vs-timezone question — `new Date(iso)`
+  // parses an offset-less string as local time, so local-getter read-back
+  // reproduces the exact digits written, on any machine's clock. This also
+  // matches how Access/NAVFIT98A dateTime exports actually look (no
+  // trailing Z — Access datetime fields aren't timezone-aware).
+  function navDateToIso(yymmmdd) {
+    if (!yymmmdd || !DataModel.isValidDate(yymmmdd)) return '';
+    const d = DataModel.parseDateYYMMMDD(yymmmdd);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00:00`;
+  }
+
+  // MM/YY (CHIEFEVAL B20's date half) → ISO, same naive-datetime approach.
+  function mmYYToIso(mmYY) {
+    const m = /^(\d{2})\/(\d{2})$/.exec((mmYY || '').trim());
+    if (!m) return '';
+    const mm = parseInt(m[1], 10), yy = parseInt(m[2], 10);
+    if (mm < 1 || mm > 12) return '';
+    const fullYear = yy >= 50 ? 1900 + yy : 2000 + yy;
+    const pad = n => String(n).padStart(2, '0');
+    return `${fullYear}-${pad(mm)}-01T00:00:00`;
+  }
+
+  // Inverse of mapGrade: '5.0'→5, 'NOB'→0, null/''→null (field omitted).
+  function gradeToInt(g) {
+    if (g === null || g === undefined || g === '') return null;
+    if (g === 'NOB') return 0;
+    const n = parseFloat(g);
+    return isNaN(n) ? null : Math.round(n);
+  }
+
+  // "LAST, FIRST MI SUFFIX" → parts. firstMax truncates the first-name
+  // slot to N characters (RS/Counselor/concurrent-RS XML fields only have
+  // a single-character FI slot); pass null/0 to keep it full-length (the
+  // member's own FirstName field allows up to 27 chars).
+  function splitPersonName(full, firstMax) {
+    const out = { ln: '', first: '', mi: '', suffix: '' };
+    const s = (full || '').trim();
+    if (!s) return out;
+    const commaIdx = s.indexOf(',');
+    if (commaIdx === -1) { out.ln = s; return out; }
+    out.ln = s.slice(0, commaIdx).trim();
+    const rest = s.slice(commaIdx + 1).trim().split(/\s+/).filter(Boolean);
+    if (rest.length)     out.first = firstMax ? rest[0].slice(0, firstMax) : rest[0];
+    if (rest.length > 1) out.mi = rest[1];
+    if (rest.length > 2) out.suffix = rest.slice(2).join(' ');
+    return out;
+  }
+
+  // Per-type NAVFIT98A trait-field-tag ↔ NavEval-trait-key map — inverse of
+  // mapEVALTraits/mapFITREPTraits/mapCHIEFEVALGrades+mapCHIEFEVALComments.
+  function getTraitXmlMap(rt) {
+    if (rt === 'FITREP') return [
+      ['professional','PROF'],['equal_opp','EO'],['military','MIL'],
+      ['teamwork','TEAM'],['leadership','LEAD'],['eff_results','MIS'],['character','TAC'],
+    ];
+    if (rt === 'CHIEFEVAL') return [
+      ['technical','PROF'],['institutional','EO'],['professionalism','MIL'],
+      ['integrity','TEAM'],['accountability','LEAD'],['deckplate','MIS'],['team_effectiveness','TAC'],
+    ];
+    return [ // EVAL
+      ['professional','PROF'],['quality','QUAL'],['equal_opp','EO'],['military','MIL'],
+      ['eff_results','PA'],['teamwork','TEAM'],['leadership','LEAD'],
+    ];
+  }
+
+  function buildReportXml(r, group, parentId, reportId) {
+    const bl = r.blocks || {};
+    const rt = r.reportType;
+    const xmlType = rt === 'FITREP' ? 'FitRep' : rt === 'CHIEFEVAL' ? 'Chief' : 'Eval';
+    const p = [];
+
+    p.push(tag('Parent', parentId));
+    p.push(intTag('ReportID', reportId));
+    p.push(tag('ReportType', xmlType));
+
+    // Block 1 — member name: write both the combined and split forms so
+    // whichever one a given NAVFIT98A import path reads, it gets data.
+    const nm = splitPersonName(bl.b1, null);
+    p.push(tag('FullName', bl.b1));
+    p.push(tag('FirstName', nm.first));
+    p.push(tag('MI', nm.mi));
+    p.push(tag('LastName', nm.ln));
+    p.push(tag('Suffix', nm.suffix));
+
+    p.push(tag('Rate', bl.b2));
+    p.push(tag('Desig', bl.b3));
+    p.push(tag('SSN', DataModel.cleanSSN(bl.b4)));
+
+    // Block 5 — duty status, inverse of mapDutyStatus
+    p.push(boolTag('Active',   bl.b5 === 'ACT'));
+    p.push(boolTag('TAR',      bl.b5 === 'TAR'));
+    p.push(boolTag('Inactive', bl.b5 === 'INACT'));
+    p.push(boolTag('ATADSW',   bl.b5 === 'AT/ADOS'));
+
+    p.push(tag('UIC', bl.b6));
+    p.push(tag('ShipStation', bl.b7));
+    p.push(tag('PromotionStatus', bl.b8));
+    p.push(tag('DateReported', navDateToIso(bl.b9)));
+
+    p.push(boolTag('Periodic', !!bl.b10));
+    p.push(boolTag('DetInd',   !!bl.b11));
+    p.push(boolTag('Frocking', !!bl.b12));
+    p.push(boolTag('Special',  !!bl.b13));
+
+    p.push(tag('FromDate', navDateToIso(bl.b14)));
+    p.push(tag('ToDate',   navDateToIso(bl.b15)));
+
+    p.push(boolTag('NOB', !!bl.b16));
+    p.push(boolTag('Regular',    !!bl.b17));
+    p.push(boolTag('Concurrent', !!bl.b18));
+    p.push(boolTag('OpsCdr',     !!bl.b19));
+
+    // Block 20 — Physical Readiness, inverse of buildCPOPhysical for CHIEFEVAL
+    if (rt === 'CHIEFEVAL') {
+      const m = /^(\d{2}\/\d{2})\s+(.*)$/.exec((bl.b20 || '').trim());
+      if (m) {
+        p.push(tag('PhysicalReadinessDt', mmYYToIso(m[1])));
+        p.push(tag('PhysicalReadiness2', m[2]));
+      } else {
+        p.push(tag('PhysicalReadiness2', bl.b20));
+      }
+    } else {
+      p.push(tag('PhysicalReadiness', bl.b20));
+    }
+
+    p.push(tag('BilletSubcat', bl.b21));
+
+    // Blocks 22-27 — Reporting Senior, inverse of buildRSName
+    if (rt === 'CHIEFEVAL') {
+      const rs = splitPersonName(bl.b22, 1);
+      p.push(tag('RSLastName', rs.ln));
+      p.push(tag('RSFI', rs.first));
+      p.push(tag('RSMI', rs.mi));
+    } else {
+      p.push(tag('ReportingSenior', bl.b22));
+    }
+    p.push(tag('RSGrade', bl.b23));
+    p.push(tag('RSDesig', bl.b24));
+    p.push(tag('RSTitle', bl.b25));
+    p.push(tag('RSUIC', bl.b26));
+    p.push(tag('RSSSN', DataModel.cleanSSN(bl.b27)));
+
+    p.push(tag('Achievements', bl.b28));
+    p.push(tag('PrimaryDuty', bl.b29_abbr));
+    p.push(tag('Duties', bl.b29));
+
+    // Blocks 30-31 — Counseling, inverse of buildCounselor
+    p.push(tag('DateCounseled', bl.b30));
+    const cns = splitPersonName(bl.b31, 1);
+    p.push(tag('Counseler', bl.b31));
+    p.push(tag('CounselerLN', cns.ln));
+    p.push(tag('CounselerFI', cns.first));
+    p.push(tag('CounselerMI', cns.mi));
+
+    // Trait grades (+ CHIEFEVAL per-trait DN1-3 comments)
+    getTraitXmlMap(rt).forEach(([navKey, xmlPrefix]) => {
+      const gradeSrc = rt === 'CHIEFEVAL' ? (r.traitGrades || {})[navKey] : (r.traits || {})[navKey];
+      p.push(intTag(xmlPrefix, gradeToInt(gradeSrc)));
+      if (rt === 'CHIEFEVAL') {
+        const c = (r.traitComments || {})[navKey] || {};
+        p.push(tag(`${xmlPrefix}DN1`, c.a));
+        p.push(tag(`${xmlPrefix}DN2`, c.b));
+        p.push(tag(`${xmlPrefix}DN3`, c.c));
+      }
+    });
+
+    // Career Recommendation — FITREP reads b40a/b40b, EVAL/CHIEFEVAL read
+    // b41a/b41b (mirrors the same type split parseReportElement makes).
+    if (rt === 'FITREP') {
+      p.push(tag('RecommendA', bl.b40a));
+      p.push(tag('RecommendB', bl.b40b));
+    } else {
+      p.push(tag('RecommendA', bl.b41a));
+      p.push(tag('RecommendB', bl.b41b));
+    }
+
+    p.push(tag('Rater', bl.b42));
+    // RaterDate/SeniorRaterDate have no NavEval equivalent (the app tracks
+    // only the report period, not separate signature dates) — left unset
+    // rather than guessed.
+
+    p.push(tag('Comments', r.comments));
+    p.push(tag('Qualifications', r.qualifications));
+
+    const promoKey = Object.keys(PROMO_MAP).find(k => PROMO_MAP[k] === r.promoRec);
+    p.push(intTag('PromotionRecom', promoKey !== undefined ? parseInt(promoKey, 10) : null));
+
+    const sg = r.summaryGroup || {};
+    p.push(intTag('SummarySP',   sg.sp));
+    p.push(intTag('SummaryProg', sg.prog));
+    p.push(intTag('SummaryProm', sg.p));
+    p.push(intTag('SummaryMP',   sg.mp));
+    p.push(intTag('SummaryEP',   sg.ep));
+    p.push(tag('SummaryRank', sg.memberRank));
+
+    p.push(boolTag('RetentionYes', r.retention === 'Recommended'));
+    p.push(boolTag('RetentionNo',  r.retention === 'Not Recommended'));
+    // StatementYes/StatementNo have no distinct NavEval concept (the
+    // importer never reads them) — mirror Retention so whichever pair a
+    // given NAVFIT98A form reads, the report's actual intent survives.
+    p.push(boolTag('StatementYes', r.retention === 'Recommended'));
+    p.push(boolTag('StatementNo',  r.retention === 'Not Recommended'));
+
+    p.push(tag('RSCA', r.rsca));
+
+    // RS Address — write the free-text memo always (buildRSAddress's own
+    // fallback path), and the structured fields only when the memo splits
+    // cleanly, since a wrong structured split would be silently preferred
+    // by the importer over a correct memo.
+    p.push(tag('RSAddress', r.rsAddress));
+    const addrLines = (r.rsAddress || '').split('\n').filter(Boolean);
+    if (addrLines.length) {
+      const phoneLine = addrLines.find(l => /^Phone:/.test(l));
+      const dsnLine   = addrLines.find(l => /^DSN:/.test(l));
+      const bodyLines = addrLines.filter(l => l !== phoneLine && l !== dsnLine);
+      if (bodyLines[0]) p.push(tag('RSAddress1', bodyLines[0]));
+      const cityLine = bodyLines[bodyLines.length - 1];
+      const cityMatch = cityLine && bodyLines.length > 1
+        ? /^(.*)\s+([A-Z]{2})\s+(\d{5}(-\d{4})?)$/.exec(cityLine.trim())
+        : null;
+      if (bodyLines.length > 2 || (bodyLines.length === 2 && !cityMatch)) {
+        p.push(tag('RSAddress2', bodyLines[1]));
+      }
+      if (cityMatch) {
+        p.push(tag('RSCity', cityMatch[1]));
+        p.push(tag('RSState', cityMatch[2]));
+        p.push(tag('RSZipCd', cityMatch[3]));
+      }
+      if (phoneLine) p.push(tag('RSPhone', phoneLine.replace(/^Phone:\s*/, '')));
+      if (dsnLine)   p.push(tag('RSDSN', dsnLine.replace(/^DSN:\s*/, '')));
+    }
+
+    p.push(tag('SeniorRater', bl.b49));
+
+    // Concurrent RS — inverse of buildConcurrentRS
+    const crs = r.concurrentRS || {};
+    if (crs.name && crs.name.includes(',')) {
+      const rc = splitPersonName(crs.name, 1);
+      p.push(tag('RRSLastName', rc.ln));
+      p.push(tag('RRSFI', rc.first));
+      p.push(tag('RRSMI', rc.mi));
+    }
+    p.push(tag('RRSGrade', crs.grade));
+    p.push(tag('RRSCommand', crs.title));
+    p.push(tag('RRSUIC', crs.uic));
+    p.push(tag('RSInfo', crs.name));
+
+    // IsValidated — the closest honest meaning available without a real
+    // NAVFIT98A instance to test against: does this app's own Validator
+    // currently find zero errors for this report.
+    let isValid = false;
+    try { isValid = Validator.validate(r, group).errors.length === 0; } catch {}
+    p.push(boolTag('IsValidated', isValid));
+
+    return '<Reports>' + p.filter(Boolean).join('') + '</Reports>';
+  }
+
+  /**
+   * Export a NavEval group to a NAVFIT98A-importable, unencrypted XML
+   * string (Access "Export XML Data" format: <dataroot><Reports>...).
+   */
+  function exportGroupToXml(group) {
+    const reports = group.reports || [];
+    const parentId = (group._id || group.reports?.[0]?._id || DataModel.generateId()).slice(0, 12);
+    const rows = reports.map((r, i) => buildReportXml(r, group, parentId, i + 1)).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<dataroot generated="${new Date().toISOString()}">\n${rows}\n</dataroot>`;
+  }
+
+  return { parseXML, importFile, exportGroupToXml };
 })();
 
 
@@ -13966,6 +14279,10 @@ const App = (() => {
     document.getElementById('passphrase-input')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') handlePassphraseConfirm();
     });
+    document.getElementById('btn-save-as-xml')?.addEventListener('click', () => {
+      hideModal('modal-passphrase');
+      doSaveXmlFile();
+    });
   }
 
   // ── Editor ─────────────────────────────────────────────────────
@@ -14232,10 +14549,53 @@ const App = (() => {
       'Your file will be AES-256 encrypted. Add an optional passphrase for additional protection, or leave blank for standard encryption.';
     document.getElementById('passphrase-confirm-group').style.display = '';
     document.getElementById('passphrase-error').classList.add('hidden');
+    document.getElementById('passphrase-save-xml-link').classList.add('hidden');
     document.getElementById('passphrase-input').value = '';
     document.getElementById('passphrase-confirm').value = '';
+    document.getElementById('passphrase-save-xml-link').classList.remove('hidden');
     showModal('modal-passphrase');
     setTimeout(() => document.getElementById('passphrase-input').focus(), 100);
+  }
+
+  // Unencrypted NAVFIT98A-importable XML export — the "Save as XML
+  // Instead" link on the group-save modal. Mirrors doSaveFile()'s two
+  // save paths but skips NavEvalCrypto entirely (no passphrase applies).
+  async function doSaveXmlFile() {
+    if (!_group) return;
+    let xml;
+    try { xml = XmlImporter.exportGroupToXml(_group); }
+    catch (e) { showToast('Error building XML: ' + e.message, 'error'); return; }
+
+    const memberName = (_group.reports?.[0]?.blocks?.b1 || 'Unnamed').replace(/[^A-Za-z0-9_-]/g, '_');
+    const suggested = `${memberName}_${_group.reportType}.xml`;
+
+    if (HandleStore.isAvailable()) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested,
+          types: [{ description: 'NAVFIT98A XML Export', accept: { 'application/xml': ['.xml'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(xml);
+        await writable.close();
+        showToast('XML file saved.', 'success');
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        showToast('Error saving: ' + e.message, 'error');
+      }
+      return;
+    }
+
+    try {
+      const blob = new Blob([xml], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = suggested; a.click();
+      URL.revokeObjectURL(url);
+      showToast('XML file saved.', 'success');
+    } catch (e) {
+      showToast('Error saving: ' + e.message, 'error');
+    }
   }
 
   function handlePassphraseConfirm() {
@@ -14894,6 +15254,7 @@ const App = (() => {
         document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
         document.getElementById('passphrase-confirm-group').style.display = 'none';
         document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-save-xml-link').classList.add('hidden');
         document.getElementById('passphrase-input').value = '';
         showModal('modal-passphrase');
         return;
@@ -14940,6 +15301,7 @@ const App = (() => {
       'Your file will be AES-256 encrypted. Add an optional passphrase for additional protection, or leave blank for standard encryption.';
     document.getElementById('passphrase-confirm-group').style.display = '';
     document.getElementById('passphrase-error').classList.add('hidden');
+    document.getElementById('passphrase-save-xml-link').classList.add('hidden');
     document.getElementById('passphrase-input').value = '';
     document.getElementById('passphrase-confirm').value = '';
     showModal('modal-passphrase');
@@ -15106,6 +15468,7 @@ const App = (() => {
         document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
         document.getElementById('passphrase-confirm-group').style.display = 'none';
         document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-save-xml-link').classList.add('hidden');
         document.getElementById('passphrase-input').value = '';
         showModal('modal-passphrase');
         return;
@@ -15151,6 +15514,7 @@ const App = (() => {
       'Your file will be AES-256 encrypted. Add an optional passphrase for additional protection, or leave blank for standard encryption.';
     document.getElementById('passphrase-confirm-group').style.display = '';
     document.getElementById('passphrase-error').classList.add('hidden');
+    document.getElementById('passphrase-save-xml-link').classList.add('hidden');
     document.getElementById('passphrase-input').value = '';
     document.getElementById('passphrase-confirm').value = '';
     showModal('modal-passphrase');
@@ -15273,6 +15637,7 @@ const App = (() => {
         document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
         document.getElementById('passphrase-confirm-group').style.display = 'none';
         document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-save-xml-link').classList.add('hidden');
         document.getElementById('passphrase-input').value = '';
         showModal('modal-passphrase');
         return;
@@ -15364,6 +15729,7 @@ const App = (() => {
         document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
         document.getElementById('passphrase-confirm-group').style.display = 'none';
         document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-save-xml-link').classList.add('hidden');
         document.getElementById('passphrase-input').value = '';
         showModal('modal-passphrase');
         return;
@@ -15427,6 +15793,7 @@ const App = (() => {
         document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
         document.getElementById('passphrase-confirm-group').style.display = 'none';
         document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-save-xml-link').classList.add('hidden');
         document.getElementById('passphrase-input').value = '';
         showModal('modal-passphrase');
         return;
@@ -15551,6 +15918,7 @@ const App = (() => {
         document.getElementById('passphrase-desc').textContent = `Enter the passphrase to open ${file.name}.`;
         document.getElementById('passphrase-confirm-group').style.display = 'none';
         document.getElementById('passphrase-error').classList.add('hidden');
+        document.getElementById('passphrase-save-xml-link').classList.add('hidden');
         document.getElementById('passphrase-input').value = '';
         showModal('modal-passphrase');
         return;
